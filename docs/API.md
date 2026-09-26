@@ -20,12 +20,40 @@
 
 ### 2.1 登录（账号密码）
 
-- **方法 / 路径**：`POST https://learn.tsinghua.edu.cn/...`（登录入口）→ 成功后重定向至网络学堂主页
-- **请求**：用户名、密码、可能的 CSRF 字段
-- **响应**：会话 Cookie
-- **错误**：凭据错误 → 归入"认证失败"；网络不可达 → 归入"网络不可达"
+登录**不在网络学堂完成**，而是经统一身份认证换工单、再漫游回网络学堂。
 
-### 2.2 统一身份认证（SSO）
+- **步骤 1｜取登录页**：`GET https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0`
+  - 响应：HTML，其中含 `id="sm2publicKey"` 的元素，文本为 SM2 公钥十六进制串
+  - 错误：取不到该元素 → **接口语义变更**
+- **步骤 2｜提交凭据**：`POST https://id.tsinghua.edu.cn/do/off/ui/auth/login/check`
+  - 请求：`application/x-www-form-urlencoded`
+
+    | 字段 | 取值 |
+    |---|---|
+    | `i_user` | 学号 |
+    | `i_pass` | `04` + SM2 加密结果（裸 C1C3C2 十六进制） |
+    | `singleLogin` | `on` |
+    | `fingerPrint` | 设备指纹，32 位十六进制 |
+    | `fingerGenPrint` | 空串（语义未知，不臆测） |
+    | `fingerGenPrint3` | 空串 |
+    | `i_captcha` | 空串 |
+
+  - 响应：HTML，含跳转锚点 `<a href="...ticket=xxx">`
+  - 错误：取不到锚点/工单 → 通常是凭据错误，归**认证失败**
+- **步骤 3｜漫游建会话**：`GET https://learn.tsinghua.edu.cn/b/j_spring_security_thauth_roaming_entry?ticket=<ticket>`
+  - 响应：非 2xx 即失败；成功后 `learn.tsinghua.edu.cn` 下发送会话 Cookie
+- **步骤 4｜取 CSRF**：`GET https://learn.tsinghua.edu.cn/f/wlxt/index/course/student/`
+  - 响应：HTML，含形如 `&_csrf=<token>"` 的片段
+  - 错误：提取不到 → **接口语义变更**
+- **后续请求**：对 `*.tsinghua.edu.cn` 一律追加查询参数 `_csrf=<token>`
+
+**会话失效的表达**：响应状态 `403`，或最终落到含 `login_timeout` 的页面。
+
+> 待真机验证项：登录表单的提交格式。上游用 multipart（React Native 的 FormData），
+> 本项目按"该校方页面是标准 HTML 表单"的判断改用 urlencoded。若服务端只接受 multipart，
+> 改动局限于 `learnClient.postForm`。
+
+### 2.2 统一身份认证（SSO，属 FR-02，尚未实现）
 
 - **路径**：`https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/<token>/0`
 - **方式**：WebView 流程；用户在页面内完成认证后，从 WebView 会话中提取 Cookie

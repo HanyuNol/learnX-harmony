@@ -31,13 +31,18 @@ app/entry/src/main/ets/
 ├── components/       可复用 UI 组件（对应上游 components/）
 ├── viewmodel/        页面状态与业务编排（对应上游 hooks/ + 部分 data/actions）
 ├── repository/       数据获取与缓存编排（对应上游 data/actions + data/source）
-├── network/          HTTP 客户端、Cookie 管理、CSRF、错误归类
+├── network/          HTTP 客户端、Cookie 管理、CSRF、SM2、页面抓取、错误归类
 ├── storage/          凭据、偏好、列表缓存、文件管理
 ├── native/           系统 Kit 适配层（日历/通知/分享/PDF/生物识别/文件选择）
 ├── model/            领域模型与类型定义（对应上游 data/types + thu-learn-lib 类型）
 ├── i18n/             中英文文案资源
 └── common/           无副作用工具（日期、HTML 清洗、日志、格式化）
 ```
+
+> **纯逻辑与平台调用分离的约定**：凡与外部服务互操作、且不依赖系统能力的逻辑
+> （密文格式拼接、页面抓取正则、Cookie 解析），一律单独成模块并保持**零系统 Kit 依赖**，
+> 以便在无设备环境下单元测试。当前此类模块：`network/sm2Format.ets`、`network/parse.ets`、
+> `network/cookieJar.ets`。新增同类逻辑时遵循该约定。
 
 **依赖方向（单向，禁止反向穿透）**：
 
@@ -91,13 +96,33 @@ pages → viewmodel → repository → network / storage / native
 
 ### 5.1 认证与会话
 
-1. 首次登录：可走账号密码或统一身份认证（WebView 流程，从完成后的页面提取 Cookie）。
-2. 登录成功后 Cookie 与凭据写入系统加密存储，后续请求由 `LearnClient` 统一注入。
-3. 服务端返回登录态失效时，`repository` 归类为认证失效错误，交上层引导重新登录，而非静默失败。
+登录共七步，逐步对齐上游 `thu-learn-lib@4.0.0` 的真实契约：
 
-### 5.2 Cookie 与 CSRF
+1. 重置本地会话（清空自管 Cookie 容器）。
+2. `GET` 统一身份认证登录页，抓取 `#sm2publicKey`。
+3. `POST` 加密后的凭据（`i_user` / `i_pass` / `singleLogin` / `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` / `i_captcha`）。
+4. 从校验响应中提取漫游工单 `ticket`。
+5. `GET` 带工单漫游到网络学堂，建立会话。
+6. `GET` 网络学堂首页，正则提取 `_csrf` 令牌。
+7. 后续对 `*.tsinghua.edu.cn` 的请求一律追加 `_csrf` 查询参数。
 
-网络学堂写操作（如作业提交）需要 CSRF 令牌。令牌的获取、附加、刷新集中在 `network/`，业务层不得自行拼接 URL 参数。
+**密码以 SM2 国密加密后提交**，不是明文：公钥取自登录页，加密用平台加密框架
+（非对称加解密目前仅支持 RSA 与 SM2），并须把框架产出的 ASN.1 密文转成服务端要求的
+裸 C1C3C2 拼接格式（`network/sm2Format.ets`）。
+
+**会话与 Cookie**：框架的 `enableAutoCookie` 起始版本为 API 26，本项目 SDK 为 24，
+故 Cookie 由 `network/cookieJar.ets` 自管，**按主机名分组**——登录横跨
+`id.tsinghua.edu.cn` 与 `learn.tsinghua.edu.cn` 两个主机，分组错了会串会话。
+
+**失效与重登**：响应状态 403 或响应体含 `login_timeout` 即判定失效；
+带凭据的请求命中失效时自动重登**一次**并重放，再次失效则向上抛认证失败，
+不再循环。无凭据时直接抛认证失败，由页面引导重新登录。
+
+### 5.2 CSRF
+
+网络学堂的写操作需要 CSRF 令牌。令牌的获取（首页正则）、附加（查询参数）、
+刷新（每次登录/重登后重新提取）**全部集中在 `network/learnClient.ets`**，
+业务层不得自行拼接 URL 参数。
 
 ### 5.3 数据同步与缓存
 

@@ -1,6 +1,10 @@
 # 功能规格：认证与凭据（账号密码登录 · 凭据存储 · 登录态）
 
-> 状态：草拟（待用户审核）　·　关联 PRD：FR-01 / FR-03 / FR-04　·　分支：feature/auth-login
+> 状态：开发中　·　关联 PRD：FR-01 / FR-03 / FR-04　·　分支：main
+
+> **实现进展（2026-09-27）**：T1–T8 已实现，`check arkts` / `check lint` / `build` 三道静态关卡全绿。
+> **但单元测试与实机验收均尚未执行**——单元测试需连接设备（官方：命令行执行测试脚本需 `aa test` 推送测试包到设备），
+> 当前无设备也无模拟器。详见 §5 的说明与 §6 风险表。因此本 spec **不得**标记为已交付。
 
 ## 1. 背景与目标
 
@@ -43,13 +47,21 @@ P1 的地基。所有其余 FR（学期、通知、作业、文件、课程）�
 | `model` | `urls.ets` | 网络学堂与统一身份认证的 URL 常量（对齐上游 `thu-learn-lib/src/urls.ts` 中认证相关项） |
 | `common` | `logger.ets` | 分级日志，**内置凭据脱敏**：任何入参先经脱敏再输出 |
 | `common` | `errors.ets` | 错误四分类的构造与归一（网络不可达 / 认证失败 / 接口语义变更 / 解析失败） |
-| `network` | `sm2.ets` | SM2 加密：公钥解析 + 明文加密 + 密文格式转换 |
-| `network` | `learnClient.ets` | HTTP 唯一出口：Cookie 会话、CSRF 注入、失效自动重登、登录流程 |
+| `network` | `sm2Format.ets` | SM2 密文裸格式：坐标补零、C1C3C2 拼接、公钥解析。**纯逻辑，不依赖系统能力** |
+| `network` | `sm2.ets` | SM2 加密（调平台加密框架），产出服务端可接受的提交值 |
+| `network` | `parse.ets` | 登录链路 HTML 抓取：SM2 公钥、漫游工单、CSRF 令牌、用户名的提取。**纯逻辑** |
+| `network` | `cookieJar.ets` | 自管 Cookie：解析、按主机分组、注入。**纯逻辑**（见 §3.4） |
+| `network` | `learnClient.ets` | HTTP 唯一出口：会话、CSRF 注入、失效自动重登、七步登录流程 |
 | `storage` | `credentialStore.ets` | 凭据的唯一读写入口（关键资产存储服务） |
 | `repository` | `authRepository.ets` | 编排：登录 / 登出 / 会话校验 / 用户信息 |
 | `viewmodel` | `authStore.ets` | 应用级会话状态（单一 Store，见 ADR-0004），供页面订阅 |
 | `pages` | `Login.ets` | 最小登录界面 |
-| `pages` | `Index.ets` | 改为：未登录 → 跳 Login；已登录 → 临时占位页 |
+| `pages` | `Index.ets` | 改为：未登录 → 显示登录界面；已登录 → 临时占位页 |
+
+> **相对原设计新增 3 个文件**（`sm2Format.ets` / `parse.ets` / `cookieJar.ets`），理由一致：
+> 把**与外部服务互操作的高风险逻辑**（密文拼接、页面抓取、Cookie 解析）做成不依赖系统能力的纯模块，
+> 从而能在无设备环境下单元测试。这是实现期发现的重要约束——若与平台调用混在一起，
+> 这些最易出错的逻辑将完全无法离线验证。
 
 依赖方向严格遵循 `pages → viewmodel → repository → network/storage`，`model`/`common` 为叶子层（架构不变量 §1）。
 
@@ -84,13 +96,20 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 
 > 具体的公钥参数构造 API 形态需在实现期以官方文档与实机编译为准；若 `createAsyKeyGeneratorBySpec` 无法直接接受裸 X/Y，则改用 `ECCKeyUtil` 生成点参数，路线不变。此点列为 §6 待定项。
 
-### 3.4 会话与 Cookie
+### 3.4 会话与 Cookie（实现期修正）
 
-`@ohos.net.http` 的 `enableAutoCookie(true)` 会在**同一个 `HttpRequest` 实例的多次请求之间**自动复用服务端下发的 Cookie。因此：
+> **本节原设计已被实现推翻**：原计划用 `@ohos.net.http` 的 `enableAutoCookie(true)`
+> 自动复用 Cookie，但实测该接口**起始版本为 API 26**，本项目 SDK 为 API 24，不可用。
+> 改为**自管 Cookie 容器**（`network/cookieJar.ets`）。
 
-- `LearnClient` **全程持有一个 `HttpRequest` 实例**，不得每次请求新建（否则 Cookie 不共享、会话断裂）。
-- 登出或换账号时需重置该实例（销毁并重建），以确保不串会话。
-- 服务端下发的 `set-cookie` 由框架处理，本层不做手工 Cookie 解析。
+- `LearnClient` 全程复用**同一个 `HttpRequest` 实例**。
+- 每次响应后用 `response.cookies`（原始 Cookie 串，API 8+）更新自管容器；
+  每次请求前按**主机名**注入 `Cookie` 请求头。
+- **按主机名精确分组**，不做 Domain 匹配：本项目 Cookie 只落在
+  `id.tsinghua.edu.cn` 与 `learn.tsinghua.edu.cn` 两个主机上，精确分组既够用又不引入歧义；
+  登录横跨两个主机，分组错了会串会话。
+- 重置会话即清空该容器（对齐上游"登录前清 JSESSIONID"的意图，且效果更强）。
+- Cookie 串解析是纯逻辑，已单测覆盖（含属性剔除与跨主机隔离）。
 
 ### 3.5 凭据与设备指纹存储
 
@@ -124,17 +143,22 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 
 ## 4. 任务拆分
 
-- [ ] T1 `model`：`auth.ets`、`urls.ets`
-- [ ] T2 `common`：`logger.ets`（含凭据脱敏）、`errors.ets`（四分类）
-- [ ] T3 `network/sm2.ets`：公钥解析 + SM2 加密 + 密文裸格式拼接
-- [ ] T4 `network/learnClient.ets`：HttpRequest 单实例会话、CSRF 注入、失效重登、七步登录流程
-- [ ] T5 `storage/credentialStore.ets`：关键资产存储读写与清除
-- [ ] T6 `repository/authRepository.ets` + `viewmodel/authStore.ets`
-- [ ] T7 `pages/Login.ets` 最小登录界面；`pages/Index.ets` 改为登录态分发
-- [ ] T8 测试：见 §5 的单元测试项
-- [ ] T9 文档同步：PRD 状态、ARCHITECTURE §5.1/§5.2、API.md §2.1、CHANGELOG
+- [x] T1 `model`：`auth.ets`、`urls.ets`
+- [x] T2 `common`：`logger.ets`（含凭据脱敏）、`errors.ets`（四分类）
+- [x] T3 `network`：`sm2Format.ets`（纯格式）+ `sm2.ets`（平台加密）
+- [x] T4 `network`：`parse.ets`、`cookieJar.ets`（纯逻辑）、`learnClient.ets`（会话与七步登录）
+- [x] T5 `storage/credentialStore.ets`：关键资产存储读写与清除
+- [x] T6 `repository/authRepository.ets` + `viewmodel/authStore.ets`
+- [x] T7 `pages/Login.ets` 最小登录界面；`pages/Index.ets` 登录态分发
+- [x] T8 测试：4 个测试套 + 入口（`entry/src/test/`）已编写且通过类型检查
+- [ ] **执行测试**：需连接设备（`aa test` 推送测试包），当前无设备 → **未执行**
+- [x] T9 文档同步：PRD 状态、ARCHITECTURE §5.1/§5.2、API.md §2.1、CHANGELOG
 
 ## 5. 验收标准
+
+> **执行状态（2026-09-27）**：以下第 1–6 项的测试**已编写**（`entry/src/test/`，4 个测试套，通过 ArkTS 类型检查），
+> 但**尚未执行**——HarmonyOS 的单元测试需连接设备/模拟器（命令行经 `aa test` 推送测试包），当前两者都没有。
+> 因此第 7 项（静态检查与构建）**已通过**，第 1–6、8–11 项**均未验证**。本 spec 在测试真正跑过之前不得标记已交付。
 
 **自动化可验证（单元测试，不依赖校园网）**：
 
@@ -162,10 +186,14 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 
 | 项 | 说明 | 处置 |
 |---|---|---|
-| SM2 公钥构造 API 形态 | 裸 X/Y 如何喂给 `createAsyKeyGeneratorBySpec` 需实测确认 | 实现时以官方文档为准；若不可行改用 `ECCKeyUtil` 生成点参数，路线不变 |
-| SM2 密文格式 | 框架输出 ASN.1，服务端要裸 C1C3C2 | 已确认有 `SM2CryptoUtil` 转换；**必须实测与上游密文格式可互操作**，此为最高风险项 |
-| 登录页/校验接口可能变更 | 抓不到公钥、锚点、CSRF 即全链路失效 | 归入"接口语义变更"类错误并给出明确提示；解析集中在一处便于修 |
+| **测试与实机验收无法执行** | 无设备、无模拟器；单元测试需 `aa test` 推包到设备 | **这是当前最大的未验证面**。需先登录华为账号建模拟器（或接真机），否则本功能无法声称可用 |
+| **登录表单提交格式未验证** | 上游用 multipart（RN 的 FormData），本项目用 `application/x-www-form-urlencoded`，理由是该校方页面为标准 HTML 表单 | 实现已按 urlencoded 提交；**若服务端只接受 multipart，登录会失败**，改动局限于 `learnClient.postForm` 一处。需真机验证 |
+| SM2 密文格式互操作 | 框架输出 ASN.1，服务端要裸 C1C3C2 | 已按官方文档拼接（含坐标补零），并有单测；**仍需真机验证服务端是否接受** |
+| `enableAutoCookie` 不可用（API 26） | 原设计依赖该接口，实测本 SDK(24) 无此接口 | 已改为自管 Cookie 容器（§3.4），并有跨主机隔离单测 |
+| 公钥构造 API 形态 | `createAsyKeyGeneratorBySpec` + `ECCKeyUtil.genECCCommonParamsSpec('NID_sm2')` | 已通过 ArkTS 类型检查，说明签名匹配；运行时行为待验证 |
+| 会话失效判定差异 | `HttpResponse` 不暴露重定向后 URL，改为 403 或响应体含 `login_timeout` | 已实现；若服务端以其他方式表达失效，需按现象补判据 |
+| 登录页/校验接口可能变更 | 抓不到公钥、锚点、CSRF 即全链路失效 | 归入"接口语义变更"类错误并给出明确提示；解析集中在 `parse.ets` 便于修 |
 | `fingerGenPrint` / `fingerGenPrint3` 语义未知 | 上游传空串 | 本项目同样传空串，不臆测 |
 | 设备指纹持久化 vs 上游每次随机 | 上游每次登录生成新指纹，本项目持久化 | **有意差异**，避免服务端视为新设备；若服务端行为异常则回退到每次随机 |
-| 无校园网即无法验证真实登录 | 阻塞第 8–11 项验收 | 单元测试覆盖协议细节；真机验收集中在校园网时段完成 |
-| 凭据存储的 Kit 行为（如设备锁屏态） | 关键资产存储服务在某些状态下可能要求设备解锁 | 实现时确认失败分支，归入认证失败并给出可理解提示 |
+| 无校园网即无法验证真实登录 | 阻塞第 8–11 项验收 | 验收集中在校园网时段完成 |
+| 凭据存储的 Kit 行为（如设备锁屏态） | 关键资产存储服务在某些状态下可能要求设备解锁 | 实现已把失败分支归入认证失败并给出可理解提示 |
