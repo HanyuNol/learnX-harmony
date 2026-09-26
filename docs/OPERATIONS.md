@@ -102,13 +102,13 @@ devecocli device list          # 能列出设备/模拟器（需先有设备或�
 | 登录后立刻失效 | Cookie 未正确保存或注入 | 检查 `storage.CredentialStore` 与 `LearnClient` 的 Cookie 注入路径 |
 | 应用崩溃 | `devecocli log --crash --bundle-name io.github.hanyunol.learnx` | 按崩溃栈定位；`devecocli log --level E` 看错误级日志 |
 | `git push` 报 `Connection was reset` 或连不上 `github.com` | **命令行未走本机系统代理**（系统代理 `127.0.0.1:7897` 开着，但 WinHTTP 是直连、无代理环境变量） | 见 §6.1：设 `HTTPS_PROXY` 并配 `git config http.proxy`；不要当成网络封锁去绕行 |
-| `ssh` 到 GitHub 报 `Permission denied (publickey)` | 本机公钥未注册到账号 | `gh auth refresh -s admin:public_key` 后 `gh ssh-key add`（§6.2） |
+| `ssh` 到 GitHub 报 `Permission denied (publickey)` | 本机公钥未注册到账号 | 注册方式见 §6.2 通道 1（2026-09-26 已注册，正常应回 `Hi HanyuNol!`） |
 
 **关键日志位置**：应用运行日志经 `devecocli log` 获取；构建日志在 `app/.hvigor/` 下；Hvigor 用户级缓存与日志在 `D:/harmonyos/hvigor`（`HVIGOR_USER_HOME`）。
 
 ## 6. 与 GitHub 远端同步
 
-远端：<https://github.com/HanyuNol/learnX-harmony>（**当前为 private**）。
+远端：<https://github.com/HanyuNol/learnX-harmony>（**当前为 private**）。本地配置了两个远端：`origin`（HTTPS，经代理）与 `ssh`（SSH over 443，代理无关）。
 
 ### 6.1 本机的网络特殊性：命令行不走系统代理
 
@@ -154,16 +154,16 @@ cd D:/Documents/LearnX-Harmony
 git push origin main          # 仓库级已配 http.proxy，直接可用
 ```
 
-备用通道（仅在代理不可用、且直连 `github.com` 恰好恢复时才需要）：
+备用通道：
 
-1. **SSH over 443**：`~/.ssh/config` 已把 `github.com` 重定向到 `ssh.github.com:443`，密钥 `~/.ssh/id_ed25519` 已存在。
-   该公钥尚需注册到账号（token 缺 `admin:public_key` scope）：
+1. **SSH over 443（代理无关，推荐备用）**：`~/.ssh/config` 已把 `github.com` 重定向到 `ssh.github.com:443`，公钥 `~/.ssh/id_ed25519` **已注册到账号**（2026-09-26 完成；token 已含 `admin:public_key`）。
+   该通道**直连即可用、不依赖系统代理**，因此代理关闭时仍能推送。已配为备用远端 `ssh`：
    ```bash
-   HTTPS_PROXY="http://127.0.0.1:7897" gh auth refresh -h github.com -s admin:public_key
-   gh ssh-key add ~/.ssh/id_ed25519.pub --title "$(hostname)"
+   git push ssh main          # 代理不可用或直连 github.com 不通时用这个
    ```
-   > `gh auth refresh` 走 OAuth 设备码流程，**需要人工在浏览器完成授权**；且它访问的 `github.com/login/device` 同样受 §6.1 的代理问题影响，故必须先设 `HTTPS_PROXY`。
-2. **经 `api.github.com` 的 Git Data API**（`github.com:443` 完全不通时的兜底，**已实测可用**）：
+   验证认证：`ssh -T git@github.com` 应回 `Hi HanyuNol! You've successfully authenticated...`
+   > 换机器/换密钥后重新注册：`HTTPS_PROXY="http://127.0.0.1:7897" gh auth refresh -h github.com -s admin:public_key`（OAuth 设备码流程，**需人工在浏览器授权**；其访问的 `github.com/login/device` 同样受 §6.1 代理问题影响，故必须先设 `HTTPS_PROXY`），随后 `gh ssh-key add ~/.ssh/id_ed25519.pub --title "<名称>"`。
+2. **经 `api.github.com` 的 Git Data API**（代理与 SSH 都不可用时的最后兜底，已实测可用）：
    ```bash
    GH_TOKEN="$(gh auth token)" node scripts/push-via-api.mjs
    ```
