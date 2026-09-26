@@ -231,6 +231,10 @@ export class LearnClient {
       throw fromStatusCode(loginPage.status, '获取统一身份认证登录页');
     }
     const publicKeyHex: string = extractSm2PublicKey(loginPage.body);
+    // 诊断：服务端依赖会话 Cookie（JSESSIONID）绑定 SM2 密钥对。
+    // 实测（Node 复刻上游协议）表明：不带该 Cookie 提交会得到 1300 字节的
+    // "数据已丢失，请重新操作" 错误页，而非工单。此日志用于确认 Cookie 是否取到。
+    Logger.info(TAG, `登录页取毕 cookieLen=${this.jar.headerFor(ID_LOGIN_FORM).length}`);
     if (publicKeyHex.length === 0) {
       throw apiChanged('登录页未找到 SM2 公钥，页面结构可能已变更');
     }
@@ -247,6 +251,7 @@ export class LearnClient {
     fields.set('i_captcha', '');
 
     const checkResult: HttpResult = await this.postMultipart(ID_LOGIN_CHECK, fields);
+    Logger.info(TAG, `提交登录时 cookieLen=${this.jar.headerFor(ID_LOGIN_CHECK).length}`);
     if (checkResult.status !== 200) {
       throw fromStatusCode(checkResult.status, '提交登录凭据');
     }
