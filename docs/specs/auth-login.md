@@ -150,13 +150,13 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 - [x] T5 `storage/credentialStore.ets`：关键资产存储读写与清除
 - [x] T6 `repository/authRepository.ets` + `viewmodel/authStore.ets`
 - [x] T7 `pages/Login.ets` 最小登录界面；`pages/Index.ets` 登录态分发
-- [x] T8 测试：4 个测试套 + 入口（`entry/src/test/`）已编写且通过类型检查
+- [x] T8 测试：5 个测试套 + 入口（`entry/src/test/`）已编写且通过类型检查
 - [ ] **执行测试**：需连接设备（`aa test` 推送测试包），当前无设备 → **未执行**
 - [x] T9 文档同步：PRD 状态、ARCHITECTURE §5.1/§5.2、API.md §2.1、CHANGELOG
 
 ## 5. 验收标准
 
-> **执行状态（2026-09-27）**：以下第 1–6 项的测试**已编写**（`entry/src/test/`，4 个测试套，通过 ArkTS 类型检查），
+> **执行状态（2026-09-27）**：以下第 1–6 项的测试**已编写**（`entry/src/test/`，5 个测试套，通过 ArkTS 类型检查），
 > 但**尚未执行**——HarmonyOS 的单元测试需连接设备/模拟器（命令行经 `aa test` 推送测试包），当前两者都没有。
 > 因此第 7 项（静态检查与构建）**已通过**，第 1–6、8–11 项**均未验证**。本 spec 在测试真正跑过之前不得标记已交付。
 
