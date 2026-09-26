@@ -13,26 +13,71 @@
  * limitations under the License.
  */
 
+/**
+ * 应用入口页：按登录态分发。
+ *
+ * FR-11（导航）尚未实现，故这里用条件渲染而非路由栈；
+ * 登录后的内容页是占位，等 FR-11 与各内容 FR 落地后替换。
+ */
+
+import { AuthState, AuthStateListener, AuthStore } from '../viewmodel/authStore';
+import { LoginStatus } from '../model/auth';
+import { LoginView } from './Login';
+
 @Entry
 @Component
 struct Index {
-  @State message: string = 'Hello World';
+  @State private status: LoginStatus = LoginStatus.LOGGED_OUT;
+  @State private userName: string = '';
+
+  private store: AuthStore = AuthStore.getInstance();
+
+  private listener: AuthStateListener = (state: AuthState) => {
+    this.status = state.status;
+    this.userName = state.userInfo === null ? '' : state.userInfo.name;
+  };
+
+  aboutToAppear(): void {
+    this.store.subscribe(this.listener);
+    // 启动时尝试用已保存的凭据静默恢复登录态
+    this.store.restoreSession();
+  }
+
+  aboutToDisappear(): void {
+    this.store.unsubscribe(this.listener);
+  }
 
   build() {
-    RelativeContainer() {
-      Text(this.message)
-        .id('HelloWorld')
-        .fontSize($r('app.float.page_text_font_size'))
-        .fontWeight(FontWeight.Bold)
-        .alignRules({
-          center: { anchor: '__container__', align: VerticalAlign.Center },
-          middle: { anchor: '__container__', align: HorizontalAlign.Center }
-        })
+    Column() {
+      if (this.status === LoginStatus.LOGGED_IN) {
+        this.LoggedInPlaceholder()
+      } else {
+        LoginView()
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  /**
+   * 登录后的占位页。仅用于验证 FR-01/03/04 的完整链路，
+   * 内容浏览由后续 FR 实现后替换。
+   */
+  @Builder
+  LoggedInPlaceholder() {
+    Column({ space: 16 }) {
+      Text(this.userName.length > 0 ? `已登录：${this.userName}` : '已登录')
+        .fontSize(20)
+      Text('内容页面将在后续迭代中实现')
+        .fontSize(14)
+        .fontColor(Color.Gray)
+      Button('登出')
         .onClick(() => {
-          this.message = 'Welcome';
+          this.store.logout();
         })
     }
-    .height('100%')
     .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
   }
 }

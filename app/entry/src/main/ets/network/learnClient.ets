@@ -1,0 +1,298 @@
+/**
+ * 网络学堂 HTTP 客户端：本项目对外请求的**唯一出口**。
+ *
+ * 职责：会话 Cookie、CSRF 注入、会话失效自动重登、以及七步登录流程。
+ * 业务层不得绕过本类自行发请求（架构不变量 §3）。
+ *
+ * 与上游 thu-learn-lib 的三处**有意差异**（均因平台能力所限）：
+ * 1. 上游登录前清除 id.tsinghua.edu.cn 的 JSESSIONID；框架无单 Cookie 清除接口，
+ *    故改为**清空整个自管 Cookie 容器**——效果严格强于只清一个 Cookie。
+ * 2. 上游用响应最终 URL 是否含 login_timeout 判定会话失效；框架的 HttpResponse
+ *    不暴露重定向后的最终 URL，故改为**状态码 403 或响应体含 login_timeout**判定。
+ * 3. 上游用 tough-cookie 自动管理 Cookie；框架的 enableAutoCookie 起始版本为 API 26
+ *    （本 SDK 为 24），故由本类自管（见 cookieJar.ets）。
+ */
+
+import { http } from '@kit.NetworkKit';
+import { Credentials, FailReason, AuthError, UserInfo } from '../model/auth';
+import { ID_LOGIN_FORM, ID_LOGIN_CHECK, learnAuthRoam, LEARN_STUDENT_HOME, LEARN_LOGOUT } from '../model/urls';
+import { Logger } from '../common/logger';
+import { apiChanged, authFailed, fromStatusCode, normalize } from '../common/errors';
+import { extractSm2PublicKey, extractTicket, extractCsrfToken, isSessionExpired, extractUserName } from './parse';
+import { CookieJar } from './cookieJar';
+import { encryptPassword } from './sm2';
+
+const TAG: string = 'learnClient';
+
+/** 单次请求超时上限，对齐 NFR-PERF */
+const TIMEOUT_MS: number = 15000;
+
+/** 登录请求的重试次数。只对网络不可达重试；认证失败与语义变更不重试 */
+const LOGIN_RETRY_LIMIT: number = 1;
+
+/** 网络学堂域名标识，用于决定是否注入 CSRF */
+const TSINGHUA_HOST_MARKER: string = 'tsinghua.edu.cn';
+
+/** 会话失效的响应体标记 */
+const SESSION_EXPIRED_BODY_MARKER: string = 'login_timeout';
+
+/** 一次请求的原始结果 */
+export class HttpResult {
+  readonly body: string;
+  readonly status: number;
+
+  constructor(body: string, status: number) {
+    this.body = body;
+    this.status = status;
+  }
+}
+
+/** 把 HttpResponse.result 归一为字符串 */
+function asText(result: string | Object | ArrayBuffer): string {
+  if (typeof result === 'string') {
+    return result;
+  }
+  return JSON.stringify(result);
+}
+
+export class LearnClient {
+  private static instance: LearnClient | null = null;
+
+  /** 会话级请求实例。全程复用同一个，避免连接层状态反复重建 */
+  private request: http.HttpRequest;
+  /** 自管 Cookie：框架的 enableAutoCookie 起始版本为 API 26，本 SDK(24) 不可用 */
+  private jar: CookieJar = new CookieJar();
+  private csrfToken: string = '';
+  private credentials: Credentials | null = null;
+
+  private constructor() {
+    this.request = http.createHttp();
+  }
+
+  static getInstance(): LearnClient {
+    if (LearnClient.instance === null) {
+      LearnClient.instance = new LearnClient();
+    }
+    return LearnClient.instance;
+  }
+
+  /**
+   * 重置会话：清空 Cookie、CSRF 与内存凭据。
+   *
+   * 登录开始前与登出后都必须调用——否则会串用上一次会话的 Cookie。
+   */
+  private resetSession(): void {
+    this.jar.clear();
+    this.csrfToken = '';
+    this.credentials = null;
+  }
+
+  getCsrfToken(): string {
+    return this.csrfToken;
+  }
+
+  /** 为 *.tsinghua.edu.cn 的请求追加 CSRF 查询参数（对齐上游 addCSRFTokenToUrl） */
+  private addCsrf(url: string): string {
+    if (!url.includes(TSINGHUA_HOST_MARKER) || this.csrfToken.length === 0) {
+      return url;
+    }
+    const separator: string = url.includes('?') ? '&' : '?';
+    return `${url}${separator}_csrf=${this.csrfToken}`;
+  }
+
+  /** 组装请求头，并按主机注入已持有的 Cookie */
+  private buildHeaders(url: string, accept: string, contentType: string): Record<string, string> {
+    const headers: Record<string, string> = {};
+    headers['Accept'] = accept;
+    if (contentType.length > 0) {
+      headers['Content-Type'] = contentType;
+    }
+    const cookie: string = this.jar.headerFor(url);
+    if (cookie.length > 0) {
+      headers['Cookie'] = cookie;
+    }
+    return headers;
+  }
+
+  /** 发起一次 GET，返回响应体与状态码 */
+  private async get(url: string): Promise<HttpResult> {
+    try {
+      const response: http.HttpResponse = await this.request.request(url, {
+        method: http.RequestMethod.GET,
+        header: this.buildHeaders(url, 'text/html,application/json', ''),
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      this.jar.store(url, response.cookies);
+      return new HttpResult(asText(response.result), response.responseCode as number);
+    } catch (err) {
+      throw normalize(err, `GET ${this.maskUrl(url)}`);
+    }
+  }
+
+  /** 发起一次表单 POST（application/x-www-form-urlencoded） */
+  private async postForm(url: string, fields: Map<string, string>): Promise<HttpResult> {
+    const pairs: string[] = [];
+    fields.forEach((value: string, key: string) => {
+      pairs.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
+    });
+    const body: string = pairs.join('&');
+
+    try {
+      const response: http.HttpResponse = await this.request.request(url, {
+        method: http.RequestMethod.POST,
+        header: this.buildHeaders(url, 'text/html', 'application/x-www-form-urlencoded'),
+        extraData: body,
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      this.jar.store(url, response.cookies);
+      return new HttpResult(asText(response.result), response.responseCode as number);
+    } catch (err) {
+      throw normalize(err, `POST ${this.maskUrl(url)}`);
+    }
+  }
+
+  /** 日志用：只保留 URL 的路径部分，避免把可能带令牌的查询串写进日志 */
+  private maskUrl(url: string): string {
+    const questionMark: number = url.indexOf('?');
+    return questionMark >= 0 ? `${url.substring(0, questionMark)}?...` : url;
+  }
+
+  /** 判定响应是否表示会话失效 */
+  private isExpired(result: HttpResult): boolean {
+    return isSessionExpired(result.body, result.status);
+  }
+
+  /**
+   * 七步登录流程（见 spec §3.2）。
+   *
+   * 成功后本实例即可用于带会话的后续请求。
+   */
+  async login(credentials: Credentials): Promise<void> {
+    this.resetSession();
+
+    let attempt: number = 0;
+    while (true) {
+      try {
+        await this.performLogin(credentials);
+        this.credentials = credentials;
+        Logger.info(TAG, '登录成功');
+        return;
+      } catch (err) {
+        const error: AuthError = normalize(err, '登录');
+        // 只对网络不可达重试：认证失败与接口语义变更重试无意义，且会放大失败
+        const retryable: boolean = error.reason === FailReason.NETWORK_UNREACHABLE;
+        if (!retryable || attempt >= LOGIN_RETRY_LIMIT) {
+          throw error;
+        }
+        attempt++;
+        Logger.warn(TAG, `登录因网络问题失败，第 ${attempt} 次重试`);
+      }
+    }
+  }
+
+  private async performLogin(credentials: Credentials): Promise<void> {
+    // 步骤 2：取 SM2 公钥
+    const loginPage: HttpResult = await this.get(ID_LOGIN_FORM);
+    if (loginPage.status !== 200) {
+      throw fromStatusCode(loginPage.status, '获取统一身份认证登录页');
+    }
+    const publicKeyHex: string = extractSm2PublicKey(loginPage.body);
+    if (publicKeyHex.length === 0) {
+      throw apiChanged('登录页未找到 SM2 公钥，页面结构可能已变更');
+    }
+
+    // 步骤 3：提交加密后的凭据
+    const encryptedPassword: string = await encryptPassword(credentials.password, publicKeyHex);
+    const fields: Map<string, string> = new Map();
+    fields.set('i_user', credentials.username);
+    fields.set('i_pass', `04${encryptedPassword.startsWith('04') ? encryptedPassword.substring(2) : encryptedPassword}`);
+    fields.set('singleLogin', 'on');
+    fields.set('fingerPrint', credentials.fingerPrint);
+    fields.set('fingerGenPrint', '');
+    fields.set('fingerGenPrint3', '');
+    fields.set('i_captcha', '');
+
+    const checkResult: HttpResult = await this.postForm(ID_LOGIN_CHECK, fields);
+    if (checkResult.status !== 200) {
+      throw fromStatusCode(checkResult.status, '提交登录凭据');
+    }
+
+    // 步骤 4：从响应中取漫游工单
+    const ticket: string = extractTicket(checkResult.body);
+    if (ticket.length === 0) {
+      throw authFailed('未取得漫游工单，通常是学号或密码错误');
+    }
+
+    // 步骤 5：带工单漫游到网络学堂，建立会话
+    const roamResult: HttpResult = await this.get(learnAuthRoam(ticket));
+    if (roamResult.status !== 200) {
+      throw fromStatusCode(roamResult.status, '漫游到网络学堂');
+    }
+
+    // 步骤 6：从首页提取 CSRF 令牌
+    const homeResult: HttpResult = await this.get(LEARN_STUDENT_HOME);
+    if (homeResult.status !== 200) {
+      throw fromStatusCode(homeResult.status, '获取网络学堂首页');
+    }
+    const token: string = extractCsrfToken(homeResult.body);
+    if (token.length === 0) {
+      throw apiChanged('未能从首页提取 CSRF 令牌，接口可能已变更');
+    }
+    this.csrfToken = token;
+  }
+
+  /** 登出并清空本地会话状态 */
+  async logout(): Promise<void> {
+    try {
+      await this.postForm(LEARN_LOGOUT, new Map<string, string>());
+    } catch (err) {
+      // 登出失败不影响本地状态清理：把用户登出意图贯彻到底
+      Logger.warn(TAG, '服务端登出失败，仍清理本地会话');
+    }
+    this.resetSession();
+  }
+
+  /**
+   * 带会话的请求；命中会话失效则自动重登一次并重放。
+   *
+   * 无凭据（用户未保存密码）时直接抛认证失败，由页面引导重新登录。
+   */
+  async getWithAuth(url: string): Promise<HttpResult> {
+    const first: HttpResult = await this.get(this.addCsrf(url));
+    if (!this.isExpired(first)) {
+      return first;
+    }
+
+    const credentials: Credentials | null = this.credentials;
+    if (credentials === null) {
+      throw authFailed('会话已失效，且本地无凭据可自动重登');
+    }
+
+    Logger.info(TAG, '会话失效，尝试自动重登');
+    await this.login(credentials);
+
+    const second: HttpResult = await this.get(this.addCsrf(url));
+    if (this.isExpired(second)) {
+      // 重登后仍失效：不再循环，交给上层引导用户
+      throw authFailed('自动重登后会话仍失效');
+    }
+    return second;
+  }
+
+  /** 读取用户信息（姓名与院系）；取不到不视为失败 */
+  async fetchUserInfo(): Promise<UserInfo> {
+    const result: HttpResult = await this.getWithAuth(LEARN_STUDENT_HOME);
+    const name: string = extractUserName(result.body);
+    if (name.length === 0) {
+      Logger.warn(TAG, '未能解析用户姓名');
+    }
+    return new UserInfo(name, '');
+  }
+
+  /** 当前是否已持有可用会话（凭据已在内存且 CSRF 已取得） */
+  hasSession(): boolean {
+    return this.credentials !== null && this.csrfToken.length > 0;
+  }
+}
