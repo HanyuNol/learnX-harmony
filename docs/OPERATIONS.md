@@ -101,5 +101,53 @@ devecocli device list          # 能列出设备/模拟器（需先有设备或�
 | 应用内一切请求超时 | 是否处于校园网 / 校方 VPN 内 | 属预期边界（ADR-0006），非缺陷 |
 | 登录后立刻失效 | Cookie 未正确保存或注入 | 检查 `storage.CredentialStore` 与 `LearnClient` 的 Cookie 注入路径 |
 | 应用崩溃 | `devecocli log --crash --bundle-name io.github.hanyunol.learnx` | 按崩溃栈定位；`devecocli log --level E` 看错误级日志 |
+| `git push` 报 `Connection was reset` 或连不上 `github.com` | 本网络对 `github.com:443` 间断性阻断（`api.github.com` 正常） | 见 §6.2 的三条通道；兜底用 Git Data API 脚本 |
+| `ssh` 到 GitHub 报 `Permission denied (publickey)` | 本机公钥未注册到账号 | `gh auth refresh -s admin:public_key` 后 `gh ssh-key add`（§6.2） |
 
 **关键日志位置**：应用运行日志经 `devecocli log` 获取；构建日志在 `app/.hvigor/` 下；Hvigor 用户级缓存与日志在 `D:/harmonyos/hvigor`（`HVIGOR_USER_HOME`）。
+
+## 6. 与 GitHub 远端同步
+
+远端：<https://github.com/HanyuNol/learnX-harmony>（**当前为 private**）。
+
+### 6.1 本机的网络特殊性
+
+在本机（校园网）观测到**域名级的不对称可达**：
+
+| 目标 | 状态 |
+|---|---|
+| `api.github.com` | **正常**（HTTP 200，<1 s） |
+| `github.com:443` | **间断性不可达**（超时 ~21 s；多组 GitHub IP 均失败）。曾短时恢复 |
+| `ssh.github.com:443` | 时通时断（TCP 可达但本机公钥未注册，认证被拒） |
+| 普通 `curl` 到 GitHub | 需 `--ssl-no-revoke`（见下） |
+
+另注：本机 Windows 的 schannel 无法访问证书吊销端点，`git` 走 HTTPS 时常报误导性的 TLS/连接错误。**仓库级**已设 `http.schannelCheckRevoke=false`（不改全局）：
+
+```bash
+git config http.schannelCheckRevoke false
+```
+
+### 6.2 三条推送通道（按可用性择一）
+
+1. **常规 HTTPS（首选，网络正常时）**
+   ```bash
+   git push -u origin main
+   ```
+2. **SSH over 443**：`~/.ssh/config` 已把 `github.com` 重定向到 `ssh.github.com:443`，密钥 `~/.ssh/id_ed25519` 已存在。
+   **但该公钥尚未注册到 GitHub 账号**，需先授权一次（当前 token 缺 `admin:public_key` scope）：
+   ```bash
+   gh auth refresh -s admin:public_key   # 然后
+   gh ssh-key add ~/.ssh/id_ed25519.pub --title "$(hostname)"
+   ```
+3. **经 `api.github.com` 的 Git Data API**（`github.com:443` 完全不通时的兜底，**已实测可用**）：
+   ```bash
+   GH_TOKEN="$(gh auth token)" node scripts/push-via-api.mjs
+   ```
+   该脚本用 Git Data API 建 blob/tree/commit 并更新 `refs/heads/main`，只依赖 `api.github.com`。
+   它的 message 取自 `git cat-file commit` 的原始字节，所以**推送后远端 SHA 与本地逐位一致**——不会产生重写历史的风险。
+   注意：空仓库首次使用需先用 Contents API 建占位提交（脚本已自动处理），随后强制指向真实历史，占位提交被孤立。
+
+### 6.3 语义约束（与 `.claude/rules/git-commit.md` 一致）
+
+- 禁止对 `main` 强制推送（通道 3 内部使用 force 更新引用，那是**首次建立**分支的场景，不是对已共享历史的改写）。
+- 不擅自开 PR；不擅自 push（本仓库的初始推送是用户明确要求"创建 GitHub 库"后执行的）。
