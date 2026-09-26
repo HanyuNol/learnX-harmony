@@ -101,7 +101,7 @@ devecocli device list          # 能列出设备/模拟器（需先有设备或�
 | 应用内一切请求超时 | 是否处于校园网 / 校方 VPN 内 | 属预期边界（ADR-0006），非缺陷 |
 | 登录后立刻失效 | Cookie 未正确保存或注入 | 检查 `storage.CredentialStore` 与 `LearnClient` 的 Cookie 注入路径 |
 | 应用崩溃 | `devecocli log --crash --bundle-name io.github.hanyunol.learnx` | 按崩溃栈定位；`devecocli log --level E` 看错误级日志 |
-| `git push` 报 `Connection was reset` 或连不上 `github.com` | 本网络对 `github.com:443` 间断性阻断（`api.github.com` 正常） | 见 §6.2 的三条通道；兜底用 Git Data API 脚本 |
+| `git push` 报 `Connection was reset` 或连不上 `github.com` | **命令行未走本机系统代理**（系统代理 `127.0.0.1:7897` 开着，但 WinHTTP 是直连、无代理环境变量） | 见 §6.1：设 `HTTPS_PROXY` 并配 `git config http.proxy`；不要当成网络封锁去绕行 |
 | `ssh` 到 GitHub 报 `Permission denied (publickey)` | 本机公钥未注册到账号 | `gh auth refresh -s admin:public_key` 后 `gh ssh-key add`（§6.2） |
 
 **关键日志位置**：应用运行日志经 `devecocli log` 获取；构建日志在 `app/.hvigor/` 下；Hvigor 用户级缓存与日志在 `D:/harmonyos/hvigor`（`HVIGOR_USER_HOME`）。
@@ -110,36 +110,60 @@ devecocli device list          # 能列出设备/模拟器（需先有设备或�
 
 远端：<https://github.com/HanyuNol/learnX-harmony>（**当前为 private**）。
 
-### 6.1 本机的网络特殊性
+### 6.1 本机的网络特殊性：命令行不走系统代理
 
-在本机（校园网）观测到**域名级的不对称可达**：
+**根因（2026-09-26 查实）**：本机开启了 Windows **系统代理** `127.0.0.1:7897`（Clash 类本地代理，端口在监听），**但 WinHTTP 为"直接访问"、且未设置任何代理环境变量**。浏览器读取系统代理因而能访问 GitHub，而 `curl` / `git` / `gh` 一律直连 —— 这才是此前"浏览器能上、命令行上不去"的真正原因。
 
-| 目标 | 状态 |
-|---|---|
-| `api.github.com` | **正常**（HTTP 200，<1 s） |
-| `github.com:443` | **间断性不可达**（超时 ~21 s；多组 GitHub IP 均失败）。曾短时恢复 |
-| `ssh.github.com:443` | 时通时断（TCP 可达但本机公钥未注册，认证被拒） |
-| 普通 `curl` 到 GitHub | 需 `--ssl-no-revoke`（见下） |
+表面上它表现为域名级的不对称可达，很容易被误判为网络封锁：
 
-另注：本机 Windows 的 schannel 无法访问证书吊销端点，`git` 走 HTTPS 时常报误导性的 TLS/连接错误。**仓库级**已设 `http.schannelCheckRevoke=false`（不改全局）：
+| 目标 | 直连（未走代理） | 走 `127.0.0.1:7897` |
+|---|---|---|
+| `github.com:443` | 超时 ~21 s，多组 GitHub IP 均失败 | **HTTP 200，约 2.5 s** |
+| `api.github.com` | 正常（本就幸运地可达） | 正常，约 1.4 s |
+| `ssh.github.com:443` | TCP 可达但公钥未注册，认证被拒 | 同左 |
+
+**因此不要**把该现象当作网络封锁去绕行（例如改 IP、换协议）。正确处置是先确认代理，再让命令行走它。
+
+**让命令行走代理**（`gh` 与临时命令用环境变量；`git` 已在本仓库配置好）：
+
+```bash
+export HTTPS_PROXY="http://127.0.0.1:7897"   # gh 与 curl 需要
+export HTTP_PROXY="http://127.0.0.1:7897"
+```
+
+```bash
+git config http.proxy "http://127.0.0.1:7897"   # 仓库级，已配置
+# 若希望所有仓库生效（会连带影响代理关闭时的可用性，谨慎）：
+# git config --global http.proxy "http://127.0.0.1:7897"
+```
+
+> 代理端口从 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings` 的 `ProxyServer` 读取，可能随客户端配置变化。
+
+另注：本机 Windows 的 schannel 无法访问证书吊销端点，`git` / `curl` 直连 HTTPS 时常报误导性的 TLS 错误。**仓库级**已设（不改全局）：
 
 ```bash
 git config http.schannelCheckRevoke false
 ```
 
-### 6.2 三条推送通道（按可用性择一）
+### 6.2 推送通道
 
-1. **常规 HTTPS（首选，网络正常时）**
+**常规 HTTPS 经代理即为首选通道**：
+
+```bash
+cd D:/Documents/LearnX-Harmony
+git push origin main          # 仓库级已配 http.proxy，直接可用
+```
+
+备用通道（仅在代理不可用、且直连 `github.com` 恰好恢复时才需要）：
+
+1. **SSH over 443**：`~/.ssh/config` 已把 `github.com` 重定向到 `ssh.github.com:443`，密钥 `~/.ssh/id_ed25519` 已存在。
+   该公钥尚需注册到账号（token 缺 `admin:public_key` scope）：
    ```bash
-   git push -u origin main
-   ```
-2. **SSH over 443**：`~/.ssh/config` 已把 `github.com` 重定向到 `ssh.github.com:443`，密钥 `~/.ssh/id_ed25519` 已存在。
-   **但该公钥尚未注册到 GitHub 账号**，需先授权一次（当前 token 缺 `admin:public_key` scope）：
-   ```bash
-   gh auth refresh -s admin:public_key   # 然后
+   HTTPS_PROXY="http://127.0.0.1:7897" gh auth refresh -h github.com -s admin:public_key
    gh ssh-key add ~/.ssh/id_ed25519.pub --title "$(hostname)"
    ```
-3. **经 `api.github.com` 的 Git Data API**（`github.com:443` 完全不通时的兜底，**已实测可用**）：
+   > `gh auth refresh` 走 OAuth 设备码流程，**需要人工在浏览器完成授权**；且它访问的 `github.com/login/device` 同样受 §6.1 的代理问题影响，故必须先设 `HTTPS_PROXY`。
+2. **经 `api.github.com` 的 Git Data API**（`github.com:443` 完全不通时的兜底，**已实测可用**）：
    ```bash
    GH_TOKEN="$(gh auth token)" node scripts/push-via-api.mjs
    ```
@@ -149,5 +173,5 @@ git config http.schannelCheckRevoke false
 
 ### 6.3 语义约束（与 `.claude/rules/git-commit.md` 一致）
 
-- 禁止对 `main` 强制推送（通道 3 内部使用 force 更新引用，那是**首次建立**分支的场景，不是对已共享历史的改写）。
+- 禁止对 `main` 强制推送（通道 2 内部使用 force 更新引用，那是**首次建立**分支的场景，不是对已共享历史的改写）。
 - 不擅自开 PR；不擅自 push（本仓库的初始推送是用户明确要求"创建 GitHub 库"后执行的）。
