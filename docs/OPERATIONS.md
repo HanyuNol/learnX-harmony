@@ -217,3 +217,52 @@ Local Test 只覆盖**不依赖系统能力**的代码。依赖 Kit 的模块（
 `storage/credentialStore`、`repository`、`viewmodel`、`pages`）在宿主侧无法运行，
 **不会被任何单元测试覆盖**——它们的正确性只能靠设备/模拟器验证。
 这也是把纯逻辑拆成独立模块（`sm2Format` / `parse` / `cookieJar`）的原因。
+
+## 8. 本地模拟器
+
+### 8.1 镜像默认下载到 C 盘（必须重定向）
+
+`devecocli emulator image download` **没有指定路径的选项**，镜像固定下到：
+
+```
+C:/Users/<用户>/AppData/Local/Huawei/Sdk/system-image/<版本>/<机型>_x86/
+```
+
+单个 phone 镜像约 2.2 GB，且 `Emulator.exe` 下载进程独立于 devecocli 运行——
+**杀掉 devecocli 的任务不会停止它**，它会继续往 C 盘写。
+
+本项目以**目录联接（junction）**把该路径重定向到 D 盘，工具链无感：
+
+```powershell
+# 1) 先确认没有残留的下载进程，否则目录删不掉
+Get-Process Emulator -ErrorAction SilentlyContinue | Stop-Process -Force
+# 2) 清掉 C 盘上的该目录（若已有数据先 robocopy /MOVE 到 D 盘）
+# 3) 建立联接
+New-Item -ItemType Junction -Path "$env:LOCALAPPDATA\Huawei\Sdk" -Target 'D:\harmonyos\huawei-sdk'
+```
+
+验证：`(Get-Item "$env:LOCALAPPDATA\Huawei\Sdk").LinkType` 应为 `Junction`；
+往该路径写文件应实际出现在 D 盘。
+
+### 8.2 许可与实例
+
+```bash
+devecocli emulator license accept          # 非交互接受许可，无需 TTY
+devecocli emulator image list --all        # 查看可用镜像
+devecocli emulator create <名称> --device-type phone --os-version "HarmonyOS 6.1.1(24)" \
+  --instance-path D:/harmonyos/emulator/<名称> --image-root D:/harmonyos/huawei-sdk/system-image
+devecocli emulator start <名称>
+```
+
+`--instance-path` / `--image-root` 都应指向 D 盘——实例数据（含快照）会随使用持续增长。
+
+> **实测坑（2026-09-27）**：同时指定 `--instance-path` 与 `--image-root` 时，
+> `emulator create` 会报"已创建但未出现在列表中"，而实例实际**并未生成**（默认目录仍是空的）。
+> 改用**默认路径**（不加这两个参数）即可正常创建；镜像已通过 §8.1 的联接落在 D 盘，
+> 所以数据位置依然安全。创建后再用 `emulator list` 确认状态为 `stopped`/`running`。
+
+### 8.3 仍需注意的一处 C 盘占用
+
+DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huawei/DevEcoStudio6.1`
+（IDE 缓存与索引，实测约 169 MB 且会增长）。这与镜像不同，属 IDE 行为，
+**移动它可能影响 Studio 运行**，本项目暂不重定向——仅在此记录，不假装 C 盘零占用。
