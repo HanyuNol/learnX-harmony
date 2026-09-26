@@ -10,6 +10,7 @@
 | [0004](0004-state-management.md) | 状态管理采用 ArkUI 原生状态 + 单一应用级 Store | 已接受 |
 | [0005](0005-repo-layout-and-toolchain-paths.md) | 仓库布局为"根治理 + app/ 工程"，工具链全部落盘至非系统盘 | 已接受 |
 | [0006](0006-external-dependency-and-campus-network.md) | 接受"仅校园网可达"前提，不自建中转服务 | 已接受 |
+| [0007](0007-credential-storage.md) | 凭据与会话存储采用关键资产存储服务 | 已接受 |
 
 > 模板：状态 / 背景 / 决策 / 理由 / 后果 / 备选方案。
 
