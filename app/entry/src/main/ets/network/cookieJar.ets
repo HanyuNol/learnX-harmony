@@ -27,7 +27,10 @@ function isCookieAttribute(name: string): boolean {
  * - 单个 Cookie 带属性：`JSESSIONID=abc; Path=/; HttpOnly`
  * - 多个 Cookie 拼接：`a=1; Path=/, b=2`
  *
- * 只保留名值对，属性一律丢弃；同名后出现的覆盖先出现的。
+ * 每个 Cookie 段内**扫描全部 `;` 片段、取第一个非属性的名值对**，而不是只看第一段。
+ * 起初只取第一段是错的：像 `garbage; a=1` 这类输入会让真正的 Cookie 被整段丢弃
+ * （该缺陷由单元测试 `无等号的片段应被忽略` 抓出）。
+ * 属性一律丢弃；同名后出现的覆盖先出现的。
  */
 export function parseCookies(raw: string): Map<string, string> {
   const result: Map<string, string> = new Map();
@@ -37,24 +40,28 @@ export function parseCookies(raw: string): Map<string, string> {
 
   const cookieStrings: string[] = raw.split(COOKIE_BOUNDARY);
   for (const cookieString of cookieStrings) {
-    // 每段里第一个分号之前是本 Cookie 的名值对，其后是属性
-    const semiIndex: number = cookieString.indexOf(';');
-    const pair: string = (semiIndex >= 0 ? cookieString.substring(0, semiIndex) : cookieString).trim();
-    if (pair.length === 0) {
-      continue;
-    }
+    const parts: string[] = cookieString.split(';');
+    for (const part of parts) {
+      const pair: string = part.trim();
+      if (pair.length === 0) {
+        continue;
+      }
 
-    const equalsIndex: number = pair.indexOf('=');
-    if (equalsIndex <= 0) {
-      continue;
-    }
+      const equalsIndex: number = pair.indexOf('=');
+      if (equalsIndex <= 0) {
+        continue;
+      }
 
-    const name: string = pair.substring(0, equalsIndex).trim();
-    const value: string = pair.substring(equalsIndex + 1).trim();
-    if (name.length === 0 || isCookieAttribute(name) || value.length === 0) {
-      continue;
+      const name: string = pair.substring(0, equalsIndex).trim();
+      const value: string = pair.substring(equalsIndex + 1).trim();
+      if (name.length === 0 || isCookieAttribute(name) || value.length === 0) {
+        continue;
+      }
+
+      // 一个 Cookie 段内只有第一个有效名值对才是 Cookie，其余是属性
+      result.set(name, value);
+      break;
     }
-    result.set(name, value);
   }
   return result;
 }

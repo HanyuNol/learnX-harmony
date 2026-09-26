@@ -15,8 +15,9 @@ export default function cookieJarTest() {
       const parsed: Map<string, string> = parseCookies('JSESSIONID=abc123; Path=/; HttpOnly; Secure');
       expect(parsed.size).assertEqual(1);
       expect(parsed.get('JSESSIONID')).assertEqual('abc123');
-      expect(parsed.get('Path')).assertNull();
-      expect(parsed.get('HttpOnly')).assertNull();
+      // Map.get 缺失时返回 undefined（不是 null），断言按实际语义写
+      expect(parsed.get('Path') === undefined).assertTrue();
+      expect(parsed.get('HttpOnly') === undefined).assertTrue();
     });
 
     it('应解析多条拼接的 Cookie', 0, () => {
@@ -29,8 +30,11 @@ export default function cookieJarTest() {
       expect(parseCookies('').size).assertEqual(0);
     });
 
-    it('无等号的片段应被忽略', 0, () => {
-      expect(parseCookies('garbage; a=1').size).assertEqual(1);
+    it('无等号的片段应被跳过，其后的名值对仍应解析', 0, () => {
+      // 该用例曾抓出 parseCookies 的真实缺陷：只看第一个分号片段会丢掉 a=1
+      const parsed: Map<string, string> = parseCookies('garbage; a=1');
+      expect(parsed.size).assertEqual(1);
+      expect(parsed.get('a')).assertEqual('1');
     });
 
     it('应从 URL 取出主机名（含端口与路径）', 0, () => {
