@@ -1,0 +1,4 @@
+version: 未知（sdd-skills 以纯文件方式安装于 ~/.agents/，无 .claude-plugin/plugin.json 版本源）
+installed_at: 2026-09-26
+source_skill: init-sdd-project
+note: 本文件供 sdd-sync-governance 日后增量升级治理时判断基线；因来源版本无法读取，升级时需整体对账而非增量比对
