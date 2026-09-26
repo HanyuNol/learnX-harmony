@@ -175,3 +175,45 @@ git push origin main          # 仓库级已配 http.proxy，直接可用
 
 - 禁止对 `main` 强制推送（通道 2 内部使用 force 更新引用，那是**首次建立**分支的场景，不是对已共享历史的改写）。
 - 不擅自开 PR；不擅自 push（本仓库的初始推送是用户明确要求"创建 GitHub 库"后执行的）。
+
+## 7. 运行单元测试（Local Test）
+
+**Local Test 在宿主机执行，不需要设备或模拟器。** 它与被推送测试包到设备的
+Instrument Test（`hdc shell aa test ...`）是两条不同的路径——**不要因为前者需要设备就认为测试无法运行**。
+
+```bash
+cd app
+# 直接调 hvigorw 时需显式给 SDK 路径（走 devecocli 时会自动识别）
+export DEVECO_SDK_HOME="D:/DevEco Studio/sdk"
+export HVIGOR_USER_HOME="D:/harmonyos/hvigor"
+"/d/DevEco Studio/tools/hvigor/bin/hvigorw.bat" test
+```
+
+测试用例放在 `entry/src/test/`，必须在 `List.test.ets` 中登记——**未登记会被静默跳过**。
+
+### 7.1 两个必须知道的陷阱
+
+1. **测试失败不会让构建失败。** 用例失败时输出 `ERROR: Error in <用例名>, ...`，
+   但最后仍然打印 `BUILD SUCCESSFUL`。**退出码不能作为门禁判据**，必须读结果文件：
+
+   ```
+   entry/.test/default/intermediates/test/coverage_data/test_result.txt   # 逐用例 Success/Failure
+   entry/.test/default/outputs/test/reports/index.html                    # 覆盖率与 HTML 报告
+   entry/.test/default/outputs/test/reports/coverageReport.json           # 覆盖率数据
+   ```
+
+   统计示例：`grep -c "^result=Success" test_result.txt`。
+
+2. **`devecocli check arkts` 默认不扫描 `src/test/`。** 它会报"零错误"而测试文件根本没被检查。
+   改测试后须显式指定路径复查：
+
+   ```bash
+   devecocli check arkts entry/src/test/List.test.ets entry/src/test/*.test.ets
+   ```
+
+### 7.2 覆盖范围的边界
+
+Local Test 只覆盖**不依赖系统能力**的代码。依赖 Kit 的模块（`network/sm2`、`network/learnClient`、
+`storage/credentialStore`、`repository`、`viewmodel`、`pages`）在宿主侧无法运行，
+**不会被任何单元测试覆盖**——它们的正确性只能靠设备/模拟器验证。
+这也是把纯逻辑拆成独立模块（`sm2Format` / `parse` / `cookieJar`）的原因。

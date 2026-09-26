@@ -19,18 +19,25 @@
 
 ### 已验证
 
-- 无设备构建闭环打通：`devecocli check arkts` 零错误（16 个主源码文件）、
-  `devecocli check lint` 零问题、`devecocli build` 成功
-- 测试文件本身通过 ArkTS 类型检查（6 个文件）
+- **单元测试已实际执行**（`hvigorw test`，Local Test 宿主侧运行、**无需设备**）：
+  **37 个用例全部通过，0 失败**。行覆盖率：`sm2Format` 100%、`errors` 100%、
+  `parse` 96.4%、`cookieJar` 94.1%
+- 单元测试过程中抓出并修复一处真实缺陷：`parseCookies` 只取第一个分号片段，
+  遇到 `garbage; a=1` 这类输入会丢弃真正的 Cookie
+- `devecocli check arkts` 零错误（主源码 16 文件 + 测试 6 文件）、`check lint` 零问题、`build` 成功
 - 工具链环境脱离 `C:` 盘：`HVIGOR_USER_HOME` 与 `DEVECO_CLI_DATA_DIR` 均已重定向，`~/.hvigor` 不存在
 
 ### 未验证（重要）
 
-- **单元测试尚未执行**——HarmonyOS 单元测试需连接设备（经 `aa test` 推送测试包），
-  当前无设备也无模拟器。5 个测试套只通过类型检查，**没有跑过一次**
+- **平台依赖层无任何单测覆盖**：`network/sm2`（SM2 加密调用）、`network/learnClient`（七步登录流程）、
+  `storage/credentialStore`、`repository`、`viewmodel`、`pages` 均依赖系统能力，宿主侧跑不了，
+  需设备/模拟器才能验证。**因此 SM2 密文能否被服务端接受、登录链是否真的跑得通，仍属未知**
 - **实机与真实环境验收未做**——校园网 + 真实账号的完整登录链路、断网提示、
   凭据落盘抽查，均未验证
 - 因此 FR-01 / FR-03 / FR-04 状态为**开发中**，不是已交付
+
+> 更正：本文件此前记录"单元测试需连接设备，无法执行"——**该结论是错的**。
+> 需要设备的是 Instrument Test（`aa test`）路径；Local Test 经 `hvigorw test` 在宿主机直接运行。
 
 ### 已知限制
 

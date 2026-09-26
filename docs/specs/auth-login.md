@@ -2,9 +2,18 @@
 
 > 状态：开发中　·　关联 PRD：FR-01 / FR-03 / FR-04　·　分支：main
 
-> **实现进展（2026-09-27）**：T1–T8 已实现，`check arkts` / `check lint` / `build` 三道静态关卡全绿。
-> **但单元测试与实机验收均尚未执行**——单元测试需连接设备（官方：命令行执行测试脚本需 `aa test` 推送测试包到设备），
-> 当前无设备也无模拟器。详见 §5 的说明与 §6 风险表。因此本 spec **不得**标记为已交付。
+> **实现进展（2026-09-27）**：T1–T9 已完成。
+> `check arkts`（主源码 16 文件 + 测试 6 文件）、`check lint`、`build` 全绿；
+> **单元测试已通过 `hvigorw test`（Local Test，宿主侧执行、不需设备）实际运行：37 个用例全部通过，0 失败**。
+> 行覆盖率：`sm2Format` 100%、`errors` 100%、`parse` 96.4%、`cookieJar` 94.1%。
+>
+> **仍未验证**：平台依赖层（`sm2` / `learnClient` / `credentialStore` / `authRepository` / `authStore` / `pages`）
+> 依赖系统能力，**未被任何单元测试覆盖**；校园网 + 真实账号的端到端验收也未做。
+> 因此本 spec **不得**标记为已交付。详见 §5 与 §6。
+
+> **一处已更正的重要判断**：本 spec 初稿与首次提交曾记录"单元测试需连接设备，故无法执行"——**该结论是错的**。
+> 需要设备的是 `hdc shell aa test`（Instrument Test）路径；**Local Test 经 `hvigorw test` 在宿主机直接执行，无需设备**。
+> 我把一行文档的说法过度推广成了"无法验证"，经质疑后查实纠正（见 `OPERATIONS.md` §7）。
 
 ## 1. 背景与目标
 
@@ -150,15 +159,20 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 - [x] T5 `storage/credentialStore.ets`：关键资产存储读写与清除
 - [x] T6 `repository/authRepository.ets` + `viewmodel/authStore.ets`
 - [x] T7 `pages/Login.ets` 最小登录界面；`pages/Index.ets` 登录态分发
-- [x] T8 测试：5 个测试套 + 入口（`entry/src/test/`）已编写且通过类型检查
-- [ ] **执行测试**：需连接设备（`aa test` 推送测试包），当前无设备 → **未执行**
-- [x] T9 文档同步：PRD 状态、ARCHITECTURE §5.1/§5.2、API.md §2.1、CHANGELOG
+- [x] T8 测试：5 个测试套 + 入口（`entry/src/test/`）已编写并通过类型检查
+- [x] **执行测试**：`hvigorw test`（Local Test，宿主侧）→ **37 个用例全部通过，0 失败**
+- [x] T9 文档同步：PRD 状态、ARCHITECTURE §5.1/§5.2、API.md §2.1、CHANGELOG、OPERATIONS
 
 ## 5. 验收标准
 
-> **执行状态（2026-09-27）**：以下第 1–6 项的测试**已编写**（`entry/src/test/`，5 个测试套，通过 ArkTS 类型检查），
-> 但**尚未执行**——HarmonyOS 的单元测试需连接设备/模拟器（命令行经 `aa test` 推送测试包），当前两者都没有。
-> 因此第 7 项（静态检查与构建）**已通过**，第 1–6、8–11 项**均未验证**。本 spec 在测试真正跑过之前不得标记已交付。
+> **执行状态（2026-09-27）**：第 1–7 项的测试**已实际执行**（`hvigorw test`，Local Test 宿主侧运行，
+> 无需设备）：**37 个用例全部通过，0 失败**。行覆盖率：`sm2Format` 100%、`errors` 100%、
+> `parse` 96.4%、`cookieJar` 94.1%。
+>
+> **但第 1–6 项只覆盖纯逻辑。** 平台依赖层（`sm2` 的加密调用、`learnClient` 七步流程、
+> `credentialStore`、`authRepository`、`authStore`、页面）**没有任何单元测试覆盖**——
+> 它们依赖系统能力，宿主侧跑不了，需要设备或模拟器。第 8–11 项（实机 + 校园网）同样未做。
+> **因此本功能仍不得标记已交付。** 执行方式与一处陷阱见 `OPERATIONS.md` §7。
 
 **自动化可验证（单元测试，不依赖校园网）**：
 
@@ -186,7 +200,8 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 
 | 项 | 说明 | 处置 |
 |---|---|---|
-| **测试与实机验收无法执行** | 无设备、无模拟器；单元测试需 `aa test` 推包到设备 | **这是当前最大的未验证面**。需先登录华为账号建模拟器（或接真机），否则本功能无法声称可用 |
+| **平台依赖层无单测覆盖** | `sm2` 的加密调用、`learnClient` 七步流程、`credentialStore`、`authRepository`、`authStore`、页面均依赖系统能力，宿主侧跑不了 | **当前最大的未验证面**。需设备/模拟器才能覆盖；在此之前不得声称这些链路可用 |
+| 实机与校园网验收未做 | 第 8–11 项需真实账号与校园网 | 待设备与校园网时段 |
 | **登录表单提交格式未验证** | 上游用 multipart（RN 的 FormData），本项目用 `application/x-www-form-urlencoded`，理由是该校方页面为标准 HTML 表单 | 实现已按 urlencoded 提交；**若服务端只接受 multipart，登录会失败**，改动局限于 `learnClient.postForm` 一处。需真机验证 |
 | SM2 密文格式互操作 | 框架输出 ASN.1，服务端要裸 C1C3C2 | 已按官方文档拼接（含坐标补零），并有单测；**仍需真机验证服务端是否接受** |
 | `enableAutoCookie` 不可用（API 26） | 原设计依赖该接口，实测本 SDK(24) 无此接口 | 已改为自管 Cookie 容器（§3.4），并有跨主机隔离单测 |
