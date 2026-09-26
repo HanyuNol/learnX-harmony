@@ -153,6 +153,38 @@ export class LearnClient {
     }
   }
 
+  /**
+   * 发起一次 multipart/form-data POST。
+   *
+   * **实测修正**：登录表单原先用 application/x-www-form-urlencoded（当时的判断是
+   * "该校方页面是标准 HTML 表单"）。真实凭据下服务端不返回漫游工单，说明该判断不成立——
+   * 上游用 React Native 的 FormData（multipart）才是服务端接受的格式，此处对齐上游。
+   */
+  private async postMultipart(url: string, fields: Map<string, string>): Promise<HttpResult> {
+    const boundary: string = '----learnXBoundary8f3a1c';
+    let body: string = '';
+    fields.forEach((value: string, key: string) => {
+      body += `--${boundary}\r\n`;
+      body += `Content-Disposition: form-data; name="${key}"\r\n\r\n`;
+      body += `${value}\r\n`;
+    });
+    body += `--${boundary}--\r\n`;
+
+    try {
+      const response: http.HttpResponse = await this.request.request(url, {
+        method: http.RequestMethod.POST,
+        header: this.buildHeaders(url, 'text/html', `multipart/form-data; boundary=${boundary}`),
+        extraData: body,
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      this.jar.store(url, response.cookies);
+      return new HttpResult(asText(response.result), response.responseCode as number);
+    } catch (err) {
+      throw normalize(err, `POST(multipart) ${this.maskUrl(url)}`);
+    }
+  }
+
   /** 日志用：只保留 URL 的路径部分，避免把可能带令牌的查询串写进日志 */
   private maskUrl(url: string): string {
     const questionMark: number = url.indexOf('?');
@@ -214,7 +246,7 @@ export class LearnClient {
     fields.set('fingerGenPrint3', '');
     fields.set('i_captcha', '');
 
-    const checkResult: HttpResult = await this.postForm(ID_LOGIN_CHECK, fields);
+    const checkResult: HttpResult = await this.postMultipart(ID_LOGIN_CHECK, fields);
     if (checkResult.status !== 200) {
       throw fromStatusCode(checkResult.status, '提交登录凭据');
     }
@@ -222,6 +254,10 @@ export class LearnClient {
     // 步骤 4：从响应中取漫游工单
     const ticket: string = extractTicket(checkResult.body);
     if (ticket.length === 0) {
+      // 只记长度与开头片段，不记全文：用于区分"服务端拒绝凭据"与"响应结构变了"，
+      // 这两种原因在用户看来都是"登录不上"，此前无法从日志分辨
+      const excerpt: string = checkResult.body.substring(0, 120).replace(/\s+/g, ' ');
+      Logger.warn(TAG, `登录校验响应未含工单 len=${checkResult.body.length} head=${excerpt}`);
       throw authFailed('未取得漫游工单，通常是学号或密码错误');
     }
 
