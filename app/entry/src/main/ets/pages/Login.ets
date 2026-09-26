@@ -45,60 +45,65 @@ export struct LoginView {
   }
 
   build() {
-    Column({ space: 16 }) {
-      Text('网络学堂')
-        .fontSize(28)
-        .fontWeight(FontWeight.Bold)
+    // 必须可滚动：软键盘弹出时会把下方元素挤出可交互区域，
+    // 实测会导致「登录」按钮点不到（真机验证发现，非猜测）
+    Scroll() {
+      Column({ space: 16 }) {
+        Text('网络学堂')
+          .fontSize(28)
+          .fontWeight(FontWeight.Bold)
 
-      TextInput({ placeholder: '学号', text: this.username })
-        .type(InputType.Number)
-        .width('100%')
-        .enabled(!this.submitting)
-        .onChange((value: string) => {
-          this.username = value;
-        })
-
-      TextInput({ placeholder: '密码', text: this.password })
-        .type(InputType.Password)
-        .width('100%')
-        .enabled(!this.submitting)
-        .onChange((value: string) => {
-          this.password = value;
-        })
-
-      Row({ space: 8 }) {
-        Checkbox()
-          .select(this.rememberPassword)
+        TextInput({ placeholder: '学号', text: this.username })
+          .type(InputType.Number)
+          .width('100%')
           .enabled(!this.submitting)
-          .onChange((checked: boolean) => {
-            this.rememberPassword = checked;
+          .onChange((value: string) => {
+            this.username = value;
           })
-        Text('记住密码').fontSize(14)
+
+        TextInput({ placeholder: '密码', text: this.password })
+          .type(InputType.Password)
+          .width('100%')
+          .enabled(!this.submitting)
+          .onChange((value: string) => {
+            this.password = value;
+          })
+
+        Row({ space: 8 }) {
+          Checkbox()
+            .select(this.rememberPassword)
+            .enabled(!this.submitting)
+            .onChange((checked: boolean) => {
+              this.rememberPassword = checked;
+            })
+          Text('记住密码').fontSize(14)
+        }
+        .width('100%')
+
+        // 错误按四分类给出不同文案：网络问题不得与密码错误混为一谈
+        if (this.errorText.length > 0) {
+          Text(this.errorText)
+            .fontSize(14)
+            .fontColor(Color.Red)
+            .width('100%')
+        }
+
+        Button(this.submitting ? '登录中…' : '登录')
+          .width('100%')
+          .enabled(this.canSubmit())
+          .onClick(() => {
+            this.store.login(this.username, this.password, this.rememberPassword);
+          })
+
+        Text('需连接校园网或校方 VPN 后使用')
+          .fontSize(12)
+          .fontColor(Color.Gray)
       }
       .width('100%')
-
-      // 错误按四分类给出不同文案：网络问题不得与密码错误混为一谈
-      if (this.errorText.length > 0) {
-        Text(this.errorText)
-          .fontSize(14)
-          .fontColor(Color.Red)
-          .width('100%')
-      }
-
-      Button(this.submitting ? '登录中…' : '登录')
-        .width('100%')
-        .enabled(this.canSubmit())
-        .onClick(() => {
-          this.store.login(this.username, this.password, this.rememberPassword);
-        })
-
-      Text('需连接校园网或校方 VPN 后使用')
-        .fontSize(12)
-        .fontColor(Color.Gray)
+      .padding(24)
     }
     .width('100%')
     .height('100%')
-    .justifyContent(FlexAlign.Center)
-    .padding(24)
+    .align(Alignment.Center)
   }
 }

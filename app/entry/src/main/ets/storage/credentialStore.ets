@@ -51,27 +51,27 @@ function aliasQuery(alias: string): asset.AssetMap {
 /**
  * 写入或更新一条资产。
  *
- * 先试 update、未命中再 add——避免为了判断存在性而做一次需要解密的昂贵查询。
+ * **实测修正**：原先实现"先 update、未命中再 add"，假设资产不存在时 update 会返回
+ * 24000002（未找到）。真机实测表明它返回的是 **401 参数错误**，导致首登时凭据写入直接失败。
+ * 现改为"先 add、已存在则先删再 add"——语义最可预测，不依赖 update 的参数校验规则
+ * （ACCESSIBILITY 等访问控制属性本来也只能在创建时指定）。
  */
 async function upsert(alias: string, value: string): Promise<void> {
   try {
-    await asset.update(aliasQuery(alias), attributesFor(alias, value));
+    await asset.add(attributesFor(alias, value));
     return;
   } catch (err) {
-    if (!isAssetNotFound(err)) {
-      throw normalize(err, `更新资产 ${alias}`);
+    if ((err as BusinessError).code !== ERROR_ASSET_ALREADY_EXISTS) {
+      throw normalize(err, `新增资产 ${alias}`);
     }
   }
 
+  // 已存在：删除后重建，避免 update 的参数校验与访问控制属性限制
+  await removeIfPresent(alias);
   try {
     await asset.add(attributesFor(alias, value));
   } catch (err) {
-    if ((err as BusinessError).code === ERROR_ASSET_ALREADY_EXISTS) {
-      // 并发写入的竞态：转为更新
-      await asset.update(aliasQuery(alias), attributesFor(alias, value));
-      return;
-    }
-    throw normalize(err, `新增资产 ${alias}`);
+    throw normalize(err, `重建资产 ${alias}`);
   }
 }
 
