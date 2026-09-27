@@ -9,6 +9,7 @@
  */
 
 import { summarize } from './notice';
+import { Attachment } from './attachment';
 
 /**
  * 作业的完成状态。
@@ -68,8 +69,11 @@ export class Assignment {
   /** 评语（纯文本，取不到为空串） */
   readonly gradeContent: string;
   readonly gradeTime: string;
-  /** 附件名列表（教师附件 + 答案附件 + 已提交附件 + 评分附件，本批只显示名字） */
-  readonly attachmentNames: string[];
+  /**
+   * 附件（教师附件 + 答案附件 + 已提交附件 + 评分附件，按这个顺序）。
+   * 本批只显示名字；下载归 FR-08，故这里连地址与文件 id 一起留着。
+   */
+  readonly attachments: Attachment[];
   /** 详情是否取到了（预取失败时为 false，列表仍显示该条） */
   readonly detailLoaded: boolean;
 
@@ -77,7 +81,7 @@ export class Assignment {
               title: string, description: string, deadline: string, deadlineTime: number, lateDeadline: string,
               submitted: boolean, graded: boolean, isLateSubmission: boolean, submitTime: string,
               grade: string, gradeLevel: string, graderName: string, gradeContent: string, gradeTime: string,
-              attachmentNames: string[], detailLoaded: boolean) {
+              attachments: Attachment[], detailLoaded: boolean) {
     this.id = id;
     this.baseId = baseId;
     this.courseId = courseId;
@@ -97,17 +101,17 @@ export class Assignment {
     this.graderName = graderName;
     this.gradeContent = gradeContent;
     this.gradeTime = gradeTime;
-    this.attachmentNames = attachmentNames;
+    this.attachments = attachments;
     this.detailLoaded = detailLoaded;
   }
 
   /** 取到详情后的副本（保留其余字段不变） */
-  withDetail(description: string, attachmentNames: string[]): Assignment {
+  withDetail(description: string, attachments: Attachment[]): Assignment {
     return new Assignment(this.id, this.baseId, this.courseId, this.courseName, this.courseTeacherName,
       this.title, description, this.deadline, this.deadlineTime, this.lateDeadline,
       this.submitted, this.graded, this.isLateSubmission, this.submitTime,
       this.grade, this.gradeLevel, this.graderName, this.gradeContent, this.gradeTime,
-      attachmentNames, true);
+      attachments, true);
   }
 
   /** 列表摘要：正文压成一行（复用通知那套文本工具，同层复用） */

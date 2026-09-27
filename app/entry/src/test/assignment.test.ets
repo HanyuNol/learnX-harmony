@@ -8,6 +8,8 @@ import { describe, expect, it } from '@ohos/hypium';
 import {
   Assignment, AssignmentFilter, isPast, filterAssignments, sortAssignments
 } from '../main/ets/model/assignment';
+import { Attachment } from '../main/ets/model/attachment';
+import { parseAssignmentAttachments } from '../main/ets/network/parseAssignment';
 
 const DAY: number = 24 * 60 * 60 * 1000;
 
@@ -16,6 +18,18 @@ function assignment(id: string, deadlineTime: number, submitted: boolean): Assig
     'raw', deadlineTime, '', submitted, false, false, '', '', '', '', '', '',
     [], true);
 }
+
+/** 按上游 `div.list.fujian.clearfix` 的结构造的样例（四类附件各一） */
+const DETAIL_HTML: string =
+  '<div class="list fujian clearfix"><div class="ftitle">' +
+  '<a href="/b/wlxt/kczy/zy/student/downloadFile?fileId=101&random=1">作业要求.pdf</a></div>' +
+  '<div class="fl"><span class="color1">1.2 MB</span></div></div>' +
+  '<div class="list fujian clearfix"><div class="ftitle">' +
+  '<a href="/b/wlxt/kczy/zy/student/downloadFile?fileId=202">参考答案.pdf</a></div></div>' +
+  '<div class="list fujian clearfix"><div class="fl">' +
+  '<a href="/b/wlxt/kczy/zy/student/downloadFile?fileId=303&downloadUrl=%2Fb%2Freal%2F303">我的提交.zip</a></div></div>' +
+  '<div class="list fujian clearfix"><div class="ftitle">' +
+  '<a href="/b/wlxt/kczy/zy/student/downloadFile?fileId=404"><span>批注</span>.pdf</a></div></div>';
 
 export default function assignmentTest() {
   describe('assignment', () => {
@@ -41,6 +55,28 @@ export default function assignmentTest() {
         expect(filterAssignments(items, AssignmentFilter.UNFINISHED).length).assertEqual(1);
         expect(filterAssignments(items, AssignmentFilter.UNFINISHED)[0].id).assertEqual('a');
         expect(filterAssignments(items, AssignmentFilter.FINISHED)[0].id).assertEqual('b');
+      });
+    });
+
+    describe('详情页附件解析', () => {
+
+      it('应按出现顺序解出四类附件的名字与文件 id', 0, () => {
+        const files: Attachment[] = parseAssignmentAttachments(DETAIL_HTML);
+        expect(files.length).assertEqual(4);
+        expect(files[0].name).assertEqual('作业要求.pdf');
+        expect(files[0].fileId).assertEqual('101');
+        expect(files[1].name).assertEqual('参考答案.pdf');
+        expect(files[2].name).assertEqual('我的提交.zip');
+        expect(files[3].name).assertEqual('批注.pdf');
+      });
+
+      it('链接里带 downloadUrl 参数时应以它为准（上游那两行的口径）', 0, () => {
+        const files: Attachment[] = parseAssignmentAttachments(DETAIL_HTML);
+        expect(files[2].downloadUrl.includes('/b/real/303')).assertTrue();
+      });
+
+      it('没有附件块的页面应返回空列表，而不是抛错', 0, () => {
+        expect(parseAssignmentAttachments('<div>没有附件</div>').length).assertEqual(0);
       });
     });
 

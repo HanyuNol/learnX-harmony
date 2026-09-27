@@ -117,7 +117,7 @@ export class AssignmentRepository {
   private static async fillOneDetail(item: Assignment): Promise<Assignment> {
     try {
       const description: string = await LearnClient.getInstance().fetchAssignmentDescription(item.baseId);
-      return item.withDetail(description, item.attachmentNames);
+      return item.withDetail(description, item.attachments);
     } catch (err) {
       Logger.warn(TAG, `作业详情加载失败 id=${item.id}`);
       return item;

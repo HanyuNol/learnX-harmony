@@ -12,6 +12,8 @@
 import { Assignment } from '../model/assignment';
 import { parseFailed } from '../common/errors';
 import { decodeHtmlEntities } from './parseCourse';
+import { Attachment } from '../model/attachment';
+import { LEARN_PREFIX } from '../model/urls';
 
 const YES: string = '是';
 
@@ -117,4 +119,105 @@ export function parseAssignmentDescription(body: string): string {
     throw parseFailed('作业详情响应缺少 success 标记');
   }
   return decodeHtmlEntities(str(envelope['msg']));
+}
+
+
+/** 附件块的类名（上游用 `div.list.fujian.clearfix` 选，且**按出现顺序**对应四类） */
+const ATTACHMENT_BLOCK_MARKER: string = 'list fujian clearfix';
+
+function queryParamOf(href: string, name: string): string {
+  const question: number = href.indexOf('?');
+  if (question < 0) {
+    return '';
+  }
+  const pairs: string[] = href.substring(question + 1).split('&');
+  for (const pair of pairs) {
+    const equals: number = pair.indexOf('=');
+    if (equals < 0) {
+      continue;
+    }
+    if (pair.substring(0, equals) === name) {
+      return decodeURIComponent(pair.substring(equals + 1));
+    }
+  }
+  return '';
+}
+
+/** 从一段附件块里取第一个链接的（显示名, href） */
+function firstLinkOf(block: string): string[] {
+  const anchor: number = block.indexOf('<a ');
+  if (anchor < 0) {
+    return [];
+  }
+  const hrefStart: number = block.indexOf('href="', anchor);
+  const contentStart: number = block.indexOf('>', anchor);
+  const contentEnd: number = block.indexOf('</a>', contentStart);
+  if (hrefStart < 0 || contentStart < 0 || contentEnd < 0) {
+    return [];
+  }
+  const hrefEnd: number = block.indexOf('"', hrefStart + 6);
+  if (hrefEnd < 0) {
+    return [];
+  }
+  const href: string = block.substring(hrefStart + 6, hrefEnd);
+  // 链接文本里可能再嵌标签（如 <span>），按上游口径取纯文本
+  const rawName: string = block.substring(contentStart + 1, contentEnd);
+  const name: string = decodeHtmlEntities(stripInnerTags(rawName)).trim();
+  return [name, href];
+}
+
+function stripInnerTags(fragment: string): string {
+  let text: string = '';
+  let inTag: boolean = false;
+  for (let i = 0; i < fragment.length; i++) {
+    const ch: string = fragment.charAt(i);
+    if (ch === '<') {
+      inTag = true;
+    } else if (ch === '>') {
+      inTag = false;
+    } else if (!inTag) {
+      text += ch;
+    }
+  }
+  return text;
+}
+
+/**
+ * 解析作业详情页 HTML 里的附件（**按上游 `parseHomeworkAtUrl` 的结构移植**，
+ * `thu-learn-lib/src/index.ts:1190-1251`）。
+ *
+ * 结构：`div.list.fujian.clearfix` 在页面里出现多次，**按顺序**对应
+ * 教师附件 / 答案附件 / 已提交附件 / 评分附件；每块里第一个 `<a href=...>` 就是该附件，
+ * 显示名是链接文本，`fileId` 从 href 的查询参数取，下载地址是 `LEARN_PREFIX + href`
+ * （若 href 带 `downloadUrl` 参数则以它为准——上游那两行注释写着 "so dirty here"）。
+ *
+ * 本项目禁止引入 HTML 解析库（架构不变量 §2），故这里只做"找块 + 取第一个链接"的
+ * 最小白名单解析，不做通用 DOM。**块里没有链接的类别直接跳过**（不是错误）。
+ */
+export function parseAssignmentAttachments(html: string): Attachment[] {
+  const blocks: string[] = [];
+  let searchFrom: number = 0;
+  while (true) {
+    const marker: number = html.indexOf(ATTACHMENT_BLOCK_MARKER, searchFrom);
+    if (marker < 0) {
+      break;
+    }
+    const next: number = html.indexOf(ATTACHMENT_BLOCK_MARKER, marker + ATTACHMENT_BLOCK_MARKER.length);
+    blocks.push(next < 0 ? html.substring(marker) : html.substring(marker, next));
+    searchFrom = marker + ATTACHMENT_BLOCK_MARKER.length;
+  }
+
+  const attachments: Attachment[] = [];
+  for (const block of blocks) {
+    const link: string[] = firstLinkOf(block);
+    if (link.length < 2 || link[1].length === 0) {
+      continue;
+    }
+    const href: string = link[1];
+    const fileId: string = queryParamOf(href, 'fileId');
+    const explicit: string = queryParamOf(href, 'downloadUrl');
+    const downloadUrl: string = explicit.length > 0 ? `${LEARN_PREFIX}${explicit}` : `${LEARN_PREFIX}${href}`;
+    attachments.push(new Attachment(fileId, link[0], downloadUrl));
+  }
+  return attachments;
 }
