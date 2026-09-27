@@ -24,7 +24,9 @@ import {
   ID_LOGIN_CHECK_SINGLE,
   learnAuthRoam,
   LEARN_STUDENT_HOME,
-  LEARN_LOGOUT
+  LEARN_LOGOUT,
+  LEARN_SEMESTER_LIST,
+  LEARN_CURRENT_SEMESTER
 } from '../model/urls';
 import { Logger } from '../common/logger';
 import { apiChanged, authFailed, fromStatusCode, normalize } from '../common/errors';
@@ -32,6 +34,7 @@ import { extractSm2PublicKey, extractTicket, extractCsrfToken, isSessionExpired,
 import { WebCookieStore } from './webCookieStore';
 import { SsoFingerPrints, classifyCheckResponse } from './ssoForm';
 import { encryptPassword } from './sm2';
+import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
 
 const TAG: string = 'learnClient';
 
@@ -541,6 +544,29 @@ export class LearnClient {
       throw authFailed('自动重登后会话仍失效');
     }
     return second;
+  }
+
+  /**
+   * 学期 id 列表（未排序；"最新在前"由 repository 决定）。
+   *
+   * 非 2xx 由 `fromStatusCode` 分类；响应结构不符由解析层抛"解析失败"。
+   * 会话失效时 `getWithAuth` 会先试自动重登（沿用既有语义）。
+   */
+  async fetchSemesterIds(): Promise<string[]> {
+    const result: HttpResult = await this.getWithAuth(LEARN_SEMESTER_LIST);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取学期列表');
+    }
+    return parseSemesterIdList(result.body);
+  }
+
+  /** 服务端认定的当前学期 id */
+  async fetchCurrentSemesterId(): Promise<string> {
+    const result: HttpResult = await this.getWithAuth(LEARN_CURRENT_SEMESTER);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取当前学期');
+    }
+    return parseCurrentSemesterId(result.body);
   }
 
   /** 读取用户信息（姓名与院系）；取不到不视为失败 */

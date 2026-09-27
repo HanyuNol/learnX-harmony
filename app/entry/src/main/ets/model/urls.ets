@@ -46,6 +46,23 @@ export function learnAuthRoam(ticket: string): string {
   return `${LEARN_PREFIX}/b/j_spring_security_thauth_roaming_entry?ticket=${ticket}`;
 }
 
+/**
+ * 学期 id 列表。
+ *
+ * 端点路径**照抄上游** `thu-learn-lib@4.0.0` 的 `urls.ts`：注意它是 `/b/...` 形态，
+ * 与本文件里认证期的 `/f/...` 不是同一类路径，**不要"统一"**。
+ * 响应是 JSON 字符串数组，服务端偶发返回 null 项（上游有专门注释），解析层会过滤。
+ */
+export const LEARN_SEMESTER_LIST: string =
+  `${LEARN_PREFIX}/b/wlxt/kc/v_wlkc_xs_xktjb_coassb/queryxnxq`;
+
+/**
+ * 当前与下一学期。响应要求 `message === 'success'`，取 `result.id` 作为当前学期。
+ * 同样照抄上游路径（`/b/...`）。
+ */
+export const LEARN_CURRENT_SEMESTER: string =
+  `${LEARN_PREFIX}/b/kc/zhjw_v_code_xnxq/getCurrentAndNextSemester`;
+
 /** 网络学堂首页（学生课程列表页）；CSRF 令牌即从该页提取 */
 export const LEARN_STUDENT_HOME: string = `${LEARN_PREFIX}/f/wlxt/index/course/student/`;
 

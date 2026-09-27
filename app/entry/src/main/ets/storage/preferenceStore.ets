@@ -22,6 +22,9 @@ const STORE_NAME: string = 'learnx_settings';
 /** 主题模式的键名。**改动会丢已存偏好**，改名须同时迁移 */
 const KEY_THEME_MODE: string = 'theme_mode';
 
+/** 当前学期的键名。值为学期 id（形如 `2024-2025-1`）；空串表示"还没定过" */
+const KEY_CURRENT_SEMESTER: string = 'current_semester';
+
 function openStore(context: common.Context): preferences.Preferences {
   return preferences.getPreferencesSync(context, { name: STORE_NAME });
 }
@@ -57,6 +60,36 @@ export function writeThemeMode(context: common.Context, mode: ThemeMode): boolea
     return true;
   } catch (err) {
     Logger.warn(TAG, `写入主题模式失败 mode=${mode} code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取当前学期 id。
+ *
+ * 空串表示"还没定过"（首次运行或存储被清），由上层据此决定是否采用服务端的当前学期。
+ * 存储打不开、或存进去的类型不是字符串时同样退让为空串并记 WARN——学期缺失只会让
+ * 下游不发请求，不该让应用起不来。
+ */
+export function readCurrentSemester(context: common.Context): string {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_CURRENT_SEMESTER, '');
+    return typeof raw === 'string' ? raw : '';
+  } catch (err) {
+    Logger.warn(TAG, `读取当前学期失败，视为未设置 code=${(err as BusinessError).code}`);
+    return '';
+  }
+}
+
+/** 写入当前学期 id。返回是否成功（写失败要能被上层感知，语义同 writeThemeMode） */
+export function writeCurrentSemester(context: common.Context, semesterId: string): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_CURRENT_SEMESTER, semesterId);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入当前学期失败 code=${(err as BusinessError).code}`);
     return false;
   }
 }
