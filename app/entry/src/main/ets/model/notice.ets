@@ -118,10 +118,16 @@ export function summarize(content: string): string {
   return trimmed.length > SUMMARY_LIMIT ? `${trimmed.substring(0, SUMMARY_LIMIT)}…` : trimmed;
 }
 
-/** 未读筛选。`ALL` 原样返回（不复制，调用方不改数组） */
-export function filterNotices(items: Notice[], filter: NoticeFilter): Notice[] {
+/**
+ * 未读筛选。`ALL` 原样返回（不复制，调用方不改数组）。
+ *
+ * `readOverrides` 是**本地已读覆盖**（打开过详情的那些通知，见 notices spec §3.3 第 7 条）：
+ * 服务端的 `hasRead` 要等下次刷新才更新，本地先记着，用户才不会觉得"点了没反应"。
+ * 判据放在这里而不是页面里，是为了可穷举测试。
+ */
+export function filterNotices(items: Notice[], filter: NoticeFilter, readOverrides: string[] = []): Notice[] {
   if (filter === NoticeFilter.UNREAD) {
-    return items.filter((item: Notice) => !item.hasRead);
+    return items.filter((item: Notice) => !item.hasRead && !readOverrides.includes(item.id));
   }
   return items;
 }

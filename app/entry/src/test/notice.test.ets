@@ -56,6 +56,14 @@ export default function noticeTest() {
         expect(filterNotices(items, NoticeFilter.UNREAD)[0].id).assertEqual('b');
         expect(filterNotices(items, NoticeFilter.ALL).length).assertEqual(2);
       });
+
+      it('本地已读覆盖应把"刚点开过"的未读项排除出未读筛选', 0, () => {
+        const items: Notice[] = [notice('a', 1, false), notice('b', 2, false)];
+        expect(filterNotices(items, NoticeFilter.UNREAD, ['a']).length).assertEqual(1);
+        expect(filterNotices(items, NoticeFilter.UNREAD, ['a'])[0].id).assertEqual('b');
+        // 不传覆盖时行为不变（默认参数不改变既有语义）
+        expect(filterNotices(items, NoticeFilter.UNREAD).length).assertEqual(2);
+      });
     });
 
     describe('按课程扇出的合并', () => {

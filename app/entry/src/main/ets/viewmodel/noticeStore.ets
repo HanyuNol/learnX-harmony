@@ -1,0 +1,217 @@
+/**
+ * 通知状态：单一应用级 Store（ADR-0004），形状与 semesterStore/courseStore 一致。
+ *
+ * 职责边界：
+ * - 本层不碰网络（扇出在 `repository`）；
+ * - 取数的"输入"是**课程列表**（通知按课程取），故 `ensureLoadedFor(semesterId, courses)`
+ *   用"学期 + 课程 id 集"作为签名：学期变了或课程集变了都要重取；
+ * - 并发下**末次请求胜出**（与 courseStore 同一套做法，见代码审查 N-02 的教训）：
+ *   在途时不丢弃目标，本次成功后再按最新目标补拉一次；
+ * - **本地已读覆盖**：打开详情时按上游发一次服务端"已读"请求，成功后在这里记下
+ *   该条已读（乐观），下次刷新以服务端为准（notices spec §3.3 第 7 条）。
+ */
+
+import { Course } from '../model/course';
+import { Notice, NoticeBatch, NoticeFilter, filterNotices } from '../model/notice';
+import { NoticeRepository } from '../repository/noticeRepository';
+import { FailReason } from '../model/auth';
+import { normalize } from '../common/errors';
+import { textKeyOfFailReason } from '../common/texts';
+import { Logger } from '../common/logger';
+
+const TAG: string = 'noticeStore';
+
+/** 一次取数请求的输入（用于"末次胜出"） */
+class NoticeRequest {
+  readonly semesterId: string;
+  readonly courses: Course[];
+
+  constructor(semesterId: string, courses: Course[]) {
+    this.semesterId = semesterId;
+    this.courses = courses;
+  }
+}
+
+function signatureOf(semesterId: string, courses: Course[]): string {
+  const ids: string[] = courses.map((course: Course) => course.id);
+  return `${semesterId}|${ids.join(',')}`;
+}
+
+export class NoticeState {
+  readonly fetching: boolean;
+  readonly items: Notice[];
+  readonly filter: NoticeFilter;
+  readonly failedCourses: number;
+  readonly totalCourses: number;
+  readonly errorReason: FailReason | null;
+  readonly errorTextKey: string;
+
+  constructor(fetching: boolean, items: Notice[], filter: NoticeFilter, failedCourses: number,
+              totalCourses: number, errorReason: FailReason | null, errorTextKey: string) {
+    this.fetching = fetching;
+    this.items = items;
+    this.filter = filter;
+    this.failedCourses = failedCourses;
+    this.totalCourses = totalCourses;
+    this.errorReason = errorReason;
+    this.errorTextKey = errorTextKey;
+  }
+}
+
+export type NoticeStateListener = (state: NoticeState) => void;
+
+export class NoticeStore {
+  private static instance: NoticeStore | null = null;
+
+  static getInstance(): NoticeStore {
+    if (NoticeStore.instance === null) {
+      NoticeStore.instance = new NoticeStore();
+    }
+    return NoticeStore.instance;
+  }
+
+  private listeners: NoticeStateListener[] = [];
+  private fetching: boolean = false;
+  private items: Notice[] = [];
+  private filter: NoticeFilter = NoticeFilter.ALL;
+  private failedCourses: number = 0;
+  private totalCourses: number = 0;
+  private errorReason: FailReason | null = null;
+  private errorTextKey: string = '';
+
+  /** 已加载对应的签名（学期 + 课程集）；空串表示尚未加载 */
+  private loadedSignature: string = '';
+  /** 在途时被要求的最新目标；本次结束后据此补拉 */
+  private requested: NoticeRequest | null = null;
+  /** 本地已读覆盖（乐观更新）。以服务端字段为准，这里只是"刚点开过"的即时反馈 */
+  private readOverrides: string[] = [];
+
+  subscribe(listener: NoticeStateListener): void {
+    if (!this.listeners.includes(listener)) {
+      this.listeners.push(listener);
+    }
+    listener(this.snapshot());
+  }
+
+  unsubscribe(listener: NoticeStateListener): void {
+    const index: number = this.listeners.indexOf(listener);
+    if (index >= 0) {
+      this.listeners.splice(index, 1);
+    }
+  }
+
+  /** 当前订阅者数量。供页面/测试断言无泄漏 */
+  listenerCount(): number {
+    return this.listeners.length;
+  }
+
+  snapshot(): NoticeState {
+    return new NoticeState(this.fetching, this.items, this.filter, this.failedCourses,
+      this.totalCourses, this.errorReason, this.errorTextKey);
+  }
+
+  /** 当前筛选下的列表（含本地已读覆盖） */
+  visible(): Notice[] {
+    return filterNotices(this.items, this.filter, this.readOverrides);
+  }
+
+  /** 是否已读：服务端字段 + 本地覆盖（刚打开过详情的那些） */
+  isRead(notice: Notice): boolean {
+    return notice.hasRead || this.readOverrides.includes(notice.id);
+  }
+
+  setFilter(filter: NoticeFilter): void {
+    if (this.filter === filter) {
+      return;
+    }
+    this.filter = filter;
+    this.notify();
+  }
+
+  /** 打开详情后按上游发过"已读"请求且成功时调用（乐观） */
+  markRead(noticeId: string): void {
+    if (noticeId.length === 0 || this.readOverrides.includes(noticeId)) {
+      return;
+    }
+    this.readOverrides.push(noticeId);
+    this.notify();
+  }
+
+  /**
+   * 让通知对齐"当前学期 + 当前课程集"。
+   *
+   * 学期为空 → 不做任何事（不发请求，呈现空态而非错误态，notices spec §3.3 第 8 条）；
+   * 课程为空 → 同样不发请求（上游在这一点漏了守卫）。
+   */
+  async ensureLoadedFor(semesterId: string, courses: Course[]): Promise<void> {
+    if (semesterId.length === 0 || courses.length === 0) {
+      return;
+    }
+    if (signatureOf(semesterId, courses) === this.loadedSignature) {
+      return;
+    }
+    await this.refresh(semesterId, courses);
+  }
+
+  /**
+   * 强制重拉。
+   *
+   * 失败进错误态（页面给"重试"），**不自动重试**——对齐上游。
+   * 在途时不丢弃目标：记下来，本次**成功**后按最新目标补拉一次
+   * （失败后补拉会变成失败循环，那种情况该让用户看到错误态并手动重试）。
+   */
+  async refresh(semesterId: string, courses: Course[]): Promise<void> {
+    if (semesterId.length === 0 || courses.length === 0) {
+      return;
+    }
+    const signature: string = signatureOf(semesterId, courses);
+    if (this.fetching) {
+      this.requested = new NoticeRequest(semesterId, courses);
+      Logger.info(TAG, '通知请求在途，改记为待补拉');
+      return;
+    }
+
+    this.fetching = true;
+    this.requested = new NoticeRequest(semesterId, courses);
+    this.errorReason = null;
+    this.errorTextKey = '';
+    this.notify();
+
+    let succeeded: boolean = false;
+    try {
+      const batch: NoticeBatch = await NoticeRepository.loadAll(courses);
+      this.items = batch.items;
+      this.failedCourses = batch.failedCourses;
+      this.totalCourses = batch.totalCourses;
+      this.loadedSignature = signature;
+      succeeded = true;
+    } catch (err) {
+      const error = normalize(err, '加载通知');
+      this.errorReason = error.reason;
+      this.errorTextKey = textKeyOfFailReason(error.reason, error.hintKey);
+      Logger.warn(TAG, `通知加载失败 reason=${error.reason}`);
+    } finally {
+      this.fetching = false;
+      this.notify();
+
+      const pending: NoticeRequest | null = this.requested;
+      if (succeeded && pending !== null
+        && signatureOf(pending.semesterId, pending.courses) !== this.loadedSignature) {
+        Logger.info(TAG, '目标已变化，补拉通知');
+        await this.refresh(pending.semesterId, pending.courses);
+      }
+    }
+  }
+
+  private notify(): void {
+    const snapshot: NoticeState = this.snapshot();
+    const current: NoticeStateListener[] = this.listeners.slice();
+    for (const listener of current) {
+      try {
+        listener(snapshot);
+      } catch (err) {
+        Logger.warn(TAG, '订阅回调抛错，已隔离');
+      }
+    }
+  }
+}
