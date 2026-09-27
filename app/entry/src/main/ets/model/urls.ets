@@ -66,6 +66,17 @@ export const LEARN_CURRENT_SEMESTER: string =
 /** 网络学堂首页（学生课程列表页）；CSRF 令牌即从该页提取 */
 export const LEARN_STUDENT_HOME: string = `${LEARN_PREFIX}/f/wlxt/index/course/student/`;
 
+/**
+ * 某学期的课程列表。**学期 id 与语言都是路径参数**，故都做 URL 编码
+ * （学期 id 是外部输入；同类问题见代码审查 R-14：票据未编码）。
+ *
+ * 路径照抄上游 `thu-learn-lib@4.0.0` 的 `urls.ts:34-37`（学生形态）。
+ */
+export function learnCourseList(semesterId: string, lang: string): string {
+  return `${LEARN_PREFIX}/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId` +
+    `/${encodeURIComponent(semesterId)}/${encodeURIComponent(lang)}`;
+}
+
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 

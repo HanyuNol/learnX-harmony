@@ -26,6 +26,7 @@ import {
   LEARN_STUDENT_HOME,
   LEARN_LOGOUT,
   LEARN_SEMESTER_LIST,
+  learnCourseList,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
 import { Logger } from '../common/logger';
@@ -35,6 +36,8 @@ import { WebCookieStore } from './webCookieStore';
 import { SsoFingerPrints, classifyCheckResponse } from './ssoForm';
 import { encryptPassword } from './sm2';
 import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
+import { parseCourseList } from './parseCourse';
+import { Course } from '../model/course';
 
 const TAG: string = 'learnClient';
 
@@ -558,6 +561,20 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取学期列表');
     }
     return parseSemesterIdList(result.body);
+  }
+
+  /**
+   * 某学期的课程列表。
+   *
+   * `lang` 由 repository 从 `native/localeAdapter` 取好传进来——网络层不依赖系统能力。
+   * 非 2xx 由 `fromStatusCode` 分类；结构不符由解析层抛"解析失败"。
+   */
+  async fetchCourses(semesterId: string, lang: string): Promise<Course[]> {
+    const result: HttpResult = await this.getWithAuth(learnCourseList(semesterId, lang));
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取课程列表');
+    }
+    return parseCourseList(result.body);
   }
 
   /** 服务端认定的当前学期 id */
