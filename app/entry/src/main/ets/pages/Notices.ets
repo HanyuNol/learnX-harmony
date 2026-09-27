@@ -36,6 +36,8 @@ export struct NoticeListTab {
   @State private failedCourses: number = 0;
   @State private totalCourses: number = 0;
   @State private errorReason: FailReason | null = null;
+  /** 只为了"本地已读覆盖变化时重建页面"（见 NoticeState.readVersion 的说明） */
+  @State private readVersion: number = 0;
 
   private store: NoticeStore = NoticeStore.getInstance();
   private courseStore: CourseStore = CourseStore.getInstance();
@@ -48,6 +50,7 @@ export struct NoticeListTab {
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
+    this.readVersion = state.readVersion;
   };
 
   /** 学期变化或课程集变化都要让通知对齐（store 内部有签名比对，不会白拉） */

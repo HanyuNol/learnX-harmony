@@ -121,6 +121,19 @@
     `jsm→teacherName`、`jsh→teacherNumber`、`kch→courseNumber`、`kxh→courseIndex`
     （名称类字段需解 HTML 实体）
   - `lang` 取 `zh`/`en`（对齐上游 `Language` 枚举），由 `native/localeAdapter` 按系统语言给出
+- **通知列表路径**（照抄上游 `urls.ts:78-81`，学生形态）：
+  `POST {LEARN_PREFIX}/b/wlxt/kcgg/wlkc_ggb/student/pageListXsby` + `Wgq`（未过期）/ `Ygq`（已过期）
+  - 表单体只有一个字段：`aoData` = `[{"name":"wlkcid","value":"<课程 id>"}]` 的 JSON 字符串（multipart）
+  - 判定：**`result === 'success'`**（注意：学期/课程接口用的是 `message`，同一套 API 里有三种信封）
+  - 结果容器：`object.aaData`，取不到退 `object.resultsList`
+  - 字段映射：`ggid→id`、`bt→title`（解 HTML 实体）、`ggnr→content`（**Base64**）、
+    `sfyd==='是'→hasRead`、**`Number(sfqd)===1→markedImportant`**、`fbsj`/`fbsjStr→publishTime`、
+    `fbrxm→publisher`、`fjmc`(学生)/`fjbt`(教师)→附件名；
+    **详情 URL 由客户端按 (courseId, noticeId) 拼**（响应里没有该字段）
+- **通知详情路径**：`GET {LEARN_PREFIX}/f/wlxt/kcgg/wlkc_ggb/student/beforeViewXs?wlkcid=&id=`
+  （本项目本批只用它发"已读"请求；正文已在列表里）
+- **POST 的两个坑（实测）**：① 必须带 `_csrf`（上游在 `#myFetchWithToken` 里对**所有**请求注入，
+  只在 GET 注入会让 POST 全 403）；② `Accept` 用 `*/*`，声明 `text/html` 会被判 406。
 - **通知/作业/文件**：**按课程取**，请求带课程 id（非学期 id）；三者都从课程列表派生 courseIds 再扇出
 - **请求**：按学期参数（课程）／按课程参数（通知/作业/文件）
 - **响应**：各维度条目列表；作业含截止时间与完成/提交状态；文件含下载地址

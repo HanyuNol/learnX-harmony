@@ -45,9 +45,17 @@ export class NoticeState {
   readonly totalCourses: number;
   readonly errorReason: FailReason | null;
   readonly errorTextKey: string;
+  /**
+   * "本地已读覆盖"的版本号。
+   *
+   * 存在的理由：`readOverrides` 变了但 items/filter 等字段没变时，ArkUI 不会重建页面，
+   * 于是"刚点开过的通知"仍然是未读样式。页面把这个字段抄进 `@State`，覆盖一变就重建。
+   */
+  readonly readVersion: number;
 
   constructor(fetching: boolean, items: Notice[], filter: NoticeFilter, failedCourses: number,
-              totalCourses: number, errorReason: FailReason | null, errorTextKey: string) {
+              totalCourses: number, errorReason: FailReason | null, errorTextKey: string,
+              readVersion: number) {
     this.fetching = fetching;
     this.items = items;
     this.filter = filter;
@@ -55,6 +63,7 @@ export class NoticeState {
     this.totalCourses = totalCourses;
     this.errorReason = errorReason;
     this.errorTextKey = errorTextKey;
+    this.readVersion = readVersion;
   }
 }
 
@@ -85,6 +94,8 @@ export class NoticeStore {
   private requested: NoticeRequest | null = null;
   /** 本地已读覆盖（乐观更新）。以服务端字段为准，这里只是"刚点开过"的即时反馈 */
   private readOverrides: string[] = [];
+  /** 覆盖的版本号，随覆盖变化而自增（供页面重建） */
+  private readVersion: number = 0;
 
   subscribe(listener: NoticeStateListener): void {
     if (!this.listeners.includes(listener)) {
@@ -107,7 +118,7 @@ export class NoticeStore {
 
   snapshot(): NoticeState {
     return new NoticeState(this.fetching, this.items, this.filter, this.failedCourses,
-      this.totalCourses, this.errorReason, this.errorTextKey);
+      this.totalCourses, this.errorReason, this.errorTextKey, this.readVersion);
   }
 
   /**
@@ -165,6 +176,7 @@ export class NoticeStore {
       return;
     }
     this.readOverrides.push(noticeId);
+    this.readVersion++;
     this.notify();
   }
 
