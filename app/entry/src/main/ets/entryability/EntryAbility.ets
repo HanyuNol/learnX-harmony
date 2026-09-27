@@ -13,19 +13,20 @@
  * limitations under the License.
  */
 
-import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, common, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { applyThemeMode } from '../native/themeAdapter';
-import { DEFAULT_THEME_MODE } from '../common/theme';
+import { readThemeMode } from '../storage/preferenceStore';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    // 主题模式经适配器应用（系统能力不在此直接调用，便于设置页复用同一入口）。
-    // 读取已保存偏好的部分由 T2 的 preferenceStore 接入，此处先用默认值"跟随系统"。
-    applyThemeMode(this.context.getApplicationContext(), DEFAULT_THEME_MODE);
+    // 主题模式：读已保存偏好 → 经适配器应用到系统。
+    // 未保存过或存储读失败时，readThemeMode 退让为"跟随系统"（纯映射逻辑在 common/theme）。
+    const appContext: common.ApplicationContext = this.context.getApplicationContext();
+    applyThemeMode(appContext, readThemeMode(appContext));
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 

@@ -168,7 +168,22 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
     `check lint` 0 defect、`devecocli build` 成功、`hvigorw test` → `Tests run: 70, Failure: 0, Pass: 70`。
   - 用例非空转：把 `parseThemeMode` 改成容忍小写 `dark` 后，**该用例转 Failure**（构建仍打印
     `BUILD SUCCESSFUL`，再次印证 testing-and-quality §1.1 的陷阱 1），改回后恢复 70/70。
-- [ ] T2 偏好存储：`storage/preferenceStore.ets`（主题模式的读写）
+- [x] T2 偏好存储：`storage/preferenceStore.ets`（主题模式的读写）
+  - 交付物：`readThemeMode(context)` / `writeThemeMode(context, mode)` —— 系统首选项的**唯一**读写入口，
+    与凭据存储分开（凭据走加密存储，ADR-0007）；`EntryAbility` 启动改为
+    **读偏好 → 经 `themeAdapter` 应用**，未保存过或读失败时退让为"跟随系统"。
+  - 可测性说明：本文件是**平台调用的薄封装**，其纯逻辑（字符串 → `ThemeMode`、非法值退让）
+    已在 T1 的 `common/theme.ets` 穷举覆盖；故这里不重复造单测。
+  - 证据（2026-09-27，模拟器 `learnx`）：
+    - 写入与读回：`[T2probe] 探针：首次写入 DARK 结果=true` → `探针：读回=DARK` →
+      `[themeAdapter] 已应用主题模式 mode=DARK`；
+    - **跨进程持久化**：`aa force-stop` 后重启（**未重装**，新 pid）→ `探针：未写入（已有偏好）`
+      → `探针：读回=DARK`；
+    - **跨装包持久化**：改动 `versionCode` 后重新装包并启动，仍读到 `mode=DARK`；
+    - 移除探针后的最终代码重新装包启动：`[themeAdapter] 已应用主题模式 mode=DARK`（读到已存偏好）。
+    - 静态门：`check arkts` 24 文件 / 测试 8 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 70/70。
+  - 遗留状态：模拟器上的主题偏好现为 `DARK`（验证写入时留下，且已证明跨装包存活）。
+    T6 的设置页将提供改回"跟随系统"的开关；在此之前该偏好会一直生效。
 - [ ] T3 多语言：中英文案资源骨架 + §3.4 清单里的硬编码中文全部迁移为文案键 +
   `scripts/check-l10n.mjs`（键集合一致性）+ 键映射覆盖单测
 - [ ] T4 状态组件：`StateView.ets`（三态）+ `toast.ets`
@@ -213,7 +228,7 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
 | ~~ArkUI 的每标签独立栈~~ **已解除**（T0 实测） | `Tabs` 内嵌 `Navigation` 的栈保持、返回键归属 | **方案 (a) 成立，无需备选**：切标签往返仍停在原详情页；返回键由当前可见的栈消费，隐藏栈不受影响。若将来回归，备选顺序为 (b) 单个 `Navigation` + 切标签换绑（需先验 `Navigation` 是否响应 `@State` 重绑）→ (c) 退回单栈（切标签丢详情页，与上游不一致，**不接受**） |
 | **空栈时按 BACK 的行为**（T0 追加发现） | 可见栈为空时按 BACK 会**退出到后台**，不是回到第一个标签 | T5 明确该行为并与上游 `@bottom-tabs` 的 backBehavior 对齐；先确认上游默认再定，不臆测 |
 | 模拟器已装版本高于仓库版本 | 模拟器上现存 `versionCode=1000001`（`versionName=1.0.0`，早期本地安装留下），而仓库 `app.json5` 为 `5000`（与 VERSION `0.5.0` 一致）→ 直接 `devecocli run` 会报 `install version downgrade` | 这是**本机环境**问题，不是仓库问题。重装前先 `hdc uninstall io.github.hanyunol.learnx`，或临时抬高 `app.json5` 的 `versionCode`（**验完必须还原，不得提交**——不得为装包改发布元数据） |
-| **装包会重置应用数据（含登录态）** | 本机为**未签名 debug 安装**（`SignHap` 警告 `Will skip sign 'hos_hap'`，无 signingConfigs）。2026-09-27 装包后 `hilog` 出现 `[credentialStore] 凭据不完整，需要用户登录`，界面回落登录页——**模拟器上已无登录态** | 装包前先确认是否需要保留登录态。要复现"杀进程重开仍保持登录态"，需由**用户**用真实账号重新登录（凭据不进代码/日志，Agent 不代持）；已交付记录的 v0.5.0 证据不受影响（`auth-login.md` §11 记录在前） |
+| **模拟器上的凭据存储为空（登录态不在）** | 本机为**未签名 debug 安装**（`SignHap` 警告 `Will skip sign 'hos_hap'`，无 signingConfigs）。2026-09-27 观察：`hilog` 报 `[credentialStore] 凭据不完整，需要用户登录`，界面回落登录页。<br>**更正一处早先的误判**：曾据此写成"装包会重置应用数据"，**不成立**——实测**普通偏好（Preferences）跨装包存活两次**（写入 `DARK` → 卸旧装新 → 启动仍读到 `DARK`）。故凭据何时丢失、为何丢失**均未验证**（本次或更早那次安装都有可能），机制疑与未签名安装下的关键资产归属有关，属推断 | 要演示"杀进程重开仍保持登录态"，须由**用户**用真实账号重新登录（凭据不进代码/日志，Agent 不代持）；已交付记录的 v0.5.0 证据不受影响（`auth-login.md` §11 记录在前）。**不要假设装包会清偏好，也不要假设它不会清凭据**——按"需要保留就重装前先确认"办 |
 | ~~T0 结论若偏离 §3.2~~ **已确认一致** | 导航结构属架构决策 | T0 结论与 §3.2 一致，**无需新 ADR**；`ARCHITECTURE.md` 的导航结构描述在 T5 交付时一并补（不在 spike 阶段写） |
 | 手动主题与系统组件的取色 | `setColorMode` 能否覆盖 `$r('sys.color.*')` 需实测 | 若不行，则改为"只用自定义语义色，不引用 sys 色"——影响面在颜色资源，不扩散到页面 |
 | 文案键迁移触及 network/viewmodel 层 | `ssoForm` / `authStore` 现有中文常量与 `AuthError` 的 `detail` / `userHint` 要改成键 | 分层上由它们在 `model` 里定义键、页面负责取文案（§3.4 已定）；`detail` 改为止于日志；改动局限在文案取值处 |
