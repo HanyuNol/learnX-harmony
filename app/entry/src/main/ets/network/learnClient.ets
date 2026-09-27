@@ -123,7 +123,7 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.jar.store(url, response.cookies);
+      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `GET ${this.maskUrl(url)}`);
@@ -146,7 +146,7 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.jar.store(url, response.cookies);
+      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `POST ${this.maskUrl(url)}`);
@@ -178,10 +178,43 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.jar.store(url, response.cookies);
+      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `POST(multipart) ${this.maskUrl(url)}`);
+    }
+  }
+
+  /**
+   * 从响应中收纳 Cookie。**本方法绝不允许中断请求**。
+   *
+   * 实测教训（两点）：
+   * 1. 框架的 `HttpResponse.cookies` 在本 SDK（API 24）上始终为空，会话 Cookie 从未进入容器，
+   *    服务端因此丢会话、解不开 SM2 密文——用户表现为"密码正确也登不上"。
+   * 2. 改从响应头 `set-cookie` 读取时，用模板串拼接该值触发了**栈溢出**
+   *    （该值可能含循环结构）。故此处**只接受字符串**，绝不字符串化任意对象，并整体兜底。
+   */
+  private captureCookies(url: string, response: http.HttpResponse): void {
+    try {
+      if (response.cookies !== undefined && response.cookies.length > 0) {
+        this.jar.store(url, response.cookies);
+        return;
+      }
+
+      const header: Record<string, Object> = response.header as Record<string, Object>;
+      const raw: Object = header['set-cookie'];
+      if (typeof raw === 'string') {
+        this.jar.store(url, raw);
+      } else if (Array.isArray(raw)) {
+        const items: Array<string> = raw as Array<string>;
+        for (const item of items) {
+          if (typeof item === 'string') {
+            this.jar.store(url, item);
+          }
+        }
+      }
+    } catch (err) {
+      Logger.warn(TAG, '收纳 Cookie 失败，本次请求继续');
     }
   }
 
