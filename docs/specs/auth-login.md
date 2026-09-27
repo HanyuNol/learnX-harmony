@@ -279,3 +279,59 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
   这条应作为可预见的错误提示写进实现（属 §3.6 错误四分类之外的可操作引导）。
 
 > 结论不变（§7.3）：必须实现 WebView 主导的登录路径；变的只是对注入脚本作用的描述。
+
+---
+
+## 8. 修订后的登录流程（取代 §3.2，依据 ADR-0008）
+
+> §3.2 的"纯 API 七步登录"保留为**备选路径**（仅适用未启用多因子认证的账号）。
+> 主路径如下，实现以本节为准。
+
+### 8.1 流程
+
+1. **打开认证页**：应用内 `ArkWeb` 的 `Web` 组件加载
+   `https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0`，
+   **以干净会话起步**（先清该域 Cookie）。
+2. **注入预填脚本**（`Web` 的 `javaScriptAccess` + `onPageEnd` 后 `runJavaScript`）：
+   - 填 `input#i_user` / `input#i_pass` 为学号与密码并置 `readOnly`；
+   - 提交时给 `[name="fingerPrint"]` 写入应用持久化的设备指纹，并勾选 `singleLogin`；
+   - **拦截 XHR**：当请求 URL 为 `/b/doubleAuth/personal/saveFinger` 时，覆写请求体，
+     写入 `fingerprint`（应用指纹）与 `deviceName`，并把 `radioVal` 置为 `'是'`
+     —— 即把"是否信任此浏览器"答为是，使设备进入信任名单；
+   - 提交时抓取**完整表单体**（`FormData` → 对象），经 `Web` 的 JS 通道回传应用。
+     **这三个值（`fingerPrint` / `fingerGenPrint` / `fingerGenPrint3`）只能这样获得。**
+3. **由用户在该页面完成登录**，包括**输入多因子认证验证码**。
+   **应用不得代填、不得代答验证码**——这是流程设计的一部分，不是遗漏。
+4. **收尾判定**：监听导航请求；当目标命中网络学堂漫游地址
+   （`https://learn.tsinghua.edu.cn/f/j_spring_security_thauth_roaming_entry`）时，
+   视为认证完成，停止页面导航并取用第 2 步抓到的表单数据。
+5. **建立会话**：以第 2 步抓到的表单数据调用既有 `LearnClient.loginWithFormData(...)`
+   （由现 `performLogin` 改造而来——凭据不再自行加密，改为直接使用页面生成的表单体），
+   完成后取得 CSRF 令牌，后续 API 请求照旧。
+6. **Cookie 统一**：WebView 与 API 请求共用 `webview.WebCookieManager`
+   （`configCookieSync` 存入 / `fetchCookieSync` 取出 / `saveCookieAsync` 持久化），
+   替代自写内存容器；`storage/CredentialStore` 仍只负责学号密码与设备指纹。
+
+### 8.2 可预见的失败与对应提示
+
+| 现象 | 原因 | 应给出的引导 |
+|---|---|---|
+| 页面提示"信任浏览器数量已达到上限" | 设备信任名单满 | 指引用户到 `id.tsinghua.edu.cn` → 账号设置 → 多因子认证 → 信任浏览器数量 → 维护，删除旧设备 |
+| 认证页结构变化（预填或抓取失败） | 校方页面改版 | 归"接口语义变更"，提示页面结构已变化而非"密码错误" |
+| 用户中途关闭页面 | 未完成认证 | 归"用户取消"，不报错 |
+
+### 8.3 任务拆分（替换 §4 的 T1–T9 中与登录流程相关的部分）
+
+- [ ] T10 新增 `pages/SsoLogin.ets`：承载 `Web` 组件与注入脚本，暴露完成回调
+- [ ] T11 把注入脚本作为独立资源维护（选择器与接口路径集中一处，便于随页面改版修改）
+- [ ] T12 `LearnClient`：新增 `loginWithFormData`，保留 `performLogin` 为备选路径
+- [ ] T13 `CookieJar` 退役，改为 `WebCookieManager` 适配（含持久化）
+- [ ] T14 登录页改为跳转 `SsoLogin`，并给出 §8.2 的提示
+- [ ] T15 验收：真实账号（含多因子认证）走通登录
+
+### 8.4 验收标准（增量，与 §5 叠加）
+
+- **需用户确认**：用开启多因子认证的真实账号，在校园网下通过 WebView 完成登录（含输入验证码），
+  进入应用且重启后仍保持登录态。
+- 未启用多因子认证的账号走备选（纯 API）路径仍可登录。
+- 注入脚本的选择器与接口路径有单一维护点；页面改版导致的失败归入"接口语义变更"并给出正确提示。
