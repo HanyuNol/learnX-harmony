@@ -2,15 +2,15 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "module description"
+      "value": "Learn client module"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "description"
+      "value": "Learn client"
     },
     {
       "name": "EntryAbility_label",
-      "value": "label"
+      "value": "Learn"
     },
     {
       "name": "login_title",
