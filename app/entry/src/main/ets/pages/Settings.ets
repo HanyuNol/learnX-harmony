@@ -31,6 +31,9 @@ function textKeyOfThemeMode(mode: ThemeMode): string {
 
 @Component
 export struct SettingsView {
+  /** 打开学期切换页。由持有设置栈的 `Main` 提供——页面不自己造路由栈 */
+  onOpenSemesters?: () => void;
+
   /** 当前主题模式。仅本页关心，故用页内状态 */
   @State private themeMode: ThemeMode = ThemeMode.FOLLOW_SYSTEM;
 
@@ -80,6 +83,27 @@ export struct SettingsView {
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }, (mode: ThemeMode) => mode)
+
+      // 学期切换入口（FR-05 的用户入口；上游也放在设置页）
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_SEMESTER))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        const open: (() => void) | undefined = this.onOpenSemesters;
+        if (open !== undefined) {
+          open();
+        }
+      })
 
       Blank()
 

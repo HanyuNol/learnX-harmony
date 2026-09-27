@@ -18,6 +18,7 @@ import { FailReason } from '../model/auth';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 import { showToast } from '../components/toast';
 import { SettingsView } from './Settings';
+import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 
 @Component
 export struct MainView {
@@ -118,7 +119,14 @@ export struct MainView {
 
   @Builder
   settingsDetail(name: string) {
-    this.detailOf(this.settingsStack, name)
+    if (name === SEMESTER_DESTINATION) {
+      NavDestination() {
+        SemesterSelectionView()
+      }
+      .title($r('app.string.' + TextKeys.SETTINGS_SEMESTER))
+    } else {
+      this.detailOf(this.settingsStack, name)
+    }
   }
 
   build() {
@@ -172,7 +180,11 @@ export struct MainView {
 
         TabContent() {
           Navigation(this.settingsStack) {
-            SettingsView()
+            SettingsView({
+              onOpenSemesters: () => {
+                this.settingsStack.pushPath({ name: SEMESTER_DESTINATION });
+              }
+            })
           }
           .title($r('app.string.' + TextKeys.TAB_SETTINGS))
           .navDestination(this.settingsDetail)
