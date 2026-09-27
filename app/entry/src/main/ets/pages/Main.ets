@@ -19,6 +19,11 @@ import { emptyView, errorView, loadingView } from '../components/StateView';
 import { showToast } from '../components/toast';
 import { SettingsView } from './Settings';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
+import { CourseListTab } from './Courses';
+import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
+import { SemesterStore } from '../viewmodel/semesterStore';
+import { applicationContextOf } from '../native/contextAdapter';
+import { common } from '@kit.AbilityKit';
 
 @Component
 export struct MainView {
@@ -26,6 +31,22 @@ export struct MainView {
   @Link currentTabIndex: number;
   /** 需要展示的错误文案键（如"登出未完成"）；为空则不显示 */
   @Prop errorKey: string;
+
+  private semesterStore: SemesterStore = SemesterStore.getInstance();
+
+  /**
+   * 登录后**立刻把学期准备好**——学期是课程与三个内容维度的共同前提。
+   *
+   * 为什么放在这里而不是各页自己拉：学期为空时那些页面按规则**不发请求**
+   * （见 semester / courses spec）。实测踩到过：不在启动时加载，课程页只会显示
+   * "暂无内容"，用户得先去设置里打开一次"学期切换"才会好——那是把内部依赖
+   * 暴露成了用户操作。
+   */
+  aboutToAppear(): void {
+    const context: common.ApplicationContext =
+      applicationContextOf(this.getUIContext().getHostContext() as common.Context);
+    this.semesterStore.ensureLoaded(context);
+  }
 
   private noticesStack: NavPathStack = new NavPathStack();
   private assignmentsStack: NavPathStack = new NavPathStack();
@@ -113,8 +134,15 @@ export struct MainView {
   }
 
   @Builder
-  coursesDetail(name: string) {
-    this.detailOf(this.coursesStack, name)
+  coursesDetail(name: string, param: object) {
+    if (name === COURSE_DETAIL_DESTINATION) {
+      NavDestination() {
+        CourseDetailView({ courseId: (param as CourseDetailParam).courseId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_COURSES))
+    } else {
+      this.detailOf(this.coursesStack, name)
+    }
   }
 
   @Builder
@@ -171,7 +199,14 @@ export struct MainView {
 
         TabContent() {
           Navigation(this.coursesStack) {
-            this.tabHome(TextKeys.TAB_COURSES, this.coursesStack)
+            CourseListTab({
+              onOpenCourse: (courseId: string) => {
+                this.coursesStack.pushPath({
+                  name: COURSE_DETAIL_DESTINATION,
+                  param: new CourseDetailParam(courseId)
+                });
+              }
+            })
           }
           .title($r('app.string.' + TextKeys.TAB_COURSES))
           .navDestination(this.coursesDetail)

@@ -187,6 +187,10 @@
     {
       "name": "semester_switch_failed",
       "value": "The switch could not be saved. Please try again."
+    },
+    {
+      "name": "semester_current",
+      "value": "Current"
     }
   ]
 }

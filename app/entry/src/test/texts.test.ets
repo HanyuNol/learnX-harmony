@@ -49,6 +49,7 @@ const KNOWN_KEYS: string[] = [
   TextKeys.SETTINGS_SEMESTER,
   TextKeys.SEMESTER_REFRESH,
   TextKeys.SEMESTER_SWITCH_FAILED,
+  TextKeys.SEMESTER_CURRENT,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -117,7 +118,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(44);
+      expect(KNOWN_KEYS.length).assertEqual(45);
     });
   });
 }

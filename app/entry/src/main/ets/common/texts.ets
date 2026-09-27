@@ -102,6 +102,8 @@ export class TextKeys {
   static readonly SEMESTER_REFRESH: string = 'semester_refresh';
   /** 学期切换未能保存（安全语义：不得谎报切换成功，同审查 R-02 的教训） */
   static readonly SEMESTER_SWITCH_FAILED: string = 'semester_switch_failed';
+  /** 学期页：当前学期的文字标注（与勾选图标并存——图标在节点树里不可验证，文字可） */
+  static readonly SEMESTER_CURRENT: string = 'semester_current';
 
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';

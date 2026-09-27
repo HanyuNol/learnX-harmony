@@ -1,0 +1,87 @@
+/**
+ * 课程详情页：本批交付**骨架**——课程基本信息 + 三个内容页签（通知/作业/文件）的占位。
+ *
+ * 三块内容由 FR-06～FR-08 各自填充；上游也是在课程详情里内嵌这三块
+ * （`CourseDetail.tsx:44-157`），故这里先把结构与页签立起来，填内容时不用动导航结构。
+ *
+ * 课程名/教师名从 `courseStore` 按 id 取（上游是把整个课程对象随路由参数带过去；
+ * 我们用 id 查 store，避免路由参数里塞一份可能过期的副本）。
+ */
+
+import { CourseStore } from '../viewmodel/courseStore';
+import { TextKeys } from '../common/texts';
+import { emptyView } from '../components/StateView';
+
+/** 课程详情的目的地名与参数载体（`Main` 的 navDestination 用它分派） */
+export const COURSE_DETAIL_DESTINATION: string = 'course-detail';
+
+export class CourseDetailParam {
+  readonly courseId: string;
+
+  constructor(courseId: string) {
+    this.courseId = courseId;
+  }
+}
+
+/** 三个内容页签的顺序固定，与上游一致 */
+const CONTENT_TAB_KEYS: string[] = [TextKeys.TAB_NOTICES, TextKeys.TAB_ASSIGNMENTS, TextKeys.TAB_FILES];
+
+@Component
+export struct CourseDetailView {
+  /** 要展示的课程 id */
+  @Prop courseId: string;
+
+  @State private activeTab: number = 0;
+
+  private store: CourseStore = CourseStore.getInstance();
+
+  build() {
+    Column() {
+      // 课程基本信息。查不到时只显示占位符，不阻塞页面（课程列表可能刚好在重取）
+      Text(this.store.nameOf(this.courseId))
+        .fontSize(20)
+        .fontColor($r('app.color.text_primary'))
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+
+      Tabs({ barPosition: BarPosition.Start, index: this.activeTab }) {
+        TabContent() {
+          this.contentPlaceholder(TextKeys.TAB_NOTICES)
+        }
+        .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
+
+        TabContent() {
+          this.contentPlaceholder(TextKeys.TAB_ASSIGNMENTS)
+        }
+        .tabBar($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
+
+        TabContent() {
+          this.contentPlaceholder(TextKeys.TAB_FILES)
+        }
+        .tabBar($r('app.string.' + TextKeys.TAB_FILES))
+      }
+      .barMode(BarMode.Fixed)
+      .layoutWeight(1)
+      .width('100%')
+      .onChange((index: number) => {
+        this.activeTab = index;
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.bg_page'))
+  }
+
+  /** 内容占位：FR-06～FR-08 落地时把这里换成各自的列表 */
+  @Builder
+  contentPlaceholder(titleKey: string) {
+    Column({ space: 8 }) {
+      Text($r('app.string.' + titleKey))
+        .fontSize(16)
+        .fontColor($r('app.color.text_secondary'))
+      emptyView()
+    }
+    .width('100%')
+    .height('100%')
+  }
+}

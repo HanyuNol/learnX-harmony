@@ -114,6 +114,11 @@ export struct SemesterSelectionView {
         .fontColor($r('app.color.text_primary'))
       Blank()
       if (id === this.current) {
+        // 既给图标也给文字：图标在本项目的 UI 节点树里看不到（SymbolGlyph 不被表示），
+        // 只有文字能让"当前项有没有标出来"这件事在验收时被真正验证，也更不容易误读
+        Text($r('app.string.' + TextKeys.SEMESTER_CURRENT))
+          .fontSize(14)
+          .fontColor($r('app.color.accent'))
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(20)
           .fontColor([$r('app.color.accent')])
