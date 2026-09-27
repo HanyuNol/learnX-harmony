@@ -18,6 +18,7 @@ import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/cour
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
+import { FILTER_ALL, FilterChoice, allChoice, filterBar } from '../components/FilterBar';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 /** 文件详情在文件栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
@@ -35,6 +36,8 @@ export struct FileListTab {
   @State private failedCourses: number = 0;
   @State private totalCourses: number = 0;
   @State private errorReason: FailReason | null = null;
+  /** 分类筛选是**本视图自己的**状态（'全部' 时为 `FILTER_ALL`，见 list-filter-sort spec §3.3） */
+  @State private category: string = FILTER_ALL;
 
   private store: FileStore = FileStore.getInstance();
   private courseStore: CourseStore = CourseStore.getInstance();
@@ -80,6 +83,13 @@ export struct FileListTab {
 
   build() {
     Column() {
+      // 分类筛选（FR-12）：选项来自**实际出现过的**分类，故随数据变化
+      if (this.choices().length > 1) {
+        filterBar(this.choices(), this.category, (value: string) => {
+          this.category = value;
+        })
+      }
+
       Row({ space: 8 }) {
         Blank()
         Button($r('app.string.' + TextKeys.FILE_REFRESH))
@@ -126,7 +136,16 @@ export struct FileListTab {
   }
 
   private visible(): LearnFile[] {
-    return this.store.visibleFor(this.courseId);
+    return this.store.visibleFor(this.courseId, this.category);
+  }
+
+  /** 筛选条的选项："全部" + 本范围内的分类名（无分类时不显示筛选条） */
+  private choices(): FilterChoice[] {
+    const options: FilterChoice[] = [allChoice()];
+    for (const name of this.store.categoriesFor(this.courseId)) {
+      options.push(FilterChoice.ofText(name, name));
+    }
+    return options;
   }
 
   @Builder

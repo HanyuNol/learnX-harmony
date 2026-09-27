@@ -451,6 +451,10 @@
     {
       "name": "settings_save_failed",
       "value": "The setting could not be saved. Please try again."
+    },
+    {
+      "name": "filter_all",
+      "value": "All"
     }
   ]
 }

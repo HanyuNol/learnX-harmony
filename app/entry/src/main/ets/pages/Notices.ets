@@ -18,6 +18,7 @@ import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/cour
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
+import { FilterChoice, filterBar } from '../components/FilterBar';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 /** 通知详情在通知栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
@@ -93,8 +94,10 @@ export struct NoticeListTab {
   build() {
     Column() {
       Row({ space: 8 }) {
-        this.filterButton(TextKeys.NOTICE_FILTER_ALL, NoticeFilter.ALL)
-        this.filterButton(TextKeys.NOTICE_FILTER_UNREAD, NoticeFilter.UNREAD)
+        filterBar(this.choices(), this.filter, (value: string) => {
+          // 取值就是 `NoticeFilter` 的字面量，故可直接放回（筛选状态留在本页）
+          this.filter = value === NoticeFilter.UNREAD ? NoticeFilter.UNREAD : NoticeFilter.ALL;
+        })
         Blank()
         Button($r('app.string.' + TextKeys.NOTICE_REFRESH))
           .fontSize(14)
@@ -146,15 +149,12 @@ export struct NoticeListTab {
     return this.store.visibleFor(this.courseId, this.filter);
   }
 
-  @Builder
-  filterButton(titleKey: string, value: NoticeFilter) {
-    Button($r('app.string.' + titleKey))
-      .fontSize(14)
-      .backgroundColor(this.filter === value ? $r('app.color.accent') : $r('app.color.bg_card'))
-      .fontColor(this.filter === value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
-      .onClick(() => {
-        this.filter = value;
-      })
+  /** 筛选条选项。用文案键（固定语义的两个选项，中英各一份） */
+  private choices(): FilterChoice[] {
+    return [
+      FilterChoice.ofKey(NoticeFilter.ALL, TextKeys.NOTICE_FILTER_ALL),
+      FilterChoice.ofKey(NoticeFilter.UNREAD, TextKeys.NOTICE_FILTER_UNREAD)
+    ];
   }
 
   @Builder

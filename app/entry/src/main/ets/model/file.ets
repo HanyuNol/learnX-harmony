@@ -134,6 +134,35 @@ export function downloadFileName(courseName: string, title: string, fileType: st
 }
 
 /**
+ * 可见范围内**实际出现过**的分类名（去重、去空、按名称排序）。
+ *
+ * 只列出现过的分类：列一个必然为空的分组是假动作（选了什么都没有）。
+ * 按名称排序是为了**顺序稳定**——否则筛选条的顺序会随数据加载顺序变化。
+ */
+export function categoryNamesOf(items: LearnFile[]): string[] {
+  const seen: string[] = [];
+  for (const item of items) {
+    if (item.categoryName.length > 0 && !seen.includes(item.categoryName)) {
+      seen.push(item.categoryName);
+    }
+  }
+  return seen.sort((left: string, right: string): number => {
+    if (left === right) {
+      return 0;
+    }
+    return left > right ? 1 : -1;
+  });
+}
+
+/** 按分类过滤。`categoryName` 为空串表示"全部"，不过滤（FR-12） */
+export function filterByCategory(items: LearnFile[], categoryName: string): LearnFile[] {
+  if (categoryName.length === 0) {
+    return items;
+  }
+  return items.filter((item: LearnFile) => item.categoryName === categoryName);
+}
+
+/**
  * "进度未知"的哨兵值。
  *
  * 服务端不给 `Content-Length` 时无法算出百分比，此时必须**什么都不显示**而不是显示 0%

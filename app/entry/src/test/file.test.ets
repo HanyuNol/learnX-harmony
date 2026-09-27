@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  LearnFile, PROGRESS_UNKNOWN, downloadFileName, percentOf, sanitizePathSegment, sortFiles
+  LearnFile, PROGRESS_UNKNOWN, categoryNamesOf, downloadFileName, filterByCategory, percentOf,
+  sanitizePathSegment, sortFiles
 } from '../main/ets/model/file';
 import { mimeOfExtension } from '../main/ets/common/mime';
 import { parseFileCategoryList, parseFileList } from '../main/ets/network/parseFile';
@@ -18,6 +19,12 @@ const DAY: number = 24 * 60 * 60 * 1000;
 function file(id: string, uploadMs: number): LearnFile {
   return new LearnFile(id, `f-${id}`, 'c1', '课程甲', '张老师', `文件${id}`, '描述',
     '1.2MB', 1258291, '2025-05-01 10:00', uploadMs, 'pdf', '课件', false, false);
+}
+
+/** 指定分类的文件（分类筛选用例用） */
+function withCategory(id: string, categoryName: string): LearnFile {
+  return new LearnFile(id, `f-${id}`, 'c1', '课程甲', '张老师', `文件${id}`, '',
+    '1MB', 1048576, '2025-05-01 10:00', 1, 'pdf', categoryName, false, false);
 }
 
 function throws(fn: () => void): boolean {
@@ -150,6 +157,27 @@ export default function fileTest() {
 
       it('负数已收视为未知，不显示负进度', 0, () => {
         expect(percentOf(-5, 1000)).assertEqual(PROGRESS_UNKNOWN);
+      });
+    });
+
+    describe('分类筛选（FR-12）', () => {
+
+      it('分类名去重、去空、按名称排序（顺序稳定）', 0, () => {
+        const items: LearnFile[] = [
+          withCategory('a', '课件'), withCategory('b', ''), withCategory('c', '参考资料'),
+          withCategory('d', '课件'), withCategory('e', '作业')];
+        expect(categoryNamesOf(items).length).assertEqual(3);
+        // 中文按码位排序：作业 < 参考 < 课件
+        expect(categoryNamesOf(items)[0]).assertEqual('作业');
+        expect(categoryNamesOf(items)[2]).assertEqual('课件');
+      });
+
+      it('按分类过滤：空串表示全部', 0, () => {
+        const items: LearnFile[] = [
+          withCategory('a', '课件'), withCategory('b', '参考资料'), withCategory('c', '课件')];
+        expect(filterByCategory(items, '').length).assertEqual(3);
+        expect(filterByCategory(items, '课件').length).assertEqual(2);
+        expect(filterByCategory(items, '不存在的分类').length).assertEqual(0);
       });
     });
 

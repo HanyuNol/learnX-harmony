@@ -20,6 +20,7 @@ import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/cour
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys, textKeyOfRelativeDeadline } from '../common/texts';
+import { FilterChoice, filterBar } from '../components/FilterBar';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 /** 作业详情在作业栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
@@ -92,8 +93,11 @@ export struct AssignmentListTab {
   build() {
     Column() {
       Row({ space: 8 }) {
-        this.filterButton(TextKeys.ASSIGNMENT_FILTER_UNFINISHED, AssignmentFilter.UNFINISHED)
-        this.filterButton(TextKeys.ASSIGNMENT_FILTER_FINISHED, AssignmentFilter.FINISHED)
+        filterBar(this.choices(), this.filter, (value: string) => {
+          // 取值就是 `AssignmentFilter` 的字面量，故可直接放回（筛选状态留在本页）
+          this.filter = value === AssignmentFilter.FINISHED
+            ? AssignmentFilter.FINISHED : AssignmentFilter.UNFINISHED;
+        })
         Blank()
         Button($r('app.string.' + TextKeys.ASSIGNMENT_REFRESH))
           .fontSize(14)
@@ -144,15 +148,12 @@ export struct AssignmentListTab {
     return this.store.visibleFor(this.courseId, this.filter, Date.now());
   }
 
-  @Builder
-  filterButton(titleKey: string, value: AssignmentFilter) {
-    Button($r('app.string.' + titleKey))
-      .fontSize(14)
-      .backgroundColor(this.filter === value ? $r('app.color.accent') : $r('app.color.bg_card'))
-      .fontColor(this.filter === value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
-      .onClick(() => {
-        this.filter = value;
-      })
+  /** 筛选条选项。用文案键（固定语义的两个选项，中英各一份） */
+  private choices(): FilterChoice[] {
+    return [
+      FilterChoice.ofKey(AssignmentFilter.UNFINISHED, TextKeys.ASSIGNMENT_FILTER_UNFINISHED),
+      FilterChoice.ofKey(AssignmentFilter.FINISHED, TextKeys.ASSIGNMENT_FILTER_FINISHED)
+    ];
   }
 
   @Builder

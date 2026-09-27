@@ -242,6 +242,9 @@ export class TextKeys {
   /** 设置项未能保存（偏好写入失败） */
   static readonly SETTINGS_SAVE_FAILED: string = 'settings_save_failed';
 
+  /** 通用筛选：全部（FR-12 的通用筛选条，各维度共用） */
+  static readonly FILTER_ALL: string = 'filter_all';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

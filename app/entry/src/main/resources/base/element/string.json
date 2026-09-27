@@ -451,6 +451,10 @@
     {
       "name": "settings_save_failed",
       "value": "设置未能保存，请重试"
+    },
+    {
+      "name": "filter_all",
+      "value": "全部"
     }
   ]
 }

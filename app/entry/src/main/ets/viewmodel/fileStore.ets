@@ -10,7 +10,7 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, PROGRESS_UNKNOWN, percentOf, sortFiles } from '../model/file';
+import { LearnFile, PROGRESS_UNKNOWN, categoryNamesOf, filterByCategory, percentOf, sortFiles } from '../model/file';
 import { FileBatch, FileRepository } from '../repository/fileRepository';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
@@ -117,12 +117,23 @@ export class FileStore {
       this.errorReason, this.errorTextKey, this.downloadVersion);
   }
 
-  /** 某视图要展示的文件：按课程范围过滤（课程详情页签传 courseId） */
-  visibleFor(courseId: string): LearnFile[] {
+  /**
+   * 某视图要展示的文件：按课程范围过滤（课程详情页签传 courseId），再按分类筛（FR-12），
+   * 最后按上传时间倒序。
+   */
+  visibleFor(courseId: string, categoryName: string): LearnFile[] {
     const scoped: LearnFile[] = courseId.length === 0
       ? this.items
       : this.items.filter((item: LearnFile) => item.courseId === courseId);
-    return sortFiles(scoped);
+    return sortFiles(filterByCategory(scoped, categoryName));
+  }
+
+  /** 某视图筛选条里可用的分类名（来自该范围内实际出现过的分类） */
+  categoriesFor(courseId: string): string[] {
+    const scoped: LearnFile[] = courseId.length === 0
+      ? this.items
+      : this.items.filter((item: LearnFile) => item.courseId === courseId);
+    return categoryNamesOf(scoped);
   }
 
   /** 按 id 找一条（详情页用）；找不到返回 null */
