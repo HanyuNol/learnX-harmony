@@ -12,7 +12,7 @@
 
 import { common } from '@kit.AbilityKit';
 import { ThemeMode } from '../common/theme';
-import { readThemeMode, writeThemeMode } from '../storage/preferenceStore';
+import { readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir } from '../storage/preferenceStore';
 import { applyThemeMode } from '../native/themeAdapter';
 import { Logger } from '../common/logger';
 
@@ -43,4 +43,23 @@ export function changeThemeMode(context: common.Context, mode: ThemeMode): boole
     return false;
   }
   return true;
+}
+
+/** 读取下载目标目录偏好（`true` = 应用文件目录，`false`/未设置 = 缓存目录） */
+export function loadUseDocumentDir(context: common.Context): boolean {
+  return readUseDocumentDir(context);
+}
+
+/**
+ * 设置下载目标目录。
+ *
+ * 返回**是否持久化成功**（与主题不同，这项没有"应用到系统"这一步，故只有一道门）。
+ * 写失败要能被页面感知：静默丢掉用户的选择、下次启动又弹回旧值，是最难排查的一类问题。
+ */
+export function changeUseDocumentDir(context: common.Context, useDocumentDir: boolean): boolean {
+  const persisted: boolean = writeUseDocumentDir(context, useDocumentDir);
+  if (!persisted) {
+    Logger.warn(TAG, `下载目录偏好未能持久化 useDocumentDir=${useDocumentDir}`);
+  }
+  return persisted;
 }

@@ -427,6 +427,30 @@
     {
       "name": "file_download_failed",
       "value": "Download or open failed. Please try again."
+    },
+    {
+      "name": "file_download_progress",
+      "value": "Downloading %d%%"
+    },
+    {
+      "name": "file_redownload",
+      "value": "Download again"
+    },
+    {
+      "name": "settings_download_dir_title",
+      "value": "Download folder"
+    },
+    {
+      "name": "settings_download_dir_cache",
+      "value": "Cache folder"
+    },
+    {
+      "name": "settings_download_dir_files",
+      "value": "App files folder"
+    },
+    {
+      "name": "settings_save_failed",
+      "value": "The setting could not be saved. Please try again."
     }
   ]
 }

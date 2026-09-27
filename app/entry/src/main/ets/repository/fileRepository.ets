@@ -13,7 +13,8 @@ import { Course } from '../model/course';
 import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
-import { ensureDir, ensureFilesRoot, fileExists, writeBytes, removeFile, decodePrefix, openFile } from '../native/fileAdapter';
+import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile } from '../native/fileAdapter';
+import { readUseDocumentDir } from '../storage/preferenceStore';
 import { Logger } from '../common/logger';
 import { common } from '@kit.AbilityKit';
 
@@ -101,12 +102,16 @@ export class FileRepository {
   /**
    * 下载一个文件到应用沙箱，返回沙箱内的绝对路径。
    *
+   * 目标目录按偏好选择（缓存 / 应用文件目录，见 downloads spec §2）；
    * `forceRefresh` 为 false 且目标文件已存在时**直接复用**（不发起请求）。
+   * `onProgress` 是"已收字节 / 总字节"，网络层原样转达——百分比由上层算（规则 2：
+   * 进度只在网络层产生，页面不自估）。
    * 失败时抛错，且已写入的半截文件会被删除。
    */
-  static async download(file: LearnFile, context: common.Context, forceRefresh: boolean): Promise<string> {
-    const root: string = ensureFilesRoot(context);
-    const directory: string = `${root}/${sanitizePathSegment(file.courseName)}/${sanitizePathSegment(file.fileId)}`;
+  static async download(file: LearnFile, context: common.Context, forceRefresh: boolean,
+                        onProgress?: (received: number, total: number) => void): Promise<string> {
+    const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
+    const directory: string = `${root}/${FileRepository.relativeDirOf(file)}`;
     ensureDir(directory);
     const path: string = `${directory}/${downloadFileName(file.courseName, file.title, file.fileType)}`;
 
@@ -115,7 +120,7 @@ export class FileRepository {
       return path;
     }
 
-    const data: ArrayBuffer = await LearnClient.getInstance().downloadFileBytes(file.fileId);
+    const data: ArrayBuffer = await LearnClient.getInstance().downloadFileBytes(file.fileId, onProgress);
     if (data.byteLength <= 0) {
       removeFile(path);
       throw new Error('下载到的文件为空');
@@ -130,16 +135,38 @@ export class FileRepository {
     return path;
   }
 
-  /** 沙箱里的文件路径（不下载，只算路径；详情页判断"是否已下载"用） */
+  /** 沙箱里的文件路径（按**偏好目录**算，不下载；详情页判断"已下载"用 `isDownloaded`） */
   static pathOf(file: LearnFile, context: common.Context): string {
-    const root: string = ensureFilesRoot(context);
-    return `${root}/${sanitizePathSegment(file.courseName)}/${sanitizePathSegment(file.fileId)}`
-      + `/${downloadFileName(file.courseName, file.title, file.fileType)}`;
+    return FileRepository.pathIn(filesRoot(context, readUseDocumentDir(context)), file);
   }
 
-  /** 该文件是否已经在沙箱里（"已下载"状态） */
+  /**
+   * 该文件是否已经在沙箱里（"已下载"状态）。
+   *
+   * **两个目录都看**：用户切换过目标目录后旧文件仍在原处（downloads spec §3.3 第 5 条）。
+   */
   static isDownloaded(file: LearnFile, context: common.Context): boolean {
-    return fileExists(FileRepository.pathOf(file, context));
+    for (const root of filesRoots(context)) {
+      if (fileExists(FileRepository.pathIn(root, file))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 已下载时的绝对路径（任一目录命中即可）；都没命中返回空串 */
+  static downloadedPathOf(file: LearnFile, context: common.Context): string {
+    for (const root of filesRoots(context)) {
+      const path: string = FileRepository.pathIn(root, file);
+      if (fileExists(path)) {
+        return path;
+      }
+    }
+    return '';
+  }
+
+  private static pathIn(root: string, file: LearnFile): string {
+    return `${root}/${FileRepository.relativeDirOf(file)}/${downloadFileName(file.courseName, file.title, file.fileType)}`;
   }
 
   /** 该文件对应的 MIME（交给系统查看器用） */
@@ -153,8 +180,16 @@ export class FileRepository {
    * 两步都失败会抛出，由调用方给用户可见反馈——**不静默**。
    */
   static async openDownloaded(file: LearnFile, context: common.UIAbilityContext): Promise<void> {
-    const path: string = await FileRepository.download(file, context, false);
+    const existing: string = FileRepository.downloadedPathOf(file, context);
+    const path: string = existing.length > 0
+      ? existing
+      : await FileRepository.download(file, context, false);
     await openFile(context, path, FileRepository.mimeOf(file));
+  }
+
+  /** 相对目录：`<课程名>/<文件 id>`（清洗过，不得越级） */
+  static relativeDirOf(file: LearnFile): string {
+    return `${sanitizePathSegment(file.courseName)}/${sanitizePathSegment(file.fileId)}`;
   }
 
   /**

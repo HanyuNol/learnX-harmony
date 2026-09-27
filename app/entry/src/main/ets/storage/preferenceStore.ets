@@ -25,6 +25,9 @@ const KEY_THEME_MODE: string = 'theme_mode';
 /** 当前学期的键名。值为学期 id（形如 `2024-2025-1`）；空串表示"还没定过" */
 const KEY_CURRENT_SEMESTER: string = 'current_semester';
 
+/** 下载目标目录的键名。缺省/`false` = 缓存目录，`true` = 应用文件目录（FR-10） */
+const KEY_USE_DOCUMENT_DIR: string = 'use_document_dir';
+
 function openStore(context: common.Context): preferences.Preferences {
   return preferences.getPreferencesSync(context, { name: STORE_NAME });
 }
@@ -90,6 +93,35 @@ export function writeCurrentSemester(context: common.Context, semesterId: string
     return true;
   } catch (err) {
     Logger.warn(TAG, `写入当前学期失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取"下载是否落到应用文件目录"。
+ *
+ * 默认 **false**（缓存目录）——FR-08 交付的行为就是缓存目录，改默认值会让用户已下的文件
+ * 突然"找不到"（downloads spec §2 第 2 条）。非布尔值同样退让为默认值。
+ */
+export function readUseDocumentDir(context: common.Context): boolean {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_USE_DOCUMENT_DIR, false);
+    return typeof raw === 'boolean' ? raw : false;
+  } catch (err) {
+    Logger.warn(TAG, `读取下载目录偏好失败，退让为缓存目录 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 写入"下载是否落到应用文件目录"。返回是否成功（语义同 writeThemeMode） */
+export function writeUseDocumentDir(context: common.Context, useDocumentDir: boolean): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_USE_DOCUMENT_DIR, useDocumentDir);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入下载目录偏好失败 code=${(err as BusinessError).code}`);
     return false;
   }
 }

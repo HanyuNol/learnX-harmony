@@ -119,7 +119,7 @@ export function sanitizePathSegment(raw: string): string {
 }
 
 /**
- * 下载目标文件名：`<课程名>-<标题>.<类型>`（对齐上游 `helpers/fs.ts:55-60`）。
+ * 下载文件名：`<课程名>-<标题>.<类型>`（对齐上游 `helpers/fs.ts:55-60`）。
  *
  * 各段都先经 `sanitizePathSegment`；类型为空时**不加后缀**——判空要看**原串**：
  * `sanitizePathSegment('')` 会给出占位符 `file`，用它当扩展名会造出 `.file` 这种假后缀。
@@ -131,4 +131,29 @@ export function downloadFileName(courseName: string, title: string, fileType: st
     return `${course}-${name}`;
   }
   return `${course}-${name}.${sanitizePathSegment(fileType)}`;
+}
+
+/**
+ * "进度未知"的哨兵值。
+ *
+ * 服务端不给 `Content-Length` 时无法算出百分比，此时必须**什么都不显示**而不是显示 0%
+ * （0% 看起来像"卡住了"）或 100%（更糟）。用 `-1` 而不是 `0` 正是为了把两者分开。
+ */
+export const PROGRESS_UNKNOWN: number = -1;
+
+/**
+ * 已收字节 / 总字节 → 0~100 的整数百分比。
+ *
+ * 总量不明（<= 0）时返回 `PROGRESS_UNKNOWN`；服务端给错（已收多于总量）时上限收到 100，
+ * 不产生"104%"这种数字。纯函数，便于穷举测试。
+ */
+export function percentOf(received: number, total: number): number {
+  if (total <= 0 || received < 0) {
+    return PROGRESS_UNKNOWN;
+  }
+  const percent: number = Math.floor((received / total) * 100);
+  if (percent < 0) {
+    return 0;
+  }
+  return percent > 100 ? 100 : percent;
 }

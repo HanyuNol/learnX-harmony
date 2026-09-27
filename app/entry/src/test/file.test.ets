@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  LearnFile, downloadFileName, sanitizePathSegment, sortFiles
+  LearnFile, PROGRESS_UNKNOWN, downloadFileName, percentOf, sanitizePathSegment, sortFiles
 } from '../main/ets/model/file';
 import { mimeOfExtension } from '../main/ets/common/mime';
 import { parseFileCategoryList, parseFileList } from '../main/ets/network/parseFile';
@@ -127,6 +127,29 @@ export default function fileTest() {
         expect(downloadFileName('数据结构', '第1章', 'pdf')).assertEqual('数据结构-第1章.pdf');
         // 类型为空时不加后缀
         expect(downloadFileName('课', '题', '')).assertEqual('课-题');
+      });
+    });
+
+    describe('下载进度百分比', () => {
+
+      it('正常归一成 0~100 的整数', 0, () => {
+        expect(percentOf(0, 1000)).assertEqual(0);
+        expect(percentOf(1, 1000)).assertEqual(0);
+        expect(percentOf(425, 1000)).assertEqual(42);
+        expect(percentOf(1000, 1000)).assertEqual(100);
+      });
+
+      it('总量不明（<=0）时返回未知，不猜百分比', 0, () => {
+        expect(percentOf(500, 0)).assertEqual(PROGRESS_UNKNOWN);
+        expect(percentOf(500, -1)).assertEqual(PROGRESS_UNKNOWN);
+      });
+
+      it('服务端给错（已收多于总量）时不产生 >100 的值', 0, () => {
+        expect(percentOf(3000, 1000)).assertEqual(100);
+      });
+
+      it('负数已收视为未知，不显示负进度', 0, () => {
+        expect(percentOf(-5, 1000)).assertEqual(PROGRESS_UNKNOWN);
       });
     });
 

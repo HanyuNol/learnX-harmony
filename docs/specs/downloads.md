@@ -1,6 +1,6 @@
 # 功能规格：文件下载管理（进度 · 目标目录 · 重试）
 
-> 状态：草拟（spec 先行，实现未开始）　·　关联 PRD：FR-10（与 FR-08 / FR-16 的边界见 §2）　·　分支：main
+> 状态：已实现（自动化验收已过；设备项待用户统一验收）　·　关联 PRD：FR-10（与 FR-08 / FR-16 的边界见 §2）　·　分支：main
 > 接口语义基线：上一批（FR-08）已在 `repository/fileRepository.ets` 打通"取字节 → 落盘"，
 > 本 FR 在它之上加**可观测与可控制**的部分。交互参照上游 `robertying/learnX` 的
 > `helpers/fs.ts`（下载与进度回调）与 `screens/Settings.tsx`（目录相关设置项）。
@@ -70,12 +70,20 @@ FR-10 把下载变成可管理：**看得见进度、知道文件在哪、失败
 
 ## 4. 任务拆分
 
-- [ ] T1 `learnClient`：下载进度回调（含无 `Content-Length` 的降级）
-- [ ] T2 `preferenceStore` + `fileAdapter` + `fileRepository`：目标目录偏好与按偏好取根目录
-- [ ] T3 `fileStore`：进度与失败原因进状态；重试入口
-- [ ] T4 `FileDetail` + `Settings`：进度条与百分比文字、重新下载、重试、目录选择
-- [ ] 文档同步：PRD FR-10 状态、`API.md`（若下载端点有新事实）、CHANGELOG 未发布段
-- [ ] T5 验收（见 §5）
+- [x] T1 `learnClient`：下载进度回调（含无 `Content-Length` 的降级）
+- [x] T2 `preferenceStore` + `fileAdapter` + `fileRepository`：目标目录偏好与按偏好取根目录
+- [x] T3 `fileStore`：进度与失败原因进状态；重试入口
+- [x] T4 `FileDetail` + `Settings`：进度条与百分比文字、重新下载、重试、目录选择
+- [x] 文档同步：PRD FR-10 状态、`API.md`（下载端点事实已在 FR-08 那批写入，本批无新增）、
+      CHANGELOG 未发布段
+- [ ] T5 验收（见 §5）：**自动化部分已过；设备部分尚未做**（原因同 assignments spec §5）
+
+> 实现期的三处判断，在此留痕：
+> ① 进度条用 `Progress({ type: ProgressType.Linear })`，并**同时给出百分比文字**——
+> 图形不进 UI 节点树，只有文字才能验收；
+> ② 进度事件很密，`fileStore` 只在**整数百分比变化**时通知，避免页面反复重建；
+> ③ "打开"多了两步兜底：先按两个目录找**已存在的**文件，找到就直接打开、不重下
+> （否则切过目录后会重复下载一份）。
 
 ## 5. 验收标准
 

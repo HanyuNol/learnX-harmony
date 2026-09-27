@@ -427,6 +427,30 @@
     {
       "name": "file_download_failed",
       "value": "下载或打开失败，请重试"
+    },
+    {
+      "name": "file_download_progress",
+      "value": "下载中 %d%%"
+    },
+    {
+      "name": "file_redownload",
+      "value": "重新下载"
+    },
+    {
+      "name": "settings_download_dir_title",
+      "value": "下载目录"
+    },
+    {
+      "name": "settings_download_dir_cache",
+      "value": "缓存目录"
+    },
+    {
+      "name": "settings_download_dir_files",
+      "value": "应用文件目录"
+    },
+    {
+      "name": "settings_save_failed",
+      "value": "设置未能保存，请重试"
     }
   ]
 }

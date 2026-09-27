@@ -228,6 +228,19 @@ export class TextKeys {
   static readonly FILE_OPEN: string = 'file_open';
   /** 下载或打开失败 */
   static readonly FILE_DOWNLOAD_FAILED: string = 'file_download_failed';
+  /** 下载进度：`下载中 %d%%`（图形之外必须有文字才可验收） */
+  static readonly FILE_DOWNLOAD_PROGRESS: string = 'file_download_progress';
+  /** 详情：重新下载 */
+  static readonly FILE_REDOWNLOAD: string = 'file_redownload';
+
+  /** 设置页：下载目录小节标题 */
+  static readonly SETTINGS_DOWNLOAD_DIR_TITLE: string = 'settings_download_dir_title';
+  /** 下载目录选项：缓存目录（可被系统回收） */
+  static readonly SETTINGS_DOWNLOAD_DIR_CACHE: string = 'settings_download_dir_cache';
+  /** 下载目录选项：应用文件目录（随应用数据保留） */
+  static readonly SETTINGS_DOWNLOAD_DIR_FILES: string = 'settings_download_dir_files';
+  /** 设置项未能保存（偏好写入失败） */
+  static readonly SETTINGS_SAVE_FAILED: string = 'settings_save_failed';
 
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';

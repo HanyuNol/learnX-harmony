@@ -121,13 +121,57 @@ export struct FileDetailView {
             .padding({ top: 4 })
         }
 
+        // 下载中的进度：**图形之外必须有文字**——进度条不进节点树就无从验收（陷阱 7）
+        if (this.store.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
+          Column({ space: 4 }) {
+            if (this.percent(file) >= 0) {
+              Progress({ value: this.percent(file), total: 100, type: ProgressType.Linear })
+                .width('100%')
+              Text($r('app.string.' + TextKeys.FILE_DOWNLOAD_PROGRESS, this.percent(file)))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            } else {
+              // 服务端没给总长度：只说"下载中…"，**不猜百分比**（downloads spec §3.3 第 3 条）
+              Text($r('app.string.' + TextKeys.FILE_DOWNLOADING))
+                .fontSize(14)
+                .fontColor($r('app.color.text_secondary'))
+            }
+          }
+          .width('100%')
+          .padding({ top: 8 })
+        }
+
+        // 失败：明说失败并给"重试"（覆盖旧文件重下一遍）
+        if (this.store.downloadStateOf(file.id) === DownloadState.FAILED) {
+          Row({ space: 8 }) {
+            Text($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED))
+              .fontSize(14)
+              .fontColor($r('app.color.danger'))
+              .layoutWeight(1)
+            Button($r('app.string.' + TextKeys.STATE_RETRY))
+              .fontSize(14)
+              .onClick(() => {
+                this.download(file, true);
+              })
+          }
+          .width('100%')
+          .padding({ top: 8 })
+        }
+
         Row({ space: 12 }) {
-          // 两个动作分开（files spec §2.3）：一个只落盘，一个要交给系统查看器
+          // 三个动作分开（files spec §2.3 + downloads spec §2 第 3/4 条）：
+          // 只落盘 / 覆盖重下 / 交给系统查看器
           Button($r('app.string.' + this.downloadKey(file)))
             .fontSize(16)
             .enabled(this.store.downloadStateOf(file.id) !== DownloadState.DOWNLOADING)
             .onClick(() => {
-              this.download(file);
+              this.download(file, false);
+            })
+          Button($r('app.string.' + TextKeys.FILE_REDOWNLOAD))
+            .fontSize(16)
+            .enabled(this.store.downloadStateOf(file.id) !== DownloadState.DOWNLOADING)
+            .onClick(() => {
+              this.download(file, true);
             })
           Button($r('app.string.' + TextKeys.FILE_OPEN))
             .fontSize(16)
@@ -146,6 +190,11 @@ export struct FileDetailView {
     .height('100%')
   }
 
+  /** 当前下载百分比；`PROGRESS_UNKNOWN`（< 0）表示服务端没给总长度 */
+  private percent(file: LearnFile): number {
+    return this.store.downloadPercentOf(file.id);
+  }
+
   /** 下载按钮的文案：下载 / 下载中… / 已下载 */
   private downloadKey(file: LearnFile): string {
     if (this.store.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
@@ -157,9 +206,9 @@ export struct FileDetailView {
     return TextKeys.FILE_DOWNLOAD;
   }
 
-  /** 点"已下载"再下一遍是没有意义的；但按钮不置灰——重新下载是 FR-10 的"重试"职责 */
-  private download(file: LearnFile): void {
-    this.store.download(file, this.context(), false).catch(() => {
+  /** 点"已下载"再下一遍没有意义；要重下用"重新下载"（forceRefresh=true） */
+  private download(file: LearnFile, forceRefresh: boolean): void {
+    this.store.download(file, this.context(), forceRefresh).catch(() => {
       // 失败必须有可见反馈，不静默（files spec §3.3 第 5 条）
       showToast($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED));
     });

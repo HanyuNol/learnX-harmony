@@ -10,7 +10,7 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, sortFiles } from '../model/file';
+import { LearnFile, PROGRESS_UNKNOWN, percentOf, sortFiles } from '../model/file';
 import { FileBatch, FileRepository } from '../repository/fileRepository';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
@@ -90,6 +90,8 @@ export class FileStore {
   private loadedSignature: string = '';
   private requested: FileRequest | null = null;
   private downloadStates: Map<string, DownloadState> = new Map();
+  /** 各文件的下载百分比（`PROGRESS_UNKNOWN` = 服务端没给总长度） */
+  private downloadPercents: Map<string, number> = new Map();
   private downloadVersion: number = 0;
 
   subscribe(listener: FileStateListener): void {
@@ -193,17 +195,26 @@ export class FileStore {
   /**
    * 只下载（不打开）。状态机：`IDLE/FAILED → DOWNLOADING → READY|FAILED`。
    * 失败时**抛**给页面，由页面给可见反馈（Toast）——不静默（files spec §3.3 第 5 条）。
+   *
+   * `forceRefresh` 为真即"重新下载"（downloads spec §2 第 4 条）：覆盖旧文件重下一遍。
    */
   async download(file: LearnFile, context: common.Context, forceRefresh: boolean): Promise<void> {
     if (this.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
       return;
     }
     this.setDownloadState(file.id, DownloadState.DOWNLOADING);
+    this.setDownloadPercent(file.id, PROGRESS_UNKNOWN);
     try {
-      await FileRepository.download(file, context, forceRefresh);
+      const report: (received: number, total: number) => void = (received: number, total: number) => {
+        // 百分比只在**整数值变化**时才通知：下载事件很密，每次都通知会让页面反复重建
+        this.setDownloadPercent(file.id, percentOf(received, total));
+      };
+      await FileRepository.download(file, context, forceRefresh, report);
       this.setDownloadState(file.id, DownloadState.READY);
+      this.setDownloadPercent(file.id, 100);
     } catch (err) {
       this.setDownloadState(file.id, DownloadState.FAILED);
+      this.setDownloadPercent(file.id, PROGRESS_UNKNOWN);
       Logger.warn(TAG, `文件下载失败 id=${file.id}`);
       throw new Error('文件下载失败');
     }
@@ -230,6 +241,12 @@ export class FileStore {
     }
   }
 
+  /** 该文件当前的下载百分比（0~100）；`PROGRESS_UNKNOWN` 表示服务端没给总长度 */
+  downloadPercentOf(fileId: string): number {
+    const percent: number | undefined = this.downloadPercents.get(fileId);
+    return percent === undefined ? PROGRESS_UNKNOWN : percent;
+  }
+
   /** 该文件是否已在沙箱（详情页显示"已下载"） */
   isDownloaded(file: LearnFile, context: common.Context): boolean {
     if (this.downloadStateOf(file.id) === DownloadState.READY) {
@@ -243,6 +260,17 @@ export class FileStore {
     next.set(fileId, state);
     this.downloadStates = next;
     this.downloadVersion = this.downloadVersion + 1;
+    this.notify();
+  }
+
+  /** 进度百分比变化时才通知（整数不变就不打扰页面） */
+  private setDownloadPercent(fileId: string, percent: number): void {
+    if (this.downloadPercentOf(fileId) === percent) {
+      return;
+    }
+    const next: Map<string, number> = new Map(this.downloadPercents);
+    next.set(fileId, percent);
+    this.downloadPercents = next;
     this.notify();
   }
 

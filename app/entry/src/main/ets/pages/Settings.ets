@@ -1,8 +1,8 @@
 /**
- * 设置页。本批次**只有"主题"一项**（FR-13）——其余设置项属 FR-16，现在不放占位行
- * （"提前出现的占位"算镀金，见 `scope-discipline` §2）。
+ * 设置页：主题（FR-13）、下载目录（FR-10）、学期切换入口（FR-05）、登出（FR-04）。
+ * 其余设置项属 FR-16，尚未落地——不放占位行（"提前出现的占位"算镀金，见 `scope-discipline` §2）。
  *
- * 分层：本页只表达"用户选了哪个模式"，持久化与应用交给 `viewmodel/settingsStore`
+ * 分层：本页只表达"用户选了哪个"，持久化与应用交给 `viewmodel/settingsStore`
  * （→ `storage.preferenceStore` + `native/themeAdapter`），页面不碰存储与系统能力。
  * 获取宿主上下文属于 ArkUI 的 UI 能力（与 `SsoLogin` 读注入脚本同一做法），
  * 传递下去即可。
@@ -10,7 +10,7 @@
 
 import { common } from '@kit.AbilityKit';
 import { AuthStore } from '../viewmodel/authStore';
-import { changeThemeMode, loadThemeMode } from '../viewmodel/settingsStore';
+import { changeThemeMode, changeUseDocumentDir, loadThemeMode, loadUseDocumentDir } from '../viewmodel/settingsStore';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -18,6 +18,9 @@ import { applicationContextOf } from '../native/contextAdapter';
 
 /** 主题三个选项的取值与文案键（顺序即展示顺序） */
 const THEME_OPTIONS: ThemeMode[] = [ThemeMode.FOLLOW_SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK];
+
+/** 下载目录两个选项：缓存目录在前（当前默认值，先展示） */
+const DOWNLOAD_DIR_OPTIONS: boolean[] = [false, true];
 
 function textKeyOfThemeMode(mode: ThemeMode): string {
   if (mode === ThemeMode.LIGHT) {
@@ -29,6 +32,10 @@ function textKeyOfThemeMode(mode: ThemeMode): string {
   return TextKeys.THEME_FOLLOW_SYSTEM;
 }
 
+function textKeyOfDownloadDir(useDocumentDir: boolean): string {
+  return useDocumentDir ? TextKeys.SETTINGS_DOWNLOAD_DIR_FILES : TextKeys.SETTINGS_DOWNLOAD_DIR_CACHE;
+}
+
 @Component
 export struct SettingsView {
   /** 打开学期切换页。由持有设置栈的 `Main` 提供——页面不自己造路由栈 */
@@ -36,6 +43,8 @@ export struct SettingsView {
 
   /** 当前主题模式。仅本页关心，故用页内状态 */
   @State private themeMode: ThemeMode = ThemeMode.FOLLOW_SYSTEM;
+  /** 当前下载目录选择（`false` = 缓存目录） */
+  @State private useDocumentDir: boolean = false;
 
   private store: AuthStore = AuthStore.getInstance();
 
@@ -46,6 +55,7 @@ export struct SettingsView {
 
   aboutToAppear(): void {
     this.themeMode = loadThemeMode(this.appContext());
+    this.useDocumentDir = loadUseDocumentDir(this.appContext());
   }
 
   private select(mode: ThemeMode): void {
@@ -53,6 +63,15 @@ export struct SettingsView {
     this.themeMode = mode;
     if (!changeThemeMode(this.appContext(), mode)) {
       showToast($r('app.string.' + TextKeys.THEME_APPLY_FAILED));
+    }
+  }
+
+  private selectDownloadDir(useDocumentDir: boolean): void {
+    this.useDocumentDir = useDocumentDir;
+    if (!changeUseDocumentDir(this.appContext(), useDocumentDir)) {
+      // 写不进去就如实说，并且把界面退回真实值，免得界面与存储长期不一致
+      this.useDocumentDir = loadUseDocumentDir(this.appContext());
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
     }
   }
 
@@ -83,6 +102,33 @@ export struct SettingsView {
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }, (mode: ThemeMode) => mode)
+
+      // 下载目标目录（FR-10；两项的取舍见 docs/specs/downloads.md §2 第 2 条）
+      Text($r('app.string.' + TextKeys.SETTINGS_DOWNLOAD_DIR_TITLE))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, top: 16, bottom: 8 })
+
+      ForEach(DOWNLOAD_DIR_OPTIONS, (option: boolean) => {
+        Row() {
+          Text($r('app.string.' + textKeyOfDownloadDir(option)))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          Radio({ value: option ? 'files' : 'cache', group: TextKeys.SETTINGS_DOWNLOAD_DIR_TITLE })
+            .checked(this.useDocumentDir === option)
+            .onChange((checked: boolean) => {
+              if (checked) {
+                this.selectDownloadDir(option);
+              }
+            })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .backgroundColor($r('app.color.bg_card'))
+      }, (option: boolean) => option ? 'files' : 'cache')
 
       // 学期切换入口（FR-05 的用户入口；上游也放在设置页）
       Row() {

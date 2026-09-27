@@ -19,11 +19,32 @@ const FILES_DIR_NAME: string = 'learnX-files';
 /** 打开文件用的意图（系统据此挑查看器） */
 const ACTION_VIEW_DATA: string = 'ohos.want.action.viewData';
 
-/** 下载文件的根目录（`<cacheDir>/learnX-files`），目录不存在时创建 */
-export function ensureFilesRoot(context: common.Context): string {
-  const root: string = `${context.cacheDir}/${FILES_DIR_NAME}`;
+/**
+ * 下载文件的根目录。
+ *
+ * `useDocumentDir` 为真用**应用文件目录**（随应用数据保留），否则用**缓存目录**
+ * （系统空间紧张时可回收）。默认缓存目录与 FR-08 的行为一致（见 downloads spec §2 第 2 条）。
+ */
+export function filesRoot(context: common.Context, useDocumentDir: boolean): string {
+  return useDocumentDir ? `${context.filesDir}/${FILES_DIR_NAME}` : `${context.cacheDir}/${FILES_DIR_NAME}`;
+}
+
+/** 创建并返回下载根目录 */
+export function ensureFilesRoot(context: common.Context, useDocumentDir: boolean): string {
+  const root: string = filesRoot(context, useDocumentDir);
   ensureDir(root);
   return root;
+}
+
+/**
+ * 两个可能的下载根目录（缓存在前）。
+ *
+ * "这个文件下载过没有"必须**两个目录都看**：用户切换过目标目录后，旧文件仍在原处，
+ * 只看新目录会让详情页显示"未下载"，而文件其实还在（downloads spec §3.3 第 5 条）。
+ * 这里只算路径、不创建目录。
+ */
+export function filesRoots(context: common.Context): string[] {
+  return [filesRoot(context, false), filesRoot(context, true)];
 }
 
 /** 递归创建目录（已存在不报错） */

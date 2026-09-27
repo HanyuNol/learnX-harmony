@@ -768,9 +768,9 @@ export class LearnClient {
    * 会话失效的判定与 `getWithAuth` 一致（403 视为失效，自动重登一次再试）——
    * 只是响应体是二进制，无法像文本那样查 `login_timeout` 标记，故以状态码为准。
    */
-  async downloadFileBytes(fileId: string): Promise<ArrayBuffer> {
+  async downloadFileBytes(fileId: string, onProgress?: (received: number, total: number) => void): Promise<ArrayBuffer> {
     const url: string = learnFileDownload(fileId);
-    const first: ByteResult = await this.getBytes(url);
+    const first: ByteResult = await this.getBytes(url, onProgress);
     let status: number = first.status;
     let data: ArrayBuffer = first.data;
 
@@ -781,7 +781,7 @@ export class LearnClient {
       }
       Logger.info(TAG, '下载遇会话失效，尝试自动重登后重试');
       await this.reloginOnce(credentials);
-      const second: ByteResult = await this.getBytes(url);
+      const second: ByteResult = await this.getBytes(url, onProgress);
       status = second.status;
       data = second.data;
     }
@@ -792,9 +792,24 @@ export class LearnClient {
     return data;
   }
 
-  /** GET 原始字节（`expectDataType: ARRAY_BUFFER`），返回状态码供调用方判定 */
-  private async getBytes(url: string): Promise<ByteResult> {
+  /**
+   * GET 原始字节（`expectDataType: ARRAY_BUFFER`），返回状态码供调用方判定。
+   *
+   * `onProgress` 接到 `dataReceiveProgress` 事件上（收了多少 / 一共多少）。服务端不给
+   * `Content-Length` 时 `total` 为 0，由调用方按"进度未知"处理——**不猜百分比**。
+   */
+  private async getBytes(url: string, onProgress?: (received: number, total: number) => void): Promise<ByteResult> {
     const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
+    if (onProgress !== undefined) {
+      const report: (received: number, total: number) => void = onProgress;
+      request.on('dataReceiveProgress', (info: http.DataReceiveProgressInfo) => {
+        try {
+          report(info.receiveSize, info.totalSize);
+        } catch (err) {
+          Logger.warn(TAG, '下载进度回调抛错，已隔离');
+        }
+      });
+    }
     try {
       const response: http.HttpResponse = await request.request(this.addCsrf(url), {
         method: http.RequestMethod.GET,
