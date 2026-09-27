@@ -57,6 +57,11 @@ export class CourseStore {
   private fetching: boolean = false;
   private items: Course[] = [];
   private loadedSemesterId: string = '';
+  /**
+   * **最近一次被要求**的学期。与 `loadedSemesterId` 分开：前者是"目标"，后者是"已拿到的"。
+   * 并发时用户可能在我们取数途中切学期，靠这个字段才能在本次结束后发现"目标已经变了"。
+   */
+  private requestedSemesterId: string = '';
   private errorReason: FailReason | null = null;
   private errorTextKey: string = '';
 
@@ -113,15 +118,30 @@ export class CourseStore {
     if (semesterId.length === 0) {
       return;
     }
+    this.requestedSemesterId = semesterId;
     if (!isCourseListStale(this.loadedSemesterId, semesterId)) {
       return;
     }
     await this.refresh(semesterId);
   }
 
-  /** 强制重拉。失败进错误态（页面给"重试"），不自动重试——对齐上游 */
+  /**
+   * 强制重拉。失败进错误态（页面给"重试"），**不自动重试**——对齐上游。
+   *
+   * **并发下"末次请求胜出"**：若取数途中用户切了学期，不能像早先那样直接丢弃后来的请求
+   * （那样会出现"当前学期是 B、列表却是 A 的课程"——静默显示错学期数据，比报错更糟，
+   * 见代码审查 N-02）。改为记下目标，本次结束后若目标已变则补拉一次。
+   *
+   * 补拉只在**本次成功**时进行：失败了还立刻再拉会变成失败循环（拿不到就一直打），
+   * 那种情况该让用户看到错误态并手动重试。
+   */
   async refresh(semesterId: string): Promise<void> {
-    if (this.fetching || semesterId.length === 0) {
+    if (semesterId.length === 0) {
+      return;
+    }
+    this.requestedSemesterId = semesterId;
+    if (this.fetching) {
+      Logger.info(TAG, `课程请求在途，改记为待补拉 学期=${semesterId}`);
       return;
     }
     this.fetching = true;
@@ -129,10 +149,12 @@ export class CourseStore {
     this.errorTextKey = '';
     this.notify();
 
+    let succeeded: boolean = false;
     try {
       const courses: Course[] = sortCourses(await CourseRepository.load(semesterId));
       this.items = courses;
       this.loadedSemesterId = semesterId;
+      succeeded = true;
       Logger.info(TAG, `课程加载完成 学期=${semesterId} 数量=${courses.length}`);
     } catch (err) {
       const error = normalize(err, '加载课程');
@@ -142,6 +164,12 @@ export class CourseStore {
     } finally {
       this.fetching = false;
       this.notify();
+      // 目标变了就补拉（仅本次成功时；见方法注释）
+      if (succeeded && isCourseListStale(this.loadedSemesterId, this.requestedSemesterId)) {
+        const target: string = this.requestedSemesterId;
+        Logger.info(TAG, `目标学期已变化，补拉 学期=${target}`);
+        await this.refresh(target);
+      }
     }
   }
 
