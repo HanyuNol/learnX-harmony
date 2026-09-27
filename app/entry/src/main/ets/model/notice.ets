@@ -150,6 +150,22 @@ export function summarize(content: string): string {
 }
 
 /**
+ * 按课程过滤（`courseId` 为空表示不筛）。
+ *
+ * **课程范围的过滤必须在展示层做，而不是靠"只取那一门课"**：store 是应用级单例、
+ * 只有一份通知列表；若让"通知标签"和"课程详情页签"各按自己的范围去**取数**，
+ * 后请求的一方会把列表换成自己那份，另一个视图就显示成了别人的内容
+ * （实测踩到：两处互相混）。上游也是这个做法——store 里存全学期通知，
+ * 课程详情按 courseId **过滤展示**（`CourseDetail.tsx:226-243`）。
+ */
+export function filterByCourse(items: Notice[], courseId: string): Notice[] {
+  if (courseId.length === 0) {
+    return items;
+  }
+  return items.filter((item: Notice) => item.courseId === courseId);
+}
+
+/**
  * 未读筛选。`ALL` 原样返回（不复制，调用方不改数组）。
  *
  * `readOverrides` 是**本地已读覆盖**（打开过详情的那些通知，见 notices spec §3.3 第 7 条）：

@@ -12,7 +12,7 @@
  */
 
 import { Course } from '../model/course';
-import { Notice, NoticeBatch, NoticeFilter, filterNotices } from '../model/notice';
+import { Notice, NoticeBatch, NoticeFilter, filterByCourse, filterNotices } from '../model/notice';
 import { NoticeRepository } from '../repository/noticeRepository';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
@@ -110,9 +110,15 @@ export class NoticeStore {
       this.totalCourses, this.errorReason, this.errorTextKey);
   }
 
-  /** 当前筛选下的列表（含本地已读覆盖） */
-  visible(): Notice[] {
-    return filterNotices(this.items, this.filter, this.readOverrides);
+  /**
+   * 某视图要展示的通知：先按课程范围过滤（课程详情页签传 courseId，通知标签传空），
+   * 再按"全部/未读"筛选，并计入本地已读覆盖。
+   *
+   * **课程范围在展示层过滤**：store 只有一份全学期列表，两个视图共享它；
+   * 若各自按范围去取数，就会互相把对方的列表换掉（曾实测踩到）。
+   */
+  visibleFor(courseId: string): Notice[] {
+    return filterNotices(filterByCourse(this.items, courseId), this.filter, this.readOverrides);
   }
 
   /** 是否已读：服务端字段 + 本地覆盖（刚打开过详情的那些） */
@@ -164,6 +170,9 @@ export class NoticeStore {
 
   /**
    * 让通知对齐"当前学期 + 当前课程集"。
+   *
+   * **取数范围恒为整个学期**（`courses` 传当前学期的全部课程）：课程详情页签同样触发这一次
+   * 取数、再按 courseId 过滤展示——范围只有一个，两个视图才不会互相覆盖。
    *
    * 学期为空 → 不做任何事（不发请求，呈现空态而非错误态，notices spec §3.3 第 8 条）；
    * 课程为空 → 同样不发请求（上游在这一点漏了守卫）。

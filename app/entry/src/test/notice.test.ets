@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from '@ohos/hypium';
-import { Notice, NoticeBatch, NoticeFilter, filterNotices, formatPublishDate, mergeNoticeBatches, plainText, sortNotices, summarize } from '../main/ets/model/notice';
+import { Notice, NoticeBatch, NoticeFilter, filterByCourse, filterNotices, formatPublishDate, mergeNoticeBatches, plainText, sortNotices, summarize } from '../main/ets/model/notice';
 import { parseNoticeList } from '../main/ets/network/parseNotice';
 
 /** 上游学生形态的最小样本：正文是 Base64（"你好" 的 UTF-8） */
@@ -64,6 +64,13 @@ export default function noticeTest() {
         expect(filterNotices(items, NoticeFilter.UNREAD).length).assertEqual(1);
         expect(filterNotices(items, NoticeFilter.UNREAD)[0].id).assertEqual('b');
         expect(filterNotices(items, NoticeFilter.ALL).length).assertEqual(2);
+      });
+
+      it('按课程过滤：空 courseId 不筛，指定课程只留该课', 0, () => {
+        const items: Notice[] = [notice('a', 1, false), notice('b', 2, false)];
+        expect(filterByCourse(items, '').length).assertEqual(2);
+        expect(filterByCourse(items, 'c1').length).assertEqual(2); // 两条都属于 c1
+        expect(filterByCourse(items, 'c9').length).assertEqual(0);
       });
 
       it('本地已读覆盖应把"刚点开过"的未读项排除出未读筛选', 0, () => {

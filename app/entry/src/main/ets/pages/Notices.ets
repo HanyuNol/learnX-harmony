@@ -64,13 +64,15 @@ export struct NoticeListTab {
     this.store.ensureLoadedFor(this.semesterStore.snapshot().current, this.scopedCourses());
   }
 
-  /** 要取哪些课程的通知：本课（课程详情页签）或全部课程（通知标签） */
+  /**
+   * 取数范围恒为**当前学期的全部课程**，与本组件是否只展示一门课无关。
+   *
+   * 为什么不做"只取这一门课"的优化：那样会让本页签与通知标签**抢同一份 store 数据**
+   * （后请求的一方把列表换掉，另一处显示成别人的内容——实测踩到的互相混）。
+   * 课程范围的收窄放在展示层（`visibleFor`）。
+   */
   private scopedCourses(): Course[] {
-    const all: Course[] = this.courseStore.snapshot().items;
-    if (this.courseId.length === 0) {
-      return all;
-    }
-    return all.filter((course: Course) => course.id === this.courseId);
+    return this.courseStore.snapshot().items;
   }
 
   aboutToAppear(): void {
@@ -116,6 +118,7 @@ export struct NoticeListTab {
       } else if (this.fetching && this.items.length === 0) {
         loadingView()
       } else if (this.visible().length === 0) {
+        // 可能没有通知、或本课程没有通知、或学期/课程未就绪——都属空态，不是错误
         // 可能是"学期未就绪""课程为空"或"筛完没有"——都属空态，不是错误
         emptyView()
       } else {
@@ -135,9 +138,9 @@ export struct NoticeListTab {
     .backgroundColor($r('app.color.bg_page'))
   }
 
-  /** 当前筛选下的列表。经 store 取值，才能把"本地已读覆盖"算进去 */
+  /** 本视图要展示的列表：按本组件的课程范围 + 筛选 + 本地已读覆盖 */
   private visible(): Notice[] {
-    return this.store.visible();
+    return this.store.visibleFor(this.courseId);
   }
 
   @Builder
