@@ -114,8 +114,15 @@
 
 ### 2.4 通知 / 作业 / 文件 / 课程（四类内容数据）
 
-- **路径**：网络学堂对应维度的数据接口（语义详见 `thu-learn-lib`）
-- **请求**：按学期参数
+- **课程列表路径**（照抄上游 `urls.ts:34-37`，学生形态，两个路径参数都做 URL 编码）：
+  `GET {LEARN_PREFIX}/b/wlxt/kc/v_wlkc_xs_xkb_kcb_extend/student/loadCourseBySemesterId/{semester}/{lang}`
+  - 判定：`message === 'success'` 且 `resultList` 是数组
+  - 字段映射：`wlkcid→id`、`zywkcm→name`、`kcm→chineseName`、`ywkcm→englishName`、
+    `jsm→teacherName`、`jsh→teacherNumber`、`kch→courseNumber`、`kxh→courseIndex`
+    （名称类字段需解 HTML 实体）
+  - `lang` 取 `zh`/`en`（对齐上游 `Language` 枚举），由 `native/localeAdapter` 按系统语言给出
+- **通知/作业/文件**：**按课程取**，请求带课程 id（非学期 id）；三者都从课程列表派生 courseIds 再扇出
+- **请求**：按学期参数（课程）／按课程参数（通知/作业/文件）
 - **响应**：各维度条目列表；作业含截止时间与完成/提交状态；文件含下载地址
 - **错误**：单维度失败不得阻塞其他维度（见 ARCHITECTURE §5.3）
 
