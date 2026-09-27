@@ -76,10 +76,14 @@ export class AuthRepository {
       await client.loginWithFingerPrints(credentials, fingerPrintsOf(body));
     }
 
+    const userInfo: UserInfo = await client.fetchUserInfo();
+
+    // 凭据在**取到用户信息之后**才落盘：反过来的话，取用户信息失败会留下
+    // "界面说登录失败、凭据却已保存"的不一致，且下次启动会被静默恢复（代码审查 R-05）。
     await CredentialStore.save(credentials, rememberPassword);
     Logger.info(TAG, `WebView 主导登录流程完成 建会话方式=${established ? '漫游票据' : '重新登录'}`);
 
-    return await client.fetchUserInfo();
+    return userInfo;
   }
 
   /**

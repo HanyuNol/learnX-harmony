@@ -222,7 +222,14 @@ export class AuthStore {
     try {
       const userInfo: UserInfo | null = await AuthRepository.tryRestoreSession();
       if (userInfo !== null) {
-        this.setLoggedIn(userInfo);
+        // 恢复过程要发网络请求；这期间用户可能已自行发起登录（状态已离开 LOGGED_OUT）。
+        // 此时旧结果不得覆盖进行中的流程——否则正在输验证码的网页会被顶掉，
+        // 注入值也会被清空（代码审查 R-06）。
+        if (this.status === LoginStatus.LOGGED_OUT) {
+          this.setLoggedIn(userInfo);
+        } else {
+          Logger.info(TAG, `忽略过期的恢复结果 status=${this.status}`);
+        }
       }
     } catch (err) {
       const error = normalize(err, '恢复登录态');
