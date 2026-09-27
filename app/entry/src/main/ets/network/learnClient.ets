@@ -199,6 +199,14 @@ export class LearnClient {
   }
 
   /** 为 *.tsinghua.edu.cn 的请求追加 CSRF 查询参数（对齐上游 addCSRFTokenToUrl） */
+  /**
+   * 往 URL 上挂 CSRF 令牌。
+   *
+   * **每个请求都要挂**（GET 与 POST 一样）：上游是在 `#myFetchWithToken` 里对所有请求
+   * 无条件注入（`thu-learn-lib/src/index.ts:85-90`），Spring 的 CSRF 校验对 POST 同样生效。
+   * 本项目原先只在 GET 路径注入，结果**所有 POST 都被 403 挡掉**——实测：通知扇出 12 门课
+   * 全失败、`status=403`。（登出同样走 POST，也受影响。）
+   */
   private addCsrf(url: string): string {
     if (!url.includes(TSINGHUA_HOST_MARKER) || this.csrfToken.length === 0) {
       return url;
@@ -225,7 +233,7 @@ export class LearnClient {
   private async get(url: string): Promise<HttpResult> {
     const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await request.request(url, {
+      const response: http.HttpResponse = await request.request(this.addCsrf(url), {
         method: http.RequestMethod.GET,
         header: this.buildHeaders(url, 'text/html,application/json', ''),
         connectTimeout: TIMEOUT_MS,
@@ -249,7 +257,7 @@ export class LearnClient {
 
     const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await request.request(url, {
+      const response: http.HttpResponse = await request.request(this.addCsrf(url), {
         method: http.RequestMethod.POST,
         header: this.buildHeaders(url, 'text/html', 'application/x-www-form-urlencoded'),
         extraData: body,
@@ -283,9 +291,11 @@ export class LearnClient {
 
     const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await request.request(url, {
+      const response: http.HttpResponse = await request.request(this.addCsrf(url), {
         method: http.RequestMethod.POST,
-        header: this.buildHeaders(url, 'text/html', `multipart/form-data; boundary=${boundary}`),
+        // Accept 用 `*/*`：这些端点可能返回 JSON（如通知列表），只声明 text/html 会被判
+        // 406 Not Acceptable。上游的 fetch 默认就是 `*/*`（实测踩到：改前 12 门课全 406）
+        header: this.buildHeaders(url, '*/*', `multipart/form-data; boundary=${boundary}`),
         extraData: body,
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
@@ -561,7 +571,7 @@ export class LearnClient {
    * "设备已被信任"才能成功；失败时向上抛认证失败，由页面引导用户重新走网页登录。
    */
   async getWithAuth(url: string): Promise<HttpResult> {
-    const first: HttpResult = await this.get(this.addCsrf(url));
+    const first: HttpResult = await this.get(url);
     if (!this.isExpired(first)) {
       return first;
     }
@@ -573,7 +583,7 @@ export class LearnClient {
 
     await this.reloginOnce(credentials);
 
-    const second: HttpResult = await this.get(this.addCsrf(url));
+    const second: HttpResult = await this.get(url);
     if (this.isExpired(second)) {
       // 重登后仍失效：不再循环，交给上层引导用户
       throw authFailed('自动重登后会话仍失效');

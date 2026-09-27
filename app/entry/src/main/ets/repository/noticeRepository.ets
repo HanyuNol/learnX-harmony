@@ -12,6 +12,7 @@ import { Course } from '../model/course';
 import { Notice, NoticeBatch, mergeNoticeBatches } from '../model/notice';
 import { LearnClient } from '../network/learnClient';
 import { Logger } from '../common/logger';
+import { normalize } from '../common/errors';
 
 const TAG: string = 'noticeRepository';
 
@@ -46,8 +47,30 @@ export class NoticeRepository {
     try {
       return await LearnClient.getInstance().fetchNoticesOfCourse(course.id, course.displayName());
     } catch (err) {
-      Logger.warn(TAG, `课程通知加载失败 course=${course.id}`);
+      // 带上归类与细节：否则"12 门全失败"这种情形只能看到一堆课程 id，看不出为什么
+      // （代码审查 N-10 提的正是这类"日志缺上下文"）
+      const error = normalize(err, '加载课程通知');
+      Logger.warn(TAG, `课程通知加载失败 course=${course.id} reason=${error.reason} detail=${error.detail}`);
       return null;
+    }
+  }
+
+  /**
+   * 通知详情的"已读"请求。
+   *
+   * 上游打开详情时会对详情 URL 发一次 GET，服务端据此记已读（`NoticeDetail.tsx:68-70`）。
+   * 这里也照做，但**返回是否成功**——失败时不该在本地假装已读。
+   */
+  static async markRead(detailUrl: string): Promise<boolean> {
+    if (detailUrl.length === 0) {
+      return false;
+    }
+    try {
+      await LearnClient.getInstance().getWithAuth(detailUrl);
+      return true;
+    } catch (err) {
+      Logger.warn(TAG, '通知"已读"请求失败，本地不标记');
+      return false;
     }
   }
 }
