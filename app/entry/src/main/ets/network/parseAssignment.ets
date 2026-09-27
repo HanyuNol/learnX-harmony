@@ -9,7 +9,7 @@
  * - **`submitted` / `graded` 由调用方按"这批来自哪个端点"注入**，响应里没有这两个字段。
  */
 
-import { Assignment, AssignmentAttachments, gradeLevelNameOf } from '../model/assignment';
+import { Assignment, AssignmentAttachments, formatDateTime, gradeLevelNameOf } from '../model/assignment';
 import { parseFailed } from '../common/errors';
 import { parseServerTime } from '../common/time';
 import { decodeHtmlEntities } from './parseCourse';
@@ -17,6 +17,9 @@ import { Attachment } from '../model/attachment';
 import { LEARN_PREFIX } from '../model/urls';
 
 const YES: string = '是';
+
+/** 未评分时 `cj` 缺失的哨兵值：与"0 分"区分开，两者都不显示 */
+const NO_GRADE: number = -1000;
 
 function str(field: Object | undefined): string {
   return typeof field === 'string' ? field : '';
@@ -35,6 +38,49 @@ function num(field: Object | undefined, fallback: number): number {
     return isNaN(parsed) ? fallback : parsed;
   }
   return fallback;
+}
+
+/**
+ * 服务端时间字段在**当前版本**是**成对**出现的（2026-09-28 真机实测）：
+ * - `jzsj` = epoch 毫秒（number），`jzsjStr` = 可读串（如 `2026-10-09 23:59`）；
+ * - `scsj`/`scsjStr`、`pysj`/`pysjStr`、`bjjzsj`/`bjjzsjStr` 同理。
+ *
+ * 上游 `thu-learn-lib@4.0.0` 只取不带 `Str` 的那个，交给 `dayjs` 处理 number 也能工作；
+ * 本项目原先按**字符串**读，于是这些时间**一个都读不到**——列表项因此完全没有截止时间
+ * （现象与根因见 assignments spec §6）。规则：**时间戳优先取 number**（权威、无歧义），
+ * **显示串优先取 `*Str`**（服务端已格式化），两者缺一时互相兜底，都没有才退让为 0/空串。
+ */
+class ServerTime {
+  /** 用于显示的串；只有 number 时由 `formatDateTime` 补出可读形态 */
+  readonly raw: string;
+  /** 毫秒时间戳；解析不出为 0 */
+  readonly ms: number;
+
+  constructor(raw: string, ms: number) {
+    this.raw = raw;
+    this.ms = ms;
+  }
+}
+
+/**
+ * 从成对的时间字段里取出"显示串 + 时间戳"。
+ *
+ * 三种形态都要认（服务端不同版本/端点的形态并不一致）：
+ * 1. 数字字段是 epoch 毫秒（当前服务端的主形态）→ 时间戳取它；显示串优先取 `*Str`，
+ *    没有 `*Str` 时用 `formatDateTime` 补出可读形态；
+ * 2. 数字字段其实是时间串（旧形态/上游测试数据）→ 当文本解析；
+ * 3. 只有 `*Str` → 当文本解析。
+ */
+function serverTimeOf(strField: Object | undefined, numField: Object | undefined): ServerTime {
+  const text: string = str(strField).trim();
+  const numeric: number = num(numField, 0);
+  if (numeric > 0) {
+    return new ServerTime(text.length > 0 ? text : formatDateTime(numeric), numeric);
+  }
+  // 数字字段本身也可能是时间串：不能因为"它叫 jzsj 不是 jzsjStr"就把它丢掉
+  const inline: string = str(numField).trim();
+  const chosen: string = text.length > 0 ? text : inline;
+  return new ServerTime(chosen, parseServerTime(chosen));
 }
 
 /**
@@ -85,9 +131,14 @@ export function parseAssignmentList(body: string, courseId: string, courseName: 
       continue;
     }
     const h: Record<string, Object> = entry as Record<string, Object>;
-    const deadline: string = str(h['jzsj']);
-    // `cj` 是数字：正数是分数，负数经 `GRADE_LEVEL_MAP` 映射成等级（上游 index.ts:1075）
-    const gradeCode: number = num(h['cj'], 0);
+    // 时间字段成对出现：`xxx` 是 epoch 毫秒、`xxxStr` 是可读串（见 ServerTime 的说明）
+    const deadline: ServerTime = serverTimeOf(h['jzsjStr'], h['jzsj']);
+    const lateDeadline: ServerTime = serverTimeOf(h['bjjzsjStr'], h['bjjzsj']);
+    const submitTime: ServerTime = serverTimeOf(h['scsjStr'], h['scsj']);
+    const gradeTime: ServerTime = serverTimeOf(h['pysjStr'], h['pysj']);
+    // `cj` 是数字：正数是分数，负数经 `GRADE_LEVEL_MAP` 映射成等级（上游 index.ts:1075）。
+    // 未评分时服务端给 null → 用哨兵 -1000 与"0 分"区分开，两者都不显示。
+    const gradeCode: number = num(h['cj'], NO_GRADE);
     items.push(new Assignment(
       str(h['xszyid']),
       str(h['zyid']),
@@ -96,21 +147,21 @@ export function parseAssignmentList(body: string, courseId: string, courseName: 
       courseTeacherName,
       decodeHtmlEntities(str(h['bt'])),
       '',
-      deadline,
-      parseDeadlineTimestamp(deadline),
-      str(h['bjjzsj']),
+      deadline.raw,
+      deadline.ms,
+      lateDeadline.raw,
       submitted,
       graded,
       str(h['sfbj']) === YES,
       num(h['zywcfs'], 0),
       num(h['zytjfs'], 0),
-      str(h['scsj']),
+      submitTime.raw,
       // 有分数显示分数、有等级显示等级：两列都留着，由展示层挑（对齐上游）
       gradeCode >= 0 ? `${gradeCode}` : '',
       gradeLevelNameOf(gradeCode),
       str(h['jsm']),
       str(h['pynr']),
-      str(h['pysj']),
+      gradeTime.raw,
       AssignmentAttachments.empty(),
       false
     ));

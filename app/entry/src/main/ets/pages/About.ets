@@ -49,6 +49,7 @@ export struct AboutView {
         this.helpLine(TextKeys.HELP_NETWORK)
         this.helpLine(TextKeys.HELP_LOGIN)
         this.helpLine(TextKeys.HELP_FILE)
+        this.helpLine(TextKeys.HELP_REMEMBER)
       }
       .width('100%')
       .padding(16)

@@ -31,8 +31,20 @@ const KEY_USE_DOCUMENT_DIR: string = 'use_document_dir';
 /** 下载文件名是否省略课程名前缀的键名。缺省/`false` = 带课程名前缀（FR-16） */
 const KEY_OMIT_COURSE_NAME: string = 'omit_course_name';
 
+/**
+ * 打开偏好存储。
+ *
+ * **一律经 `getApplicationContext()`**（2026-09-28 真机实测的硬规则）：
+ * 用页面宿主上下文（`UIAbilityContext`）打开偏好会在 `<base>/haps/entry/preferences/`
+ * 下**另起一份**，与 `ApplicationContext` 那份（`<base>/preferences/`）互不可见——
+ * 实测：设置页（应用级上下文）写下了"省略课程名前缀"，而文件下载（当时拿到的是宿主上下文）
+ * 读的是另一份、读到默认值 false，于是**设置"点了没反应"**。
+ *
+ * 收在这一处，任何调用方传进来的是哪种上下文都会落到同一份。文件下载需要宿主上下文
+ * 只是为了 `startAbility` 打开文件，不该让它顺带把偏好也换个地方读。
+ */
 function openStore(context: common.Context): preferences.Preferences {
-  return preferences.getPreferencesSync(context, { name: STORE_NAME });
+  return preferences.getPreferencesSync(context.getApplicationContext(), { name: STORE_NAME });
 }
 
 /**

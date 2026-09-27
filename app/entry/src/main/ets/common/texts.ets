@@ -267,6 +267,8 @@ export class TextKeys {
   static readonly HELP_LOGIN: string = 'help_login';
   /** 帮助：文件下载与打开 */
   static readonly HELP_FILE: string = 'help_file';
+  /** 帮助：记住密码的语义（勾选后登出不清除凭据）——ADR-0011 登记的"界面未告知"缺口 */
+  static readonly HELP_REMEMBER: string = 'help_remember';
 
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';

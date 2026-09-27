@@ -11,7 +11,7 @@
  * （与设置页写偏好同一做法，见 `native/contextAdapter` 的说明）。
  */
 
-import { LearnFile, formatUploadDate } from '../model/file';
+import { LearnFile, PROGRESS_UNKNOWN, formatUploadDate } from '../model/file';
 import { plainText } from '../model/notice';
 import { DownloadState, FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { TextKeys } from '../common/texts';
@@ -33,15 +33,23 @@ export struct FileDetailView {
   @Prop fileId: string;
 
   /**
-   * 只为了"store 变了就重建这一页"：下载状态变化要靠它触发刷新。
-   * 必须真的赋新值——回调里什么都不写，ArkUI 观察不到变化（即"静默无效"）。
+   * 下载状态与进度**放进 @State 并在 build 里读**。
+   *
+   * 为什么不是"加一个计数器让页面重建"：2026-09-28 真机实测——**只在 build 里被读到的
+   * 状态变量才会触发重渲染**；一个只写不读的计数器不会让页面刷新，
+   * 于是下载明明成功了、按钮还停在"下载"（详情页的"后来居上"陷阱，见 OPERATIONS.md §7）。
    */
-  @State private revision: number = 0;
+  @State private downloadState: DownloadState = DownloadState.IDLE;
+  @State private percent: number = PROGRESS_UNKNOWN;
+  @State private downloaded: boolean = false;
 
   private store: FileStore = FileStore.getInstance();
 
   private listener: FileStateListener = () => {
-    this.revision = this.revision + 1;
+    this.downloadState = this.store.downloadStateOf(this.fileId);
+    this.percent = this.store.downloadPercentOf(this.fileId);
+    const file: LearnFile | null = this.store.fileOf(this.fileId);
+    this.downloaded = file !== null && this.store.isDownloaded(file, this.context());
   };
 
   aboutToAppear(): void {
@@ -122,12 +130,12 @@ export struct FileDetailView {
         }
 
         // 下载中的进度：**图形之外必须有文字**——进度条不进节点树就无从验收（陷阱 7）
-        if (this.store.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
+        if (this.downloadState === DownloadState.DOWNLOADING) {
           Column({ space: 4 }) {
-            if (this.percent(file) >= 0) {
-              Progress({ value: this.percent(file), total: 100, type: ProgressType.Linear })
+            if (this.percent >= 0) {
+              Progress({ value: this.percent, total: 100, type: ProgressType.Linear })
                 .width('100%')
-              Text($r('app.string.' + TextKeys.FILE_DOWNLOAD_PROGRESS, this.percent(file)))
+              Text($r('app.string.' + TextKeys.FILE_DOWNLOAD_PROGRESS, this.percent))
                 .fontSize(14)
                 .fontColor($r('app.color.text_secondary'))
             } else {
@@ -142,7 +150,7 @@ export struct FileDetailView {
         }
 
         // 失败：明说失败并给"重试"（覆盖旧文件重下一遍）
-        if (this.store.downloadStateOf(file.id) === DownloadState.FAILED) {
+        if (this.downloadState === DownloadState.FAILED) {
           Row({ space: 8 }) {
             Text($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED))
               .fontSize(14)
@@ -163,19 +171,19 @@ export struct FileDetailView {
           // 只落盘 / 覆盖重下 / 交给系统查看器
           Button($r('app.string.' + this.downloadKey(file)))
             .fontSize(16)
-            .enabled(this.store.downloadStateOf(file.id) !== DownloadState.DOWNLOADING)
+            .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
               this.download(file, false);
             })
           Button($r('app.string.' + TextKeys.FILE_REDOWNLOAD))
             .fontSize(16)
-            .enabled(this.store.downloadStateOf(file.id) !== DownloadState.DOWNLOADING)
+            .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
               this.download(file, true);
             })
           Button($r('app.string.' + TextKeys.FILE_OPEN))
             .fontSize(16)
-            .enabled(this.store.downloadStateOf(file.id) !== DownloadState.DOWNLOADING)
+            .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
               this.openFile(file);
             })
@@ -190,20 +198,12 @@ export struct FileDetailView {
     .height('100%')
   }
 
-  /** 当前下载百分比；`PROGRESS_UNKNOWN`（< 0）表示服务端没给总长度 */
-  private percent(file: LearnFile): number {
-    return this.store.downloadPercentOf(file.id);
-  }
-
   /** 下载按钮的文案：下载 / 下载中… / 已下载 */
   private downloadKey(file: LearnFile): string {
-    if (this.store.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
+    if (this.downloadState === DownloadState.DOWNLOADING) {
       return TextKeys.FILE_DOWNLOADING;
     }
-    if (this.store.isDownloaded(file, this.context())) {
-      return TextKeys.FILE_DOWNLOADED;
-    }
-    return TextKeys.FILE_DOWNLOAD;
+    return this.downloaded ? TextKeys.FILE_DOWNLOADED : TextKeys.FILE_DOWNLOAD;
   }
 
   /** 点"已下载"再下一遍没有意义；要重下用"重新下载"（forceRefresh=true） */

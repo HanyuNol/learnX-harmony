@@ -499,6 +499,10 @@
     {
       "name": "help_file",
       "value": "Files are downloaded inside the app; tap Open to hand them to the system viewer. Folder and file-name style are configurable in Settings."
+    },
+    {
+      "name": "help_remember",
+      "value": "With \"Remember password\" checked, credentials are kept after you sign out so the next launch restores automatically. Do not check it on a shared device."
     }
   ]
 }

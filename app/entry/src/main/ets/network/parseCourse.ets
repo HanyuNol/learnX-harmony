@@ -47,33 +47,56 @@ export function decodeHtmlEntities(text: string): string {
   return result;
 }
 
-/** 解单个实体名（不含 `&` 与 `;`）。认不出返回 null */
+/**
+ * 常见的**命名实体**表。
+ *
+ * 为什么要这张表（2026-09-28 真机实测）：课程材料里中文标点几乎总以命名实体出现
+ * （`&ldquo;`/`&rdquo;`/`&hellip;`），原先只认 `amp/lt/gt/quot/apos/nbsp`，
+ * 于是作业摘要里直接露出 `&ldquo;` 这种字样（用户可见的乱码）。
+ * **不引入 HTML 解析库**（架构不变量 §2），故按实际见到的补表；
+ * 表外的命名实体**原样保留**（不猜、不吞字），数字实体走下面两支。
+ */
+const NAMED_ENTITIES: Map<string, string> = new Map([
+  ['quot', '"'], ['amp', '&'], ['apos', '\''], ['lt', '<'], ['gt', '>'],
+  ['nbsp', '\u00A0'], ['ensp', '\u2002'], ['emsp', '\u2003'], ['thinsp', '\u2009'],
+  ['ldquo', '\u201C'], ['rdquo', '\u201D'], ['lsquo', '\u2018'], ['rsquo', '\u2019'],
+  ['laquo', '\u00AB'], ['raquo', '\u00BB'], ['sbquo', '\u201A'], ['bdquo', '\u201E'],
+  ['mdash', '\u2014'], ['ndash', '\u2013'], ['minus', '\u2212'], ['shy', '\u00AD'],
+  ['hellip', '\u2026'], ['bull', '\u2022'], ['middot', '\u00B7'], ['sect', '\u00A7'],
+  ['para', '\u00B6'], ['dagger', '\u2020'], ['Dagger', '\u2021'],
+  ['prime', '\u2032'], ['Prime', '\u2033'], ['times', '\u00D7'], ['divide', '\u00F7'],
+  ['plusmn', '\u00B1'], ['deg', '\u00B0'], ['permil', '\u2030'], ['frac12', '\u00BD'],
+  ['copy', '\u00A9'], ['reg', '\u00AE'], ['trade', '\u2122'],
+  ['euro', '\u20AC'], ['pound', '\u00A3'], ['yen', '\u00A5'], ['cent', '\u00A2'],
+  ['larr', '\u2190'], ['uarr', '\u2191'], ['rarr', '\u2192'], ['darr', '\u2193'],
+  ['harr', '\u2194'], ['crarr', '\u21B5'], ['lArr', '\u21D0'], ['rArr', '\u21D2'], ['hArr', '\u21D4'],
+  ['ne', '\u2260'], ['le', '\u2264'], ['ge', '\u2265'], ['asymp', '\u2248'],
+  ['equiv', '\u2261'], ['infin', '\u221E'], ['sum', '\u2211'], ['prod', '\u220F'],
+  ['radic', '\u221A'], ['int', '\u222B'], ['part', '\u2202'], ['nabla', '\u2207'],
+  ['isin', '\u2208'], ['notin', '\u2209'], ['cap', '\u2229'], ['cup', '\u222A'],
+  ['alpha', '\u03B1'], ['beta', '\u03B2'], ['gamma', '\u03B3'], ['delta', '\u03B4'],
+  ['epsilon', '\u03B5'], ['zeta', '\u03B6'], ['eta', '\u03B7'], ['theta', '\u03B8'],
+  ['lambda', '\u03BB'], ['mu', '\u03BC'], ['nu', '\u03BD'], ['xi', '\u03BE'],
+  ['pi', '\u03C0'], ['rho', '\u03C1'], ['sigma', '\u03C3'], ['tau', '\u03C4'],
+  ['phi', '\u03C6'], ['chi', '\u03C7'], ['psi', '\u03C8'], ['omega', '\u03C9'],
+  ['Delta', '\u0394'], ['Sigma', '\u03A3'], ['Omega', '\u03A9'], ['Pi', '\u03A0'],
+  ['check', '\u2713'], ['cross', '\u2717'], ['star', '\u2606'], ['starf', '\u2605']
+]);
+
+/** 解单个实体名（不含 `&` 与 `;`）。认不出返回 null（**原样保留**，不吞字） */
 function decodeOne(name: string): string | null {
-  if (name === 'amp') {
-    return '&';
-  }
-  if (name === 'lt') {
-    return '<';
-  }
-  if (name === 'gt') {
-    return '>';
-  }
-  if (name === 'quot') {
-    return '"';
-  }
-  if (name === 'apos' || name === '#39') {
-    return '\'';
-  }
-  if (name === 'nbsp') {
-    return '\u00A0';
+  const named: string | undefined = NAMED_ENTITIES.get(name);
+  if (named !== undefined) {
+    return named;
   }
   if (name.startsWith('#x') || name.startsWith('#X')) {
     const code: number = parseInt(name.substring(2), 16);
-    return isNaN(code) ? null : String.fromCharCode(code);
+    // 用 fromCodePoint：增补平面字符（如 emoji）超出一个 UTF-16 单元
+    return isNaN(code) ? null : String.fromCodePoint(code);
   }
   if (name.startsWith('#')) {
     const code: number = parseInt(name.substring(1), 10);
-    return isNaN(code) ? null : String.fromCharCode(code);
+    return isNaN(code) ? null : String.fromCodePoint(code);
   }
   return null;
 }

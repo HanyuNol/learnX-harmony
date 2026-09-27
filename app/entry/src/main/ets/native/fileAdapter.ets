@@ -12,6 +12,7 @@
 import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { common, wantConstant, Want } from '@kit.AbilityKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 
 /** 沙箱内放下载文件的目录名 */
 const FILES_DIR_NAME: string = 'learnX-files';
@@ -123,4 +124,15 @@ export async function openFile(context: common.UIAbilityContext, path: string, m
     flags: wantConstant.Flags.FLAG_AUTH_READ_URI_PERMISSION
   };
   await context.startAbility(want);
+}
+
+/**
+ * 把系统异常收敛成一句可读描述（**只进日志**，不呈现给用户）。
+ *
+ * 打开文件失败时最需要知道的就是错误码：它区分"设备上没有能处理该类型的应用"
+ * （`16000001` 类）与"意图本身不合法"（我们自己写错了）——没有码就只能靠猜。
+ */
+export function describeError(err: Object): string {
+  const error: BusinessError = err as BusinessError;
+  return `code=${error.code} message=${error.message}`;
 }

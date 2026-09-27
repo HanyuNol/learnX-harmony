@@ -13,9 +13,10 @@ import { Course } from '../model/course';
 import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
-import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile } from '../native/fileAdapter';
+import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
 import { readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { Logger } from '../common/logger';
+import { normalize } from '../common/errors';
 import { common } from '@kit.AbilityKit';
 
 const TAG: string = 'fileRepository';
@@ -184,7 +185,15 @@ export class FileRepository {
     const path: string = existing.length > 0
       ? existing
       : await FileRepository.download(file, context, false);
-    await openFile(context, path, FileRepository.mimeOf(file));
+    try {
+      await openFile(context, path, FileRepository.mimeOf(file));
+    } catch (err) {
+      // 记下系统错误码：`16000019 No matching ability is found` 是"设备上没有能打开该类型的应用"，
+      // 与"意图本身不合法"要能分开（2026-09-28 真机实测，模拟器上就是前者）
+      Logger.warn(TAG, `打开文件失败 id=${file.id} ${describeError(err)}`);
+      // ArkTS 不允许 throw 任意类型；交给既有归类（NFR-NET 的四分类），把技术细节留在日志里
+      throw normalize(err, '打开文件');
+    }
   }
 
   /** 相对目录：`<课程名>/<文件 id>`（清洗过，不得越级） */

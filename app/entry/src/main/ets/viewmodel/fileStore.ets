@@ -247,6 +247,7 @@ export class FileStore {
       this.setDownloadState(file.id, DownloadState.READY);
     } catch (err) {
       this.setDownloadState(file.id, DownloadState.FAILED);
+      // 失败明细（含系统错误码）由 repository 记——`viewmodel` 不直连 `native`（架构不变量 §1）
       Logger.warn(TAG, `文件打开失败 id=${file.id}`);
       throw new Error('文件打开失败');
     }

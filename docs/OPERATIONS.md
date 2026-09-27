@@ -251,13 +251,33 @@ node scripts/check-sso-inject.mjs
   `AceOverlay: Toast node mount to root node`（与触发动作同刻）。**别按"节点树里没有"就判定没弹**。
 - **模拟器截图不可用**（返回空白帧，见 §8）：验收以节点树 + hilog 为据，两者都看不到的东西要在报告里
   明确写"未验证"，不要含糊成"看起来正常"。
-- **偏好（Preferences）必须用 ApplicationContext 读写**：2026-09-27 实测，用页面的
-  `getUIContext().getHostContext()`（UIAbilityContext）写入的偏好**重启后读不回来**
-  （设置页写 `FOLLOW_SYSTEM` → force-stop 重启 → 读到旧值 `DARK`），改用
-  `ApplicationContext` 后立刻正常。**机制未深究**（可能落在不同文件，也可能未持久化），
-  但规则明确：应用级偏好统一走 `ApplicationContext`，别用页面拿到的宿主上下文。
+- **偏好（Preferences）必须用 ApplicationContext 读写**——**机制已查明（2026-09-28）**：
+  两种上下文打开的是**两份不同的存储文件**。设备上同时存在
+  `<base>/preferences/learnx_settings`（`ApplicationContext` 那份）与
+  `<base>/haps/entry/preferences/learnx_settings`（宿主上下文那份），**互不可见**。
+  实测症状正是"设置点了没反应"：设置页（应用级上下文）写下了 `omit_course_name=true`，
+  而文件下载当时拿到的是宿主上下文，读的是另一份、读到默认值 `false`，
+  于是"省略课程名前缀"这个开关**对下载毫无作用**（2026-09-28 真机实测，已修）。
+  **修法**：`storage/preferenceStore.ts` 的 `openStore` 一律经 `context.getApplicationContext()`
+  打开——收在这一处，调用方传哪种上下文都落在同一份。**新增偏好读写时不要绕过它**。
 
-### 7.6 文案键一致性检查（改文案后必跑）
+### 7.6 详情页"改了不刷新"：状态变量必须在 build 里真的被读到
+
+ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登记为依赖**。两个真机踩到的形态：
+
+- **"计数器式刷新"无效**：详情页为"store 变了就重建"加一个 `@State revision` 并在订阅回调里 `+1`，
+  但 build 从不读它 → **不会重渲染**。现象：24MB 文件下载成功、日志写着"文件已下载"，
+  按钮却一直停在"下载"；作业详情的"重试"点下去也看不到结果（2026-09-28 实测，已修）。
+  修法：把**真正要显示的数据**放进 `@State`（如 `@State private assignment`、`downloadState`/`percent`），
+  由订阅回调赋值，build 直接读它。
+- **`if` 的条件同理**：文件列表的筛选条写成 `if (this.choices().length > 1)`，而 `choices()`
+  只读 store（非状态）→ 数据到达后**该分支永不重算**，筛选条一直不出现（2026-09-28 实测，已修）。
+  修法：条件里要读 `@State`（本次把分类名也放进 `@State`）。
+
+> 判别口径：**build（含 `if` 条件、`ForEach` 数据源）里读到的状态才驱动刷新**。
+> 只从 store 取数、不经 `@State` 中转的渲染路径，数据变了也不会自己更新。
+
+### 7.7 文案键一致性检查（改文案后必跑）
 
 ```bash
 node scripts/check-l10n.mjs

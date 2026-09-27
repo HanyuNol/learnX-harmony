@@ -60,6 +60,27 @@ export default function parseAssignmentTest() {
 
     describe('字段映射', () => {
 
+      it('当前服务端形态：jzsj 是 epoch 毫秒、jzsjStr 是可读串', 0, () => {
+        // 2026-09-28 真机实测的形态；原先只认"字符串字段"，导致截止时间整个丢失
+        const body: string = '[{"xszyid":"s9","zyid":"b9","bt":"作业","jzsj":1791561540000,'
+          + '"jzsjStr":"2026-10-09 23:59","scsj":1790128415000,"scsjStr":"2026-09-23 09:53",'
+          + '"zywcfs":1,"zytjfs":2}]';
+        const item: Assignment = first(envelope(body), true, false);
+        // 时间戳取自数字（权威），显示串取自 *Str（服务端已格式化）
+        expect(item.deadlineTime).assertEqual(1791561540000);
+        expect(item.deadline).assertEqual('2026-10-09 23:59');
+        expect(item.submitTime).assertEqual('2026-09-23 09:53');
+        expect(item.completionType).assertEqual(1);
+        expect(item.submissionType).assertEqual(2);
+      });
+
+      it('只有数字字段时，显示串由时间戳补出（不丢时间）', 0, () => {
+        const body: string = '[{"xszyid":"s10","zyid":"b10","jzsj":1791561540000}]';
+        const item: Assignment = first(envelope(body), false, false);
+        expect(item.deadlineTime).assertEqual(1791561540000);
+        expect(item.deadline.length > 0).assertTrue();
+      });
+
       it('标题解 HTML 实体，时间原串保留并解析成时间戳', 0, () => {
         const item: Assignment = first(envelope(ONE_ITEM), false, false);
         expect(item.title).assertEqual('标题&副标题');

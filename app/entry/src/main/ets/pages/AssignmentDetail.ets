@@ -35,17 +35,18 @@ export struct AssignmentDetailView {
   @Prop assignmentId: string;
 
   /**
-   * 只为了"store 变了就重建这一页"。
+   * 当前这条作业（放进 **@State**，且 **build 里真的读它**）。
    *
-   * 必须真的赋一个新值：订阅回调里什么都不写的话，ArkUI 观察不到变化，
-   * 重试成功后页面不会重建——那正是本项目反复踩到的"静默无效"。
+   * 为什么不是"加一个计数器让页面重建"：2026-09-28 真机实测——**只在 build 里被读到的
+   * 状态变量才会触发重渲染**；只写不读的计数器不会让页面刷新（详情页重试后看不到结果，
+   * 见 OPERATIONS.md §7）。
    */
-  @State private revision: number = 0;
+  @State private assignment: Assignment | null = null;
 
   private store: AssignmentStore = AssignmentStore.getInstance();
 
   private listener: AssignmentStateListener = () => {
-    this.revision = this.revision + 1;
+    this.assignment = this.store.assignmentOf(this.assignmentId);
   };
 
   aboutToAppear(): void {
@@ -58,11 +59,11 @@ export struct AssignmentDetailView {
 
   build() {
     Column() {
-      if (this.store.assignmentOf(this.assignmentId) === null) {
+      if (this.assignment === null) {
         // 作业不在当前列表里（例如列表刚被整表替换）——给它一个可理解的状态，而不是空白
         emptyView()
       } else {
-        this.detail(this.store.assignmentOf(this.assignmentId) as Assignment)
+        this.detail(this.assignment as Assignment)
       }
     }
     .width('100%')

@@ -12,7 +12,7 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, formatUploadDate } from '../model/file';
+import { LearnFile, categoryNamesOf, formatUploadDate } from '../model/file';
 import { FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
@@ -38,6 +38,8 @@ export struct FileListTab {
   @State private errorReason: FailReason | null = null;
   /** 分类筛选是**本视图自己的**状态（'全部' 时为 `FILTER_ALL`，见 list-filter-sort spec §3.3） */
   @State private category: string = FILTER_ALL;
+  /** 本范围内实际出现过的分类名（@State：筛选条的显隐与选项都由它决定） */
+  @State private categories: string[] = [];
 
   private store: FileStore = FileStore.getInstance();
   private courseStore: CourseStore = CourseStore.getInstance();
@@ -49,6 +51,13 @@ export struct FileListTab {
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
+    // 分类名也放进 **@State**：筛选条的显示与否取决于它，而决定 `if` 分支要不要重算的
+    // 是**条件里读到的状态变量**——条件若只读 store（非状态），数据到达后分支不会重算，
+    // 筛选条就会一直不出现（2026-09-28 真机实测，见 OPERATIONS.md §7）
+    const scoped: LearnFile[] = this.courseId.length === 0
+      ? state.items
+      : state.items.filter((item: LearnFile) => item.courseId === this.courseId);
+    this.categories = categoryNamesOf(scoped);
   };
 
   private coursesListener: CourseStateListener = () => {
@@ -142,7 +151,7 @@ export struct FileListTab {
   /** 筛选条的选项："全部" + 本范围内的分类名（无分类时不显示筛选条） */
   private choices(): FilterChoice[] {
     const options: FilterChoice[] = [allChoice()];
-    for (const name of this.store.categoriesFor(this.courseId)) {
+    for (const name of this.categories) {
       options.push(FilterChoice.ofText(name, name));
     }
     return options;
