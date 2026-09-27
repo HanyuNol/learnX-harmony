@@ -150,6 +150,20 @@
     每块取第一个 `<a href>`，`fileId` 从查询参数取，下载地址是 `LEARN_PREFIX + href`
     （href 带 `downloadUrl` 参数时以它为准）
   - **是否已截止由客户端算**（拿 `deadline` 与当前时间比，严格大于才算过期）——服务端只给字符串
+- **文件列表路径**（照抄上游 `urls.ts:45-48`，学生形态）：
+  `GET …/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent?wlkcid=<课程>&size=200`
+  - 判定：**`result === 'success'`**；**容器是 `json.object` 本身为数组**——这是同一套 API 的
+    **第三个信封变体**（通知/作业是 `object.aaData`；教师形态才是 `object.resultsList`）
+  - 字段映射：`kjxxid→id`、`wjid→fileId`、`bt→title`（解实体）、`ms→description`（解实体）、
+    `wjdx→rawSize`、`fileSize→可读大小串`、`scsj→uploadTime`、`wjlx→fileType`、
+    `sfqd===1→markedImportant`、`isNew→isNew`、`kjflid→分类 id`
+- **文件分类路径**（照抄上游 `urls.ts:50-51`）：`GET …/b/wlxt/kj/wlkc_kjflb/student/pageList?wlkcid=<课程>`；
+  容器 `object.rows`，`kjflid→id`、`bt→分类名`。**文件用 `kjflid` 关联分类名**——
+  取不到不阻塞列表（分类名留空）
+- **文件下载路径**（照抄上游 `urls.ts:70-71`）：`GET …/b/wlxt/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=<fileId>`，
+  **要带会话与 CSRF**（与 POST 同一套注入）。响应是**二进制**，故取字节时用 `expectDataType: ARRAY_BUFFER`
+  - **失败的三种判据**：状态码非 200、字节数为 0、**内容是小体量且含 `location.href`** 的跳转桩
+    （会话失效时服务端会返回跳转页而非 403）。命中即删除已写入的文件并报错
 - **POST 的两个坑（实测）**：① 必须带 `_csrf`（上游在 `#myFetchWithToken` 里对**所有**请求注入，
   只在 GET 注入会让 POST 全 403）；② `Accept` 用 `*/*`，声明 `text/html` 会被判 406。
 - **通知/作业/文件**：**按课程取**，请求带课程 id（非学期 id）；三者都从课程列表派生 courseIds 再扇出

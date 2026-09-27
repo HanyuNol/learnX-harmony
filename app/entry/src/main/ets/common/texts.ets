@@ -196,6 +196,39 @@ export class TextKeys {
   /** 评分等级：缓考 */
   static readonly GRADE_LEVEL_INCOMPLETE: string = 'grade_level_incomplete';
 
+  /** 文件页：重新加载 */
+  static readonly FILE_REFRESH: string = 'file_refresh';
+  /** 文件页：部分课程的文件未能加载 */
+  static readonly FILE_PARTIAL_FAILED: string = 'file_partial_failed';
+  /** 列表项标记：重要 */
+  static readonly FILE_IMPORTANT: string = 'file_important';
+  /** 列表项标记：新文件 */
+  static readonly FILE_NEW: string = 'file_new';
+  /** 详情：课程 */
+  static readonly FILE_COURSE: string = 'file_course';
+  /** 详情：教师 */
+  static readonly FILE_TEACHER: string = 'file_teacher';
+  /** 详情：分类 */
+  static readonly FILE_CATEGORY: string = 'file_category';
+  /** 详情：类型 */
+  static readonly FILE_TYPE: string = 'file_type';
+  /** 详情：大小 */
+  static readonly FILE_SIZE: string = 'file_size';
+  /** 详情：上传时间 */
+  static readonly FILE_UPLOAD_TIME: string = 'file_upload_time';
+  /** 详情：无描述时的占位 */
+  static readonly FILE_NO_DESCRIPTION: string = 'file_no_description';
+  /** 详情：下载 */
+  static readonly FILE_DOWNLOAD: string = 'file_download';
+  /** 详情：下载中… */
+  static readonly FILE_DOWNLOADING: string = 'file_downloading';
+  /** 详情：已下载 */
+  static readonly FILE_DOWNLOADED: string = 'file_downloaded';
+  /** 详情：在系统查看器中打开 */
+  static readonly FILE_OPEN: string = 'file_open';
+  /** 下载或打开失败 */
+  static readonly FILE_DOWNLOAD_FAILED: string = 'file_download_failed';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

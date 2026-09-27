@@ -12,7 +12,7 @@ import { CourseStore } from '../viewmodel/courseStore';
 import { TextKeys } from '../common/texts';
 import { NoticeListTab } from './Notices';
 import { AssignmentListTab } from './Assignments';
-import { emptyView } from '../components/StateView';
+import { FileListTab } from './Files';
 
 /** 课程详情的目的地名与参数载体（`Main` 的 navDestination 用它分派） */
 export const COURSE_DETAIL_DESTINATION: string = 'course-detail';
@@ -43,6 +43,8 @@ export struct CourseDetailView {
    * **必须传下去**——列表行的点击在回调为空时是静默无效的（本项目踩过的坑）。
    */
   onOpenAssignment?: (assignmentId: string) => void;
+  /** 打开文件详情。同样由 `Main` 提供、同样推在课程栈上，同样**必须传下去** */
+  onOpenFile?: (fileId: string) => void;
 
   @State private activeTab: number = 0;
 
@@ -79,7 +81,11 @@ export struct CourseDetailView {
         .tabBar($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
 
         TabContent() {
-          this.contentPlaceholder(TextKeys.TAB_FILES)
+          // 与文件标签共用同一套列表，只是按当前课程过滤；onOpenFile 同样必须传下去
+          FileListTab({
+            courseId: this.courseId,
+            onOpenFile: this.onOpenFile
+          })
         }
         .tabBar($r('app.string.' + TextKeys.TAB_FILES))
       }
@@ -93,18 +99,5 @@ export struct CourseDetailView {
     .width('100%')
     .height('100%')
     .backgroundColor($r('app.color.bg_page'))
-  }
-
-  /** 内容占位：FR-06～FR-08 落地时把这里换成各自的列表 */
-  @Builder
-  contentPlaceholder(titleKey: string) {
-    Column({ space: 8 }) {
-      Text($r('app.string.' + titleKey))
-        .fontSize(16)
-        .fontColor($r('app.color.text_secondary'))
-      emptyView()
-    }
-    .width('100%')
-    .height('100%')
   }
 }

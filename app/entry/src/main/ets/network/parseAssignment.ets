@@ -11,6 +11,7 @@
 
 import { Assignment, AssignmentAttachments, gradeLevelNameOf } from '../model/assignment';
 import { parseFailed } from '../common/errors';
+import { parseServerTime } from '../common/time';
 import { decodeHtmlEntities } from './parseCourse';
 import { Attachment } from '../model/attachment';
 import { LEARN_PREFIX } from '../model/urls';
@@ -39,18 +40,10 @@ function num(field: Object | undefined, fallback: number): number {
 /**
  * 截止时间原串 → 时间戳；解析不出返回 0（**不猜**，由模型层据此说"时间未知"）。
  *
- * 服务端给的是本地时间字符串，上游完全不做解析、原样交给 `dayjs`。这里接受几种常见形态
- * （`YYYY-MM-DD HH:mm[:ss]`、`YYYY/MM/DD HH:mm[:ss]`、ISO），并把 `T` 分隔符归一——
- * 具体形态由真机实测确认（见 spec §6 与本节末尾的日志）。
+ * 具体形态规则在 `common/time.ets`（与文件上传时间共用一份），这里只是语义化别名。
  */
 export function parseDeadlineTimestamp(raw: string): number {
-  const trimmed: string = raw.trim();
-  if (trimmed.length === 0) {
-    return 0;
-  }
-  const normalized: string = trimmed.replace(/\//g, '-').replace(' ', 'T');
-  const parsed: number = Date.parse(normalized);
-  return isNaN(parsed) ? 0 : parsed;
+  return parseServerTime(raw);
 }
 
 /**

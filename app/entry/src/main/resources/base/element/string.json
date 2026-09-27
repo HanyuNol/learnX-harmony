@@ -363,6 +363,70 @@
     {
       "name": "grade_level_incomplete",
       "value": "缓考"
+    },
+    {
+      "name": "file_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "file_partial_failed",
+      "value": "部分课程的文件未能加载"
+    },
+    {
+      "name": "file_important",
+      "value": "重要"
+    },
+    {
+      "name": "file_new",
+      "value": "新"
+    },
+    {
+      "name": "file_course",
+      "value": "课程"
+    },
+    {
+      "name": "file_teacher",
+      "value": "教师"
+    },
+    {
+      "name": "file_category",
+      "value": "分类"
+    },
+    {
+      "name": "file_type",
+      "value": "类型"
+    },
+    {
+      "name": "file_size",
+      "value": "大小"
+    },
+    {
+      "name": "file_upload_time",
+      "value": "上传时间"
+    },
+    {
+      "name": "file_no_description",
+      "value": "无文件描述"
+    },
+    {
+      "name": "file_download",
+      "value": "下载"
+    },
+    {
+      "name": "file_downloading",
+      "value": "下载中…"
+    },
+    {
+      "name": "file_downloaded",
+      "value": "已下载"
+    },
+    {
+      "name": "file_open",
+      "value": "打开"
+    },
+    {
+      "name": "file_download_failed",
+      "value": "下载或打开失败，请重试"
     }
   ]
 }

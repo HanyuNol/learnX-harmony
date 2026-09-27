@@ -363,6 +363,70 @@
     {
       "name": "grade_level_incomplete",
       "value": "Incomplete"
+    },
+    {
+      "name": "file_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "file_partial_failed",
+      "value": "Some courses' files could not be loaded"
+    },
+    {
+      "name": "file_important",
+      "value": "Important"
+    },
+    {
+      "name": "file_new",
+      "value": "New"
+    },
+    {
+      "name": "file_course",
+      "value": "Course"
+    },
+    {
+      "name": "file_teacher",
+      "value": "Teacher"
+    },
+    {
+      "name": "file_category",
+      "value": "Category"
+    },
+    {
+      "name": "file_type",
+      "value": "Type"
+    },
+    {
+      "name": "file_size",
+      "value": "Size"
+    },
+    {
+      "name": "file_upload_time",
+      "value": "Uploaded"
+    },
+    {
+      "name": "file_no_description",
+      "value": "No file description"
+    },
+    {
+      "name": "file_download",
+      "value": "Download"
+    },
+    {
+      "name": "file_downloading",
+      "value": "Downloading…"
+    },
+    {
+      "name": "file_downloaded",
+      "value": "Downloaded"
+    },
+    {
+      "name": "file_open",
+      "value": "Open"
+    },
+    {
+      "name": "file_download_failed",
+      "value": "Download or open failed. Please try again."
     }
   ]
 }

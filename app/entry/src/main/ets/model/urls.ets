@@ -11,6 +11,9 @@ export const ID_PREFIX: string = 'https://id.tsinghua.edu.cn';
 /** 网络学堂前缀 */
 export const LEARN_PREFIX: string = 'https://learn.tsinghua.edu.cn';
 
+/** 文件列表一次取数的条数上限（照抄上游 `urls.ts:9` 的 `MAX_SIZE`） */
+export const FILE_LIST_SIZE: number = 200;
+
 /**
  * 统一身份认证登录表单页。
  *
@@ -121,8 +124,35 @@ export function learnAssignmentHtmlDetail(courseId: string, homeworkId: string):
     `?wlkcid=${encodeURIComponent(courseId)}&xszyid=${encodeURIComponent(homeworkId)}`;
 }
 
+/**
+ * 文件列表。**按课程取**，一次 GET 拿全（`size` 是取数上限，照抄上游的 200）。
+ *
+ * 路径照抄上游 `thu-learn-lib@4.0.0` 的 `urls.ts:45-48`（学生形态）。
+ * 注意它的成功容器与通知/作业**不同**：学生的文件列表在 `json.object` **本身就是数组**里
+ * （通知/作业是 `object.aaData`）——同一套 API 的第三个信封变体。
+ */
+export function learnFileList(courseId: string): string {
+  return `${LEARN_PREFIX}/b/wlxt/kj/wlkc_kjxxb/student/kjxxbByWlkcidAndSizeForStudent` +
+    `?wlkcid=${encodeURIComponent(courseId)}&size=${FILE_LIST_SIZE}`;
+}
+
+/** 文件分类列表：容器 `object.rows`，文件用 `kjflid` 关联（上游 `urls.ts:50-51`） */
+export function learnFileCategoryList(courseId: string): string {
+  return `${LEARN_PREFIX}/b/wlxt/kj/wlkc_kjflb/student/pageList` +
+    `?wlkcid=${encodeURIComponent(courseId)}`;
+}
+
+/**
+ * 文件下载。**由客户端拼**（上游 `urls.ts:70-71`），要带会话与 CSRF。
+ *
+ * `sfgk=0` 是上游写死的参数（照抄，不改）。
+ */
+export function learnFileDownload(fileId: string): string {
+  return `${LEARN_PREFIX}/b/wlxt/kj/wlkc_kjxxb/student/downloadFile` +
+    `?sfgk=0&wjid=${encodeURIComponent(fileId)}`;
+}
+
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
-
 // 曾有一个 ID_SESSION_COOKIE 常量，但会话 Cookie 的判定一直走
 // WebCookieStore.clearSessionCookieSync()，常量无人引用，已删除（审查 R-23）。

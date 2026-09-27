@@ -30,6 +30,9 @@ import {
   learnNoticeList,
   learnAssignmentList,
   learnAssignmentHtmlDetail,
+  learnFileList,
+  learnFileCategoryList,
+  learnFileDownload,
   LEARN_HOMEWORK_DETAIL,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
@@ -43,7 +46,9 @@ import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
 import { parseCourseList } from './parseCourse';
 import { parseNoticeList } from './parseNotice';
 import { parseAssignmentDescription, parseAssignmentList, parseAssignmentAttachments } from './parseAssignment';
+import { parseFileCategoryList, parseFileList } from './parseFile';
 import { Assignment, AssignmentAttachments } from '../model/assignment';
+import { LearnFile } from '../model/file';
 import { Notice } from '../model/notice';
 import { Course } from '../model/course';
 
@@ -100,6 +105,17 @@ export class HttpResult {
 
   constructor(body: string, status: number) {
     this.body = body;
+    this.status = status;
+  }
+}
+
+/** 一次"取字节"请求的结果（下载用，响应体是二进制而非文本） */
+export class ByteResult {
+  readonly data: ArrayBuffer;
+  readonly status: number;
+
+  constructor(data: ArrayBuffer, status: number) {
+    this.data = data;
     this.status = status;
   }
 }
@@ -716,6 +732,85 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取作业附件');
     }
     return parseAssignmentAttachments(result.body);
+  }
+
+  /**
+   * 某课程的文件：**两次 GET**（文件列表 + 分类列表），分类名由 `kjflid` 关联回填。
+   *
+   * 分类是展示用的附加信息：取不到时**降级为空映射**（列表项少一段文字），
+   * 不让"分类接口挂了"表现成"这门课没有文件"。
+   */
+  async fetchFilesOfCourse(courseId: string, courseName: string,
+                           courseTeacherName: string): Promise<LearnFile[]> {
+    let categoryNames: Map<string, string> = new Map();
+    try {
+      const categoryResult: HttpResult = await this.getWithAuth(learnFileCategoryList(courseId));
+      if (categoryResult.status === 200) {
+        categoryNames = parseFileCategoryList(categoryResult.body);
+      }
+    } catch (err) {
+      Logger.warn(TAG, `文件分类获取失败 course=${courseId}，分类名留空`);
+    }
+
+    const result: HttpResult = await this.getWithAuth(learnFileList(courseId));
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取文件列表');
+    }
+    return parseFileList(result.body, courseId, courseName, courseTeacherName, categoryNames);
+  }
+
+  /**
+   * 下载一个文件的**字节**（带会话与 CSRF）。
+   *
+   * 落盘不在这里做：网络层只负责"取回字节"，写文件属系统能力，走 `native.fileAdapter`
+   * （见 files spec §3.3 第 1 条）。
+   *
+   * 会话失效的判定与 `getWithAuth` 一致（403 视为失效，自动重登一次再试）——
+   * 只是响应体是二进制，无法像文本那样查 `login_timeout` 标记，故以状态码为准。
+   */
+  async downloadFileBytes(fileId: string): Promise<ArrayBuffer> {
+    const url: string = learnFileDownload(fileId);
+    const first: ByteResult = await this.getBytes(url);
+    let status: number = first.status;
+    let data: ArrayBuffer = first.data;
+
+    if (status === 403) {
+      const credentials: Credentials | null = this.credentials;
+      if (credentials === null) {
+        throw authFailed('会话已失效，且本地无凭据可自动重登');
+      }
+      Logger.info(TAG, '下载遇会话失效，尝试自动重登后重试');
+      await this.reloginOnce(credentials);
+      const second: ByteResult = await this.getBytes(url);
+      status = second.status;
+      data = second.data;
+    }
+
+    if (status !== 200) {
+      throw fromStatusCode(status, '下载文件');
+    }
+    return data;
+  }
+
+  /** GET 原始字节（`expectDataType: ARRAY_BUFFER`），返回状态码供调用方判定 */
+  private async getBytes(url: string): Promise<ByteResult> {
+    const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
+    try {
+      const response: http.HttpResponse = await request.request(this.addCsrf(url), {
+        method: http.RequestMethod.GET,
+        header: this.buildHeaders(url, '*/*', ''),
+        expectDataType: http.HttpDataType.ARRAY_BUFFER,
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      request.destroy();
+      const raw: string | Object | ArrayBuffer = response.result;
+      const data: ArrayBuffer = raw instanceof ArrayBuffer ? raw : new ArrayBuffer(0);
+      return new ByteResult(data, response.responseCode as number);
+    } catch (err) {
+      request.destroy();
+      throw normalize(err, `GET(bytes) ${this.maskUrl(url)}`);
+    }
   }
 
   /** 服务端认定的当前学期 id */

@@ -14,9 +14,6 @@
  */
 
 import { TextKeys } from '../common/texts';
-import { FailReason } from '../model/auth';
-import { errorView } from '../components/StateView';
-import { showToast } from '../components/toast';
 import { SettingsView } from './Settings';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
@@ -24,6 +21,8 @@ import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
 import { NoticeDetailParam, NoticeDetailView } from './NoticeDetail';
 import { ASSIGNMENT_DETAIL_DESTINATION, AssignmentListTab } from './Assignments';
 import { AssignmentDetailParam, AssignmentDetailView } from './AssignmentDetail';
+import { FILE_DETAIL_DESTINATION, FileListTab } from './Files';
+import { FileDetailParam, FileDetailView } from './FileDetail';
 import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { CourseStore } from '../viewmodel/courseStore';
@@ -78,42 +77,6 @@ export struct MainView {
   private coursesStack: NavPathStack = new NavPathStack();
   private settingsStack: NavPathStack = new NavPathStack();
 
-  /**
-   * 标签首页占位。真实内容由 FR-08、FR-16 各自填充。
-   *
-   * 文件标签这一处保留错误态演示：FR-15 的验收要求"三个状态组件各有可见入口"，
-   * 而通知与作业标签此刻已是真实列表（加载/空态由它们自己呈现），
-   * 只剩这里还空着——用"网络不可达"是因为它最需要与"密码错误"区分开（NFR-NET）。
-   */
-  @Builder
-  tabHome(titleKey: string, stack: NavPathStack) {
-    Column() {
-      if (titleKey === TextKeys.TAB_FILES) {
-        errorView(FailReason.NETWORK_UNREACHABLE, () => {
-          showToast($r('app.string.' + TextKeys.TOAST_RETRYING));
-        })
-      } else {
-        Column({ space: 12 }) {
-          Text($r('app.string.' + titleKey))
-            .fontSize(24)
-          Text($r('app.string.' + TextKeys.PLACEHOLDER_HINT))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-          Button($r('app.string.' + TextKeys.TAB_OPEN_DETAIL))
-            .onClick(() => {
-              stack.pushPath({ name: titleKey });
-            })
-        }
-        .width('100%')
-        .height('100%')
-        .justifyContent(FlexAlign.Center)
-      }
-    }
-    .width('100%')
-    .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-  }
-
   /** 详情占位页。每个栈各一个 builder：返回按钮要弹出**自己栈**的栈顶 */
   @Builder
   detailOf(stack: NavPathStack, titleKey: string) {
@@ -162,8 +125,15 @@ export struct MainView {
   }
 
   @Builder
-  filesDetail(name: string) {
-    this.detailOf(this.filesStack, name)
+  filesDetail(name: string, param: object) {
+    if (name === FILE_DETAIL_DESTINATION) {
+      NavDestination() {
+        FileDetailView({ fileId: (param as FileDetailParam).fileId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_FILES))
+    } else {
+      this.detailOf(this.filesStack, name)
+    }
   }
 
   @Builder
@@ -179,11 +149,17 @@ export struct MainView {
               param: new NoticeDetailParam(noticeId)
             });
           },
-          // 作业同理：课程详情的"作业"页签里点一条，也推在课程栈上
+          // 作业与文件同理：课程详情的对应页签里点一条，也推在课程栈上
           onOpenAssignment: (assignmentId: string) => {
             this.coursesStack.pushPath({
               name: ASSIGNMENT_DETAIL_DESTINATION,
               param: new AssignmentDetailParam(assignmentId)
+            });
+          },
+          onOpenFile: (fileId: string) => {
+            this.coursesStack.pushPath({
+              name: FILE_DETAIL_DESTINATION,
+              param: new FileDetailParam(fileId)
             });
           }
         })
@@ -199,6 +175,11 @@ export struct MainView {
         AssignmentDetailView({ assignmentId: (param as AssignmentDetailParam).assignmentId })
       }
       .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
+    } else if (name === FILE_DETAIL_DESTINATION) {
+      NavDestination() {
+        FileDetailView({ fileId: (param as FileDetailParam).fileId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_FILES))
     } else {
       this.detailOf(this.coursesStack, name)
     }
@@ -263,7 +244,14 @@ export struct MainView {
 
         TabContent() {
           Navigation(this.filesStack) {
-            this.tabHome(TextKeys.TAB_FILES, this.filesStack)
+            FileListTab({
+              onOpenFile: (fileId: string) => {
+                this.filesStack.pushPath({
+                  name: FILE_DETAIL_DESTINATION,
+                  param: new FileDetailParam(fileId)
+                });
+              }
+            })
           }
           .title($r('app.string.' + TextKeys.TAB_FILES))
           .navDestination(this.filesDetail)
