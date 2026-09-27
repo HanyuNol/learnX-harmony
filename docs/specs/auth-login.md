@@ -212,3 +212,50 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 | 设备指纹持久化 vs 上游每次随机 | 上游每次登录生成新指纹，本项目持久化 | **有意差异**，避免服务端视为新设备；若服务端行为异常则回退到每次随机 |
 | 无校园网即无法验证真实登录 | 阻塞第 8–11 项验收 | 验收集中在校园网时段完成 |
 | 凭据存储的 Kit 行为（如设备锁屏态） | 关键资产存储服务在某些状态下可能要求设备解锁 | 实现已把失败分支归入认证失败并给出可理解提示 |
+
+---
+
+## 7. 实现期重大发现：二次认证要求 WebView 主导登录（2026-09-27）
+
+### 7.1 现象与证据
+
+用真实账号登录时，登录校验返回的不是带工单的成功页，而是 **标题为「二次认证」的页面**（约 1661 字节）：
+
+```
+登录校验响应未含工单 len=1661 head= <!DOCTYPE html> ... <title>二次认证</title>
+```
+
+此时 Cookie 已正常携带（`cookieLen=52`），网络可达，编码格式（urlencoded / multipart）经对照实验证明服务端都接受。
+**因此失败与网络、Cookie、编码无关，而是账号开启了二次认证。**
+
+### 7.2 上游的解法（读 `robertying/learnX` 源码确证）
+
+上游并非"API 直连"就能登录，它有一条 **WebView 主导的 SSO 流程**（`src/screens/SSO.tsx`
++ 注入脚本 `src/helpers/preval/sso.js`），其中**专门处理二次认证**：
+
+1. 把**真实认证页**开在 WebView 里（`Cookie: ''` 起干净会话）；
+2. 注入脚本 `setupLoginPage()` 把学号密码填进页面的 `input#i_user` / `input#i_pass` 并置只读；
+3. **拦截 XHR**：当页面调用 `/b/doubleAuth/personal/saveFinger`（二次认证登记设备指纹）时
+   **覆写请求体**，写入应用自己的 `fingerprint`、`deviceName`，并把 `radioVal` 设为 `'是'`
+   —— 即自动回答"信任此设备"，使设备被登记，后续登录不再需要二次认证；
+4. `overrideJQuerySubmit()` 在提交时注入 `fingerPrint`、勾选 `singleLogin`，并把**完整表单体**
+   （含服务端页面生成的 `fingerGenPrint` / `fingerGenPrint3`）通过 postMessage 回传应用；
+5. WebView 自己走完认证（含二次认证），导航到 `LEARN_ROAMING_URL` 时，应用取回抓到的表单数据，
+   再执行 API 登录以建立会话。
+
+**结论：`fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` 是二次认证的设备信任标识，
+只能由认证页的 JS 生成、经 WebView 抓取，API 直连无法获得。**
+
+### 7.3 对本 spec 的影响（架构缺口）
+
+- 原设计（本 spec §3 的纯 API 七步登录）**对开启二次认证的账号不成立**——不是缺陷，是范围缺口：
+  PRD 中 FR-02（SSO）此前被列为 P2，而实际上**必须提升为登录主路径**，否则 P1 的 FR-01 对
+  相当一部分账号（含本项目验收账号）根本不可用。
+- 需新增/调整：
+  - **新 ADR**：登录方式改为 WebView（ArkWeb）主导 + 设备信任登记；API 登录保留给无二次认证账号。
+  - **PRD 调整**：FR-02 由 P2 提为 P1，并显式写明"处理二次认证与设备信任"。
+  - **spec 调整**：§3 的登录流程需改写为"WebView 主导 + 从 WebView 抓取表单数据 + API 建会话"。
+- Cookie 的取用方式也要随之调整：WebView 与 API 请求应共用 **`webview.WebCookieManager`**
+  （进程级、同步读写、`saveCookieAsync` 可持久化），而不是各自维护容器。
+
+> 该调整涉及架构决策与新 FR，按 SDD 流程需先经用户确认，**不得自行开工**。
