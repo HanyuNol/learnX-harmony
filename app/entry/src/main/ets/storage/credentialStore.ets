@@ -152,7 +152,8 @@ export class CredentialStore {
       } else {
         await removeIfPresent(ALIAS_PASSWORD);
       }
-      Logger.secret(TAG, '已保存学号', credentials.username);
+      // 只记存在性：学号同样不进日志（审查 R-11）
+      Logger.info(TAG, `已保存学号 len=${credentials.username.length}`);
       Logger.info(TAG, `保存凭据完成 rememberPassword=${rememberPassword}`);
     } catch (err) {
       throw normalize(err, '保存凭据');

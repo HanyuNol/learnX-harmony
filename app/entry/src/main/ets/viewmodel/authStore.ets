@@ -16,6 +16,7 @@ import { AuthError, FailReason, LoginStatus, LogoutResult, SsoInjection, UserInf
 import { AuthRepository } from '../repository/authRepository';
 import { SsoFormBody } from '../network/ssoForm';
 import { Logger } from '../common/logger';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { LogoutOutcome, logoutOutcome } from '../common/logout';
@@ -96,8 +97,15 @@ export class AuthStore {
 
   private notify(): void {
     const snapshot: AuthState = this.snapshot();
-    for (const listener of this.listeners) {
-      listener(snapshot);
+    // 遍历副本：回调里自行 subscribe/unsubscribe 会改动 this.listeners，
+    // 直接遍历原数组会跳过或重复回调；单个回调抛错也不得让其余订阅者收不到通知。
+    const current: AuthStateListener[] = this.listeners.slice();
+    for (const listener of current) {
+      try {
+        listener(snapshot);
+      } catch (err) {
+        Logger.warn(TAG, `订阅回调抛错，已隔离 code=${(err as BusinessError).code}`);
+      }
     }
   }
 

@@ -52,5 +52,5 @@ export const LEARN_STUDENT_HOME: string = `${LEARN_PREFIX}/f/wlxt/index/course/s
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 
-/** 统一身份认证域名下用于会话的 Cookie 名 */
-export const ID_SESSION_COOKIE: string = 'JSESSIONID';
+// 曾有一个 ID_SESSION_COOKIE 常量，但会话 Cookie 的判定一直走
+// WebCookieStore.clearSessionCookieSync()，常量无人引用，已删除（审查 R-23）。

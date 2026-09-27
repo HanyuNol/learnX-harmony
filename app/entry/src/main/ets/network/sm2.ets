@@ -27,7 +27,8 @@ const SM2_CIPHER_ALG: string = 'SM2_256|SM3';
 export async function encryptPassword(plainText: string, publicKeyHex: string): Promise<string> {
   try {
     const publicKey: Sm2PublicKey = parsePublicKeyHex(publicKeyHex);
-    Logger.secret(TAG, '待加密明文长度', plainText);
+    // 只记长度：凭据不得入日志（Logger.secret 会脱敏，但密码的首字符 + 精确长度仍是可用信息）
+    Logger.debug(TAG, `加密中 plainLen=${plainText.length}`);
 
     const commonParams: cryptoFramework.ECCCommonParamsSpec =
       cryptoFramework.ECCKeyUtil.genECCCommonParamsSpec(SM2_CURVE_NAME);

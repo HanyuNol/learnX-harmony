@@ -13,19 +13,19 @@
  * limitations under the License.
  */
 
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BackupExtensionAbility, BundleVersion } from '@kit.CoreFileKit';
+import { Logger } from '../common/logger';
 
-const DOMAIN = 0x0000;
+const TAG: string = 'entryBackup';
 
 export default class EntryBackupAbility extends BackupExtensionAbility {
   async onBackup() {
-    hilog.info(DOMAIN, 'testTag', 'onBackup ok');
+    Logger.info(TAG, '备份完成');
     await Promise.resolve();
   }
 
   async onRestore(bundleVersion: BundleVersion) {
-    hilog.info(DOMAIN, 'testTag', 'onRestore ok %{public}s', JSON.stringify(bundleVersion));
+    Logger.info(TAG, `恢复完成 code=${bundleVersion.code} name=${bundleVersion.name}`);
     await Promise.resolve();
   }
 }
