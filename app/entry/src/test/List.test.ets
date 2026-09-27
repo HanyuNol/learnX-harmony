@@ -17,6 +17,7 @@ import logoutTest from './logout.test';
 import semesterTest from './semester.test';
 import courseTest from './course.test';
 import noticeTest from './notice.test';
+import assignmentTest from './assignment.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -31,4 +32,5 @@ export default function testsuite() {
   semesterTest();
   courseTest();
   noticeTest();
+  assignmentTest();
 }
