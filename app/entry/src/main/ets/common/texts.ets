@@ -105,6 +105,17 @@ export class TextKeys {
   /** 学期页：当前学期的文字标注（与勾选图标并存——图标在节点树里不可验证，文字可） */
   static readonly SEMESTER_CURRENT: string = 'semester_current';
 
+  /** 通知筛选：全部 */
+  static readonly NOTICE_FILTER_ALL: string = 'notice_filter_all';
+  /** 通知筛选：未读（同时用作列表项的未读标记文字） */
+  static readonly NOTICE_FILTER_UNREAD: string = 'notice_filter_unread';
+  /** 通知页：重新加载 */
+  static readonly NOTICE_REFRESH: string = 'notice_refresh';
+  /** 通知页：部分课程的通知未能加载 */
+  static readonly NOTICE_PARTIAL_FAILED: string = 'notice_partial_failed';
+  /** 通知详情：附件 */
+  static readonly NOTICE_ATTACHMENT: string = 'notice_attachment';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

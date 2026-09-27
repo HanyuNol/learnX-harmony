@@ -195,6 +195,26 @@
     {
       "name": "err_parse_failed",
       "value": "服务端返回的内容无法识别，请稍后重试"
+    },
+    {
+      "name": "notice_filter_all",
+      "value": "全部"
+    },
+    {
+      "name": "notice_filter_unread",
+      "value": "未读"
+    },
+    {
+      "name": "notice_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "notice_partial_failed",
+      "value": "部分课程的通知未能加载"
+    },
+    {
+      "name": "notice_attachment",
+      "value": "附件"
     }
   ]
 }

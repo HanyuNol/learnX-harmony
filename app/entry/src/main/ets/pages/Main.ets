@@ -20,8 +20,11 @@ import { showToast } from '../components/toast';
 import { SettingsView } from './Settings';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
+import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
+import { NoticeDetailParam, NoticeDetailView } from './NoticeDetail';
 import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
-import { SemesterStore } from '../viewmodel/semesterStore';
+import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { CourseStore } from '../viewmodel/courseStore';
 import { applicationContextOf } from '../native/contextAdapter';
 import { common } from '@kit.AbilityKit';
 
@@ -42,10 +45,29 @@ export struct MainView {
    * "暂无内容"，用户得先去设置里打开一次"学期切换"才会好——那是把内部依赖
    * 暴露成了用户操作。
    */
+  private courseStore: CourseStore = CourseStore.getInstance();
+
+  /**
+   * 学期就绪后**顺带把课程也拉起来**。
+   *
+   * 为什么放在这里：通知是**按课程扇出**的，课程列表为空时通知一条都取不到。
+   * 而课程原先只在用户打开"课程"标签时才加载——实测踩到：登录后直接看通知标签，
+   * 只见"暂无内容"，得先去点一下课程标签才会好。跟学期那次是同一类缺口
+   * （把内部依赖暴露成了用户操作），所以两者都在 shell 这一层准备好。
+   */
+  private semesterListener: SemesterStateListener = (state: SemesterState) => {
+    this.courseStore.ensureLoadedFor(state.current);
+  };
+
   aboutToAppear(): void {
     const context: common.ApplicationContext =
       applicationContextOf(this.getUIContext().getHostContext() as common.Context);
+    this.semesterStore.subscribe(this.semesterListener);
     this.semesterStore.ensureLoaded(context);
+  }
+
+  aboutToDisappear(): void {
+    this.semesterStore.unsubscribe(this.semesterListener);
   }
 
   private noticesStack: NavPathStack = new NavPathStack();
@@ -119,8 +141,15 @@ export struct MainView {
   }
 
   @Builder
-  noticesDetail(name: string) {
-    this.detailOf(this.noticesStack, name)
+  noticesDetail(name: string, param: object) {
+    if (name === NOTICE_DETAIL_DESTINATION) {
+      NavDestination() {
+        NoticeDetailView({ noticeId: (param as NoticeDetailParam).noticeId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_NOTICES))
+    } else {
+      this.detailOf(this.noticesStack, name)
+    }
   }
 
   @Builder
@@ -172,7 +201,14 @@ export struct MainView {
       Tabs({ barPosition: BarPosition.End, index: this.currentTabIndex }) {
         TabContent() {
           Navigation(this.noticesStack) {
-            this.tabHome(TextKeys.TAB_NOTICES, this.noticesStack)
+            NoticeListTab({
+              onOpenNotice: (noticeId: string) => {
+                this.noticesStack.pushPath({
+                  name: NOTICE_DETAIL_DESTINATION,
+                  param: new NoticeDetailParam(noticeId)
+                });
+              }
+            })
           }
           .title($r('app.string.' + TextKeys.TAB_NOTICES))
           .navDestination(this.noticesDetail)

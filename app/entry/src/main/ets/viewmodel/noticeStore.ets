@@ -128,6 +128,31 @@ export class NoticeStore {
     this.notify();
   }
 
+  /** 按 id 找通知（详情页用）。找不到返回 null */
+  noticeOf(noticeId: string): Notice | null {
+    for (const notice of this.items) {
+      if (notice.id === noticeId) {
+        return notice;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 打开详情时调用：发一次服务端"已读"请求，**成功才**记本地已读覆盖。
+   *
+   * 失败不标记——否则界面会说"已读"而服务端仍认为未读，下次刷新又跳回未读，更让人困惑。
+   */
+  async markReadByOpening(notice: Notice): Promise<void> {
+    if (this.isRead(notice)) {
+      return;
+    }
+    const ok: boolean = await NoticeRepository.markRead(notice.url);
+    if (ok) {
+      this.markRead(notice.id);
+    }
+  }
+
   /** 打开详情后按上游发过"已读"请求且成功时调用（乐观） */
   markRead(noticeId: string): void {
     if (noticeId.length === 0 || this.readOverrides.includes(noticeId)) {

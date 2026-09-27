@@ -1,0 +1,201 @@
+/**
+ * 通知列表页。
+ *
+ * 同一组件服务两处（对齐上游：课程详情里内嵌的也是同一套列表）：
+ * - 通知标签：聚合**当前学期所有课程**的通知；
+ * - 课程详情的"通知"页签：传 `courseId`，只取该课程。
+ *
+ * 触发时机：订阅 `semesterStore` 与 `courseStore`——学期或课程集一变就让通知与之对齐；
+ * 具体"发不发请求"由 `noticeStore` 统一判断（学期/课程为空都不发）。
+ *
+ * 分层：本页只订阅状态、下发意图，不碰网络与存储。
+ */
+
+import { Course } from '../model/course';
+import { Notice, NoticeFilter, formatPublishDate, summarize } from '../model/notice';
+import { NoticeState, NoticeStateListener, NoticeStore } from '../viewmodel/noticeStore';
+import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
+import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { FailReason } from '../model/auth';
+import { TextKeys } from '../common/texts';
+import { emptyView, errorView, loadingView } from '../components/StateView';
+
+/** 通知详情在通知栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
+export const NOTICE_DETAIL_DESTINATION: string = 'notice-detail';
+
+@Component
+export struct NoticeListTab {
+  /** 非空时只显示该课程的通知（课程详情的页签用） */
+  @Prop courseId: string = '';
+  /** 打开通知详情。由持有通知栈的 `Main` 提供 */
+  onOpenNotice?: (noticeId: string) => void;
+
+  @State private fetching: boolean = false;
+  @State private items: Notice[] = [];
+  @State private filter: NoticeFilter = NoticeFilter.ALL;
+  @State private failedCourses: number = 0;
+  @State private totalCourses: number = 0;
+  @State private errorReason: FailReason | null = null;
+
+  private store: NoticeStore = NoticeStore.getInstance();
+  private courseStore: CourseStore = CourseStore.getInstance();
+  private semesterStore: SemesterStore = SemesterStore.getInstance();
+
+  private listener: NoticeStateListener = (state: NoticeState) => {
+    this.fetching = state.fetching;
+    this.items = state.items;
+    this.filter = state.filter;
+    this.failedCourses = state.failedCourses;
+    this.totalCourses = state.totalCourses;
+    this.errorReason = state.errorReason;
+  };
+
+  /** 学期变化或课程集变化都要让通知对齐（store 内部有签名比对，不会白拉） */
+  private coursesListener: CourseStateListener = () => {
+    this.alignWithSemester();
+  };
+
+  private semesterListener: SemesterStateListener = () => {
+    this.alignWithSemester();
+  };
+
+  /** 名字不叫 align： 是 ArkUI 内置的组件属性，同名会编译报错 */
+  private alignWithSemester(): void {
+    this.store.ensureLoadedFor(this.semesterStore.snapshot().current, this.scopedCourses());
+  }
+
+  /** 要取哪些课程的通知：本课（课程详情页签）或全部课程（通知标签） */
+  private scopedCourses(): Course[] {
+    const all: Course[] = this.courseStore.snapshot().items;
+    if (this.courseId.length === 0) {
+      return all;
+    }
+    return all.filter((course: Course) => course.id === this.courseId);
+  }
+
+  aboutToAppear(): void {
+    this.store.subscribe(this.listener);
+    this.courseStore.subscribe(this.coursesListener);
+    this.semesterStore.subscribe(this.semesterListener);
+  }
+
+  aboutToDisappear(): void {
+    this.store.unsubscribe(this.listener);
+    this.courseStore.unsubscribe(this.coursesListener);
+    this.semesterStore.unsubscribe(this.semesterListener);
+  }
+
+  build() {
+    Column() {
+      Row({ space: 8 }) {
+        this.filterButton(TextKeys.NOTICE_FILTER_ALL, NoticeFilter.ALL)
+        this.filterButton(TextKeys.NOTICE_FILTER_UNREAD, NoticeFilter.UNREAD)
+        Blank()
+        Button($r('app.string.' + TextKeys.NOTICE_REFRESH))
+          .fontSize(14)
+          .onClick(() => {
+            this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
+          })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+
+      // 部分课程失败：列表仍可用，故用一条提示而不是整页错误态（spec §3.3 第 2 条）
+      if (this.failedCourses > 0 && this.totalCourses > 0 && this.failedCourses < this.totalCourses) {
+        Text($r('app.string.' + TextKeys.NOTICE_PARTIAL_FAILED))
+          .fontSize(14)
+          .fontColor($r('app.color.danger'))
+          .width('100%')
+          .padding(8)
+      }
+
+      if (this.errorReason !== null && this.items.length === 0) {
+        errorView(this.errorReason as FailReason, () => {
+          this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
+        })
+      } else if (this.fetching && this.items.length === 0) {
+        loadingView()
+      } else if (this.visible().length === 0) {
+        // 可能是"学期未就绪""课程为空"或"筛完没有"——都属空态，不是错误
+        emptyView()
+      } else {
+        List() {
+          ForEach(this.visible(), (notice: Notice) => {
+            ListItem() {
+              this.noticeRow(notice)
+            }
+          }, (notice: Notice) => notice.id)
+        }
+        .layoutWeight(1)
+        .width('100%')
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.bg_page'))
+  }
+
+  /** 当前筛选下的列表。经 store 取值，才能把"本地已读覆盖"算进去 */
+  private visible(): Notice[] {
+    return this.store.visible();
+  }
+
+  @Builder
+  filterButton(titleKey: string, value: NoticeFilter) {
+    Button($r('app.string.' + titleKey))
+      .fontSize(14)
+      .backgroundColor(this.filter === value ? $r('app.color.accent') : $r('app.color.bg_card'))
+      .fontColor(this.filter === value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
+      .onClick(() => {
+        this.store.setFilter(value);
+      })
+  }
+
+  @Builder
+  noticeRow(notice: Notice) {
+    Column({ space: 4 }) {
+      Row({ space: 8 }) {
+        Text(notice.title)
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        if (!this.store.isRead(notice)) {
+          Text($r('app.string.' + TextKeys.NOTICE_FILTER_UNREAD))
+            .fontSize(12)
+            .fontColor($r('app.color.accent'))
+        }
+      }
+      .width('100%')
+
+      Text(summarize(notice.content))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .maxLines(2)
+        .width('100%')
+
+      Row({ space: 8 }) {
+        // 课程名：单课页签下没有信息量，故只在聚合列表里显示
+        if (this.courseId.length === 0 && notice.courseName.length > 0) {
+          Text(notice.courseName)
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        Text(notice.publisher)
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+        Text(formatPublishDate(notice.publishTime))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+    .onClick(() => {
+      const open: ((noticeId: string) => void) | undefined = this.onOpenNotice;
+      if (open !== undefined) {
+        open(notice.id);
+      }
+    })
+  }
+}

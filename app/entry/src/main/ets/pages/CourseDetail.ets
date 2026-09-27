@@ -10,6 +10,7 @@
 
 import { CourseStore } from '../viewmodel/courseStore';
 import { TextKeys } from '../common/texts';
+import { NoticeListTab } from './Notices';
 import { emptyView } from '../components/StateView';
 
 /** 课程详情的目的地名与参数载体（`Main` 的 navDestination 用它分派） */
@@ -46,7 +47,8 @@ export struct CourseDetailView {
 
       Tabs({ barPosition: BarPosition.Start, index: this.activeTab }) {
         TabContent() {
-          this.contentPlaceholder(TextKeys.TAB_NOTICES)
+          // 与通知标签共用同一套列表，只是按当前课程过滤（对齐上游在课程详情里内嵌列表）
+          NoticeListTab({ courseId: this.courseId })
         }
         .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
 

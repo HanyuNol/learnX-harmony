@@ -79,12 +79,13 @@ export function sortNotices(items: Notice[]): Notice[] {
 }
 
 /**
- * 把正文压成一行摘要：去标签、压缩空白、截断。
+ * 把正文的 HTML 标签去掉，得到**可读纯文本**（保留换行，供详情页用）。
  *
- * 这里**不**复用 `network/parse.stripTags`：`model` 不得 import 上层（架构不变量 §1）。
- * 两者职责也不同——那边的 `stripTags` 服务于抓取解析，这里的目的是"给列表看的一行"。
+ * 本批不做富文本渲染（属 FR-22），故详情页直接把正文当纯文本看。这也更安全：
+ * SECURITY §3 要求"按白名单清洗、不得整体信任服务端 HTML"，那件事在 FR-22 一并做——
+ * 现在更不该把未清洗的 HTML 塞进 WebView。
  */
-export function summarize(content: string): string {
+export function plainText(content: string): string {
   let text: string = '';
   let inTag: boolean = false;
   for (let i = 0; i < content.length; i++) {
@@ -97,6 +98,36 @@ export function summarize(content: string): string {
       text += ch;
     }
   }
+  return text;
+}
+
+/**
+ * 发布时间 → `YYYY-MM-DD`。
+ *
+ * 用绝对日期而不是"3 天前"：相对时间要先确认可用的格式化能力（notices spec §6 待定项），
+ * 而绝对日期是纯函数、可测、也不会有'i18n'上的坑。时间戳为 0（拿不到时间）时返回空串，
+ * 由界面决定不显示——**不猜时间**。
+ */
+export function formatPublishDate(timestamp: number): string {
+  if (timestamp <= 0) {
+    return '';
+  }
+  const date: Date = new Date(timestamp);
+  const month: number = date.getMonth() + 1;
+  const day: number = date.getDate();
+  const mm: string = month < 10 ? `0${month}` : `${month}`;
+  const dd: string = day < 10 ? `0${day}` : `${day}`;
+  return `${date.getFullYear()}-${mm}-${dd}`;
+}
+
+/**
+ * 把正文压成一行摘要：去标签、压缩空白、截断。
+ *
+ * 这里**不**复用 `network/parse.stripTags`：`model` 不得 import 上层（架构不变量 §1）。
+ * 两者职责也不同——那边的 `stripTags` 服务于抓取解析，这里的目的是"给列表看的一行"。
+ */
+export function summarize(content: string): string {
+  const text: string = plainText(content);
 
   // 压缩所有空白（含换行与全角空格）为单个半角空格
   let collapsed: string = '';

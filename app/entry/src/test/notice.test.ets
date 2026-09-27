@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from '@ohos/hypium';
-import { Notice, NoticeBatch, NoticeFilter, filterNotices, mergeNoticeBatches, sortNotices, summarize } from '../main/ets/model/notice';
+import { Notice, NoticeBatch, NoticeFilter, filterNotices, formatPublishDate, mergeNoticeBatches, plainText, sortNotices, summarize } from '../main/ets/model/notice';
 import { parseNoticeList } from '../main/ets/network/parseNotice';
 
 /** 上游学生形态的最小样本：正文是 Base64（"你好" 的 UTF-8） */
@@ -45,6 +45,15 @@ export default function noticeTest() {
 
       it('空正文应返回空串，而不是抛错', 0, () => {
         expect(summarize('')).assertEqual('');
+      });
+
+      it('详情用的纯文本应去标签但保留换行', 0, () => {
+        expect(plainText('<p>第一段</p>\n第二段')).assertEqual('第一段\n第二段');
+      });
+
+      it('发布时间应格式化为 YYYY-MM-DD；拿不到时间时返回空串', 0, () => {
+        expect(formatPublishDate(new Date(2026, 8, 1, 10, 0, 0).getTime())).assertEqual('2026-09-01');
+        expect(formatPublishDate(0)).assertEqual('');
       });
     });
 

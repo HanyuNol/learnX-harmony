@@ -195,6 +195,26 @@
     {
       "name": "err_parse_failed",
       "value": "The server returned something we could not recognize. Please try again later."
+    },
+    {
+      "name": "notice_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "notice_filter_unread",
+      "value": "Unread"
+    },
+    {
+      "name": "notice_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "notice_partial_failed",
+      "value": "Some courses' notices could not be loaded"
+    },
+    {
+      "name": "notice_attachment",
+      "value": "Attachment"
     }
   ]
 }
