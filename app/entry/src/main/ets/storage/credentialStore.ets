@@ -9,7 +9,7 @@ import { asset } from '@kit.AssetStoreKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { buffer } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Credentials } from '../model/auth';
+import { Credentials, LogoutClearPlan, logoutClearPlan } from '../model/auth';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 
@@ -190,7 +190,13 @@ export class CredentialStore {
   }
 
   /**
-   * 清除学号与密码。**刻意保留设备指纹**。
+   * 按"是否记住密码"处置登出时的凭据（FR-31）。
+   *
+   * **判据是"密码是否还在存储里"**，而不是另存一个开关：`save(credentials, rememberPassword)`
+   * 已经用"写不写密码"表达了用户的选择（未勾选时密码被移除），这里读同一个事实即可——
+   * 多存一个开关就多一份可能与它不一致的状态。密码缺失时按"未记住"处理（保守：清除）。
+   *
+   * **刻意保留设备指纹**。
    *
    * 为什么保留（原实现把指纹也一起清了，2026-09-27 更正）：指纹是**设备标识**，
    * 服务端靠它把本机认成"同一台已登记的信任浏览器"。清掉它的后果是——每次登出再登录，
@@ -200,17 +206,21 @@ export class CredentialStore {
    *
    * 它不是凭据：不含用户信息、不由用户输入、服务端本就存有它的副本；
    * 本地同样存于加密存储中。
-   *
-   * 顺带把这条要求从"登出清指纹"改掉：`docs/specs/auth-login.md` §3.5 与
-   * `docs/SECURITY.md` §2 的原文已按此更正。
    */
-  static async clearCredentials(): Promise<void> {
+  static async applyLogoutPlan(): Promise<void> {
     try {
-      await removeIfPresent(ALIAS_USERNAME);
-      await removeIfPresent(ALIAS_PASSWORD);
-      Logger.info(TAG, '学号与密码已清除（设备指纹保留）');
+      const password: string | null = await readSecret(ALIAS_PASSWORD);
+      const plan: LogoutClearPlan = logoutClearPlan(password !== null);
+      if (plan.clearPassword) {
+        await removeIfPresent(ALIAS_PASSWORD);
+      }
+      if (plan.clearUsername) {
+        await removeIfPresent(ALIAS_USERNAME);
+      }
+      // 只记分支，不记值（学号与密码都不进日志）
+      Logger.info(TAG, `登出凭据处置完成：保留=${!plan.clearPassword}（设备指纹始终保留）`);
     } catch (err) {
-      throw normalize(err, '清除凭据');
+      throw normalize(err, '处置凭据');
     }
   }
 

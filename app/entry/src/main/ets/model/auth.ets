@@ -53,16 +53,51 @@ export class AuthError extends Error {
 /**
  * 登出结果。
  *
- * 只关心一件事：**本地凭据是否真的被清除了**。判断依据在此而不在"有没有抛异常"——
- * 凭据清除失败意味着"登出"这件事没做到，上层不得据此谎报成功（见 `common/logout.ets`）。
- * 服务端登出失败不在此列：它不影响本地凭据的清除，且会话 Cookie 已由客户端清理。
+ * 只关心一件事：**本地凭据是否按策略处置完成**。判断依据在此而不在"有没有抛异常"——
+ * 处置失败意味着"登出"这件事没做到，上层不得据此谎报成功（见 `common/logout.ets`）。
+ * 服务端登出失败不在此列：它不影响本地凭据处置，且会话 Cookie 已由客户端清理。
+ *
+ * 字段名从 `credentialsCleared` 改为 `credentialsHandled`（FR-31）：勾选"记住密码"时，
+ * 登出**有意保留**凭据（那是用户的选择，不是失败），此时"已清除"就不再是对事实的描述。
  */
 export class LogoutResult {
-  readonly credentialsCleared: boolean;
+  readonly credentialsHandled: boolean;
 
-  constructor(credentialsCleared: boolean) {
-    this.credentialsCleared = credentialsCleared;
+  constructor(credentialsHandled: boolean) {
+    this.credentialsHandled = credentialsHandled;
   }
+}
+
+/**
+ * 登出时对凭据的处置计划（FR-31）。
+ *
+ * 纯数据、纯函数产出：**勾选了"记住密码"就保留，没勾就清除**。之所以要显式建模，
+ * 是因为这条规则是安全语义（`docs/SECURITY.md` §2），必须能被穷举测试，
+ * 而不能埋在平台调用里靠"跑一次看看"确认。
+ */
+export class LogoutClearPlan {
+  readonly clearUsername: boolean;
+  readonly clearPassword: boolean;
+
+  constructor(clearUsername: boolean, clearPassword: boolean) {
+    this.clearUsername = clearUsername;
+    this.clearPassword = clearPassword;
+  }
+}
+
+/**
+ * 按"是否记住密码"给出登出处置计划。
+ *
+ * - `true`（用户勾选"记住密码"）：**都保留**——下次打开可直接恢复登录态（FR-31 的目标语义）；
+ * - `false`：**都清除**——登出即清除，与 `SECURITY.md` §2 的原语义一致。
+ *
+ * 设备指纹**永不**在此清除（它是设备标识而非凭据，见 `CredentialStore.clearCredentials` 的说明）。
+ */
+export function logoutClearPlan(rememberPassword: boolean): LogoutClearPlan {
+  if (rememberPassword) {
+    return new LogoutClearPlan(false, false);
+  }
+  return new LogoutClearPlan(true, true);
 }
 
 /** 用户凭据；仅在存储层与网络层之间传递，禁止进入 UI 状态与日志 */

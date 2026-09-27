@@ -97,30 +97,33 @@ export class AuthRepository {
   }
 
   /**
-   * 登出：清本地凭据 + 通知服务端（**保留设备指纹**，见 `CredentialStore.clearCredentials`）。
+   * 登出：按偏好处置本地凭据 + 通知服务端（**保留设备指纹**，见 `CredentialStore.applyLogoutPlan`）。
    *
    * **顺序与错误处理都是刻意的**：
-   * - 先清凭据：它是"登出"这件事的**唯一实质**。清除失败必须作为结果上报，
+   * - 先处置凭据：它是"登出"这件事的**唯一实质**。处置失败必须作为结果上报，
    *   不能被"服务端登出失败可忽略"一起吞掉——那样界面会谎报登出成功，而凭据还在，
    *   下次启动会静默重新登录（代码审查 R-02）。
    * - 再通知服务端并清会话 Cookie：`LearnClient.logout` 内部已兜底（服务端失败也清本地会话），
    *   故它不会让本方法失败；即便失败也不改变本地登出的结论。
+   *
+   * FR-31 之后"处置"有两种结果：勾选了"记住密码"就**有意保留**（下次打开直接恢复），
+   * 未勾选才清除——两者都算登出成功，只有"读写存储失败"才算未完成。
    */
   static async logout(): Promise<LogoutResult> {
-    let credentialsCleared: boolean = true;
+    let credentialsHandled: boolean = true;
     try {
-      await CredentialStore.clearCredentials();
+      await CredentialStore.applyLogoutPlan();
     } catch (err) {
-      const error = normalize(err, '清除凭据');
-      Logger.error(TAG, `本地凭据未能清除 reason=${error.reason}：登出未完成`);
-      credentialsCleared = false;
+      const error = normalize(err, '处置凭据');
+      Logger.error(TAG, `本地凭据未能处置 reason=${error.reason}：登出未完成`);
+      credentialsHandled = false;
     }
 
     await LearnClient.getInstance().logout();
-    if (credentialsCleared) {
-      Logger.info(TAG, '已登出并清理本地凭据');
+    if (credentialsHandled) {
+      Logger.info(TAG, '已登出并处置本地凭据');
     }
-    return new LogoutResult(credentialsCleared);
+    return new LogoutResult(credentialsHandled);
   }
 
   /**

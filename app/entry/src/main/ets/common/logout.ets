@@ -12,7 +12,7 @@ import { TextKeys } from './texts';
 
 /** 登出判定的结果：是否算登出成功，以及不成功时给用户看的文案键 */
 export class LogoutOutcome {
-  /** 是否真正完成登出（唯一判据：本地凭据已清除） */
+  /** 是否真正完成登出（唯一判据：本地凭据已按策略处置） */
   readonly loggedOut: boolean;
   /** 用户可见文案键；成功时为 `TextKeys.NONE`（无需展示） */
   readonly errorTextKey: string;
@@ -26,11 +26,14 @@ export class LogoutOutcome {
 /**
  * 判定登出是否完成。
  *
- * 凭据未清除时**保持登录态并如实告知**，而不是"看起来登出了、其实凭据还在"——
- * 后者会让用户在共用/丢失设备上误判风险。
+ * 凭据未能处置（读写存储失败）时**保持登录态并如实告知**，而不是"看起来登出了、
+ * 其实凭据还在且未按用户意愿处理"——后者会让用户在共用/丢失设备上误判风险。
+ *
+ * 注意 FR-31 之后仍有"保留"这一合法结果（用户勾选了记住密码）：那种情况下
+ * `credentialsHandled` 为 true，属**成功**，不是失败。
  */
 export function logoutOutcome(result: LogoutResult): LogoutOutcome {
-  if (result.credentialsCleared) {
+  if (result.credentialsHandled) {
     return new LogoutOutcome(true, TextKeys.NONE);
   }
   return new LogoutOutcome(false, TextKeys.ERR_LOGOUT_INCOMPLETE);
