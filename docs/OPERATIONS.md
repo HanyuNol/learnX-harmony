@@ -244,13 +244,18 @@ node scripts/check-sso-inject.mjs
 并**主动调用被覆盖的 `XMLHttpRequest.prototype.send`**（含 `saveFinger` 路径），
 断言请求体被改写为 `radioVal=是`。已验证它能抓住上述那类缺陷。
 
-### 7.5 验收时的两个"看不见"陷阱
+### 7.5 验收时的三个"看不见"陷阱
 
 - **Toast 不在应用窗口的 UI 节点树里**：它由 ArkUI 挂在 overlay 根节点上，`devecocli ui layout`
   看不到。要确认 Toast 弹出，看 hilog 里的
   `AceOverlay: Toast node mount to root node`（与触发动作同刻）。**别按"节点树里没有"就判定没弹**。
 - **模拟器截图不可用**（返回空白帧，见 §8）：验收以节点树 + hilog 为据，两者都看不到的东西要在报告里
   明确写"未验证"，不要含糊成"看起来正常"。
+- **偏好（Preferences）必须用 ApplicationContext 读写**：2026-09-27 实测，用页面的
+  `getUIContext().getHostContext()`（UIAbilityContext）写入的偏好**重启后读不回来**
+  （设置页写 `FOLLOW_SYSTEM` → force-stop 重启 → 读到旧值 `DARK`），改用
+  `ApplicationContext` 后立刻正常。**机制未深究**（可能落在不同文件，也可能未持久化），
+  但规则明确：应用级偏好统一走 `ApplicationContext`，别用页面拿到的宿主上下文。
 
 ### 7.6 文案键一致性检查（改文案后必跑）
 

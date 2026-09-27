@@ -75,6 +75,17 @@ export class TextKeys {
   /** 轻量反馈：正在重试（Toast） */
   static readonly TOAST_RETRYING: string = 'toast_retrying';
 
+  /** 设置页：主题小节标题 */
+  static readonly SETTINGS_THEME_TITLE: string = 'settings_theme_title';
+  /** 主题选项：跟随系统 */
+  static readonly THEME_FOLLOW_SYSTEM: string = 'theme_follow_system';
+  /** 主题选项：浅色 */
+  static readonly THEME_LIGHT: string = 'theme_light';
+  /** 主题选项：深色 */
+  static readonly THEME_DARK: string = 'theme_dark';
+  /** 主题未能生效（写入成功但应用失败也归此，R-09） */
+  static readonly THEME_APPLY_FAILED: string = 'theme_apply_failed';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

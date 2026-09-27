@@ -139,6 +139,26 @@
     {
       "name": "toast_retrying",
       "value": "Retrying…"
+    },
+    {
+      "name": "settings_theme_title",
+      "value": "Theme"
+    },
+    {
+      "name": "theme_follow_system",
+      "value": "Follow system"
+    },
+    {
+      "name": "theme_light",
+      "value": "Light"
+    },
+    {
+      "name": "theme_dark",
+      "value": "Dark"
+    },
+    {
+      "name": "theme_apply_failed",
+      "value": "The theme did not take effect. Please try again."
     }
   ]
 }

@@ -14,10 +14,10 @@
  */
 
 import { TextKeys } from '../common/texts';
-import { AuthStore } from '../viewmodel/authStore';
 import { FailReason } from '../model/auth';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 import { showToast } from '../components/toast';
+import { SettingsView } from './Settings';
 
 @Component
 export struct MainView {
@@ -25,8 +25,6 @@ export struct MainView {
   @Link currentTabIndex: number;
   /** 需要展示的错误文案键（如"登出未完成"）；为空则不显示 */
   @Prop errorKey: string;
-
-  private store: AuthStore = AuthStore.getInstance();
 
   private noticesStack: NavPathStack = new NavPathStack();
   private assignmentsStack: NavPathStack = new NavPathStack();
@@ -72,27 +70,6 @@ export struct MainView {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor($r('app.color.bg_page'))
-  }
-
-  /** 设置标签首页：目前只有登出（FR-04 的入口，随页签从占位页搬过来）。主题项在 T6 补 */
-  @Builder
-  settingsHome() {
-    Column({ space: 12 }) {
-      Text($r('app.string.' + TextKeys.TAB_SETTINGS))
-        .fontSize(24)
-      Text($r('app.string.' + TextKeys.PLACEHOLDER_HINT))
-        .fontSize(14)
-        .fontColor($r('app.color.text_secondary'))
-      Button($r('app.string.' + TextKeys.SETTINGS_LOGOUT))
-        .onClick(() => {
-          // 经 Store → repository 登出；页面不碰存储与网络
-          this.store.logout();
-        })
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
     .backgroundColor($r('app.color.bg_page'))
   }
 
@@ -195,7 +172,7 @@ export struct MainView {
 
         TabContent() {
           Navigation(this.settingsStack) {
-            this.settingsHome()
+            SettingsView()
           }
           .title($r('app.string.' + TextKeys.TAB_SETTINGS))
           .navDestination(this.settingsDetail)

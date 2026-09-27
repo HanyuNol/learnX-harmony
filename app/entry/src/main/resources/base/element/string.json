@@ -139,6 +139,26 @@
     {
       "name": "toast_retrying",
       "value": "正在重试…"
+    },
+    {
+      "name": "settings_theme_title",
+      "value": "主题"
+    },
+    {
+      "name": "theme_follow_system",
+      "value": "跟随系统"
+    },
+    {
+      "name": "theme_light",
+      "value": "浅色"
+    },
+    {
+      "name": "theme_dark",
+      "value": "深色"
+    },
+    {
+      "name": "theme_apply_failed",
+      "value": "主题未能生效，请重试"
     }
   ]
 }

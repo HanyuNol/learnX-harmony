@@ -37,6 +37,11 @@ const KNOWN_KEYS: string[] = [
   TextKeys.STATE_EMPTY,
   TextKeys.STATE_RETRY,
   TextKeys.TOAST_RETRYING,
+  TextKeys.SETTINGS_THEME_TITLE,
+  TextKeys.THEME_FOLLOW_SYSTEM,
+  TextKeys.THEME_LIGHT,
+  TextKeys.THEME_DARK,
+  TextKeys.THEME_APPLY_FAILED,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -105,7 +110,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(32);
+      expect(KNOWN_KEYS.length).assertEqual(37);
     });
   });
 }

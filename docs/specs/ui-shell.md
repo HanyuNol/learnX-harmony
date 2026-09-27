@@ -65,7 +65,8 @@
 | `components` | `toast.ets` | Toast 统一出口（封装 `promptAction`，避免各页各写一套时长与样式） |
 | `pages` | `Main.ets` | 五个标签的壳：`Tabs` + 每标签一个 `Navigation`（各带 `NavPathStack`） |
 | `pages` | `Main.ets` 内的占位 builder | 各标签的首页占位。**不拆 5 个文件**：五份近乎相同的占位页属复制粘贴（审查已把这类列为坏味道），故用一个 `tabHome` builder + 各自栈；真实内容页在 FR-05～FR-09 落地时再各自成文件 |
-| `pages` | `Settings.ets` | 设置页骨架（**仅**主题项；其余项由 FR-16 补，本批不留占位行） |
+| `pages` | `Settings.ets` | 设置页（**仅**主题三项 + 登出入口；其余项由 FR-16 补，本批不留占位行） |
+| `viewmodel` | `settingsStore.ets` | 主题偏好的读写与应用（→ `preferenceStore` + `themeAdapter`）。**页面不直接碰存储与系统能力**（架构不变量 §1）；不带状态，因为主题一改即由系统全局生效 |
 
 ### 3.2 导航结构（对齐上游）
 
@@ -260,7 +261,26 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
   - 未做（按方案 A 留给 T4）：占位页接入状态三态组件——T4 落地后把 `tabHome` 的占位内容换成
     `StateView`，无需改导航结构。
 
-- [ ] T6 设置页骨架：仅"主题"一项（跟随系统/浅色/深色），不留 FR-16 占位行
+- [x] T6 设置页：仅"主题"（跟随系统 / 浅色 / 深色）+ 登出入口
+  - 交付物：`pages/Settings.ets`（三选一 `Radio` + 登出按钮，替换原先的页签占位）；
+    `viewmodel/settingsStore.ets`（`loadThemeMode` / `changeThemeMode`——后者返回**是否完全生效**，
+    消费 R-09 引入的返回值：写入成功但应用失败也返回 false 并提示，不只报"已保存"）；
+    新增 5 个文案键（主题/跟随系统/浅色/深色/未能生效），中英齐备。
+  - **真机发现并修掉一个平台坑（本次最有价值的产出）**：设置页一开始用
+    `getUIContext().getHostContext()`（UIAbilityContext）读写偏好，结果**写入成功、重启后读不回来**
+    （写 `FOLLOW_SYSTEM` → force-stop 重启 → 读到旧值 `DARK`；而启动路径用 `ApplicationContext`
+    写的值能持久化）。改用与启动路径一致的 `ApplicationContext` 后立即正常。机制未深究
+    （可能落在不同文件，也可能未持久化），规则已写进 OPERATIONS §7.5：**应用级偏好统一走 ApplicationContext**。
+  - 证据（2026-09-27，模拟器 `learnx`；临时探针把 Store 初始状态置为已登录，验后已还原）：
+    - 设置页节点树：`主题` + `跟随系统 / 浅色 / 深色` 三行（带 `Radio`）+ `登出`；
+    - 点「浅色」→ `已应用主题模式 mode=LIGHT`；点「深色」→ `mode=DARK`；点「跟随系统」→ `mode=FOLLOW_SYSTEM`；
+    - **跨进程持久化**：点「跟随系统」后 force-stop 重启（未重装）→ 启动即 `mode=FOLLOW_SYSTEM`；
+      点「浅色」后同样重启 → `mode=LIGHT`（两种都验过，非偶然）；
+    - 静态门：`check arkts` 主 31 / 测试 10 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 80/80、
+      `check-l10n` 键集合一致（40/40/37）。
+  - 说明：`changeThemeMode` 是平台调用的薄封装（其纯逻辑在 T1 的 `common/theme.ets` 已穷举覆盖），
+    故未新增单测；本任务的验证靠上机行为证据。
+
 - [ ] T7 验收：模拟器上五标签切换与栈保持、深色模式、中英切换、状态三态可见
 - [ ] 文档同步：PRD 四条 FR 状态、`ARCHITECTURE.md`（导航结构与分层）、CHANGELOG 未发布段
 
