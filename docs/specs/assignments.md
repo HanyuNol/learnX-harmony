@@ -1,0 +1,136 @@
+# 功能规格：作业（列表 · 详情 · 完成状态与截止时间）
+
+> 状态：待审核　·　关联 PRD：FR-07（与 FR-08 / FR-20 的边界见 §2）　·　分支：main
+> 接口语义基线：上游 `thu-learn-lib@4.0.0` 的 `src/urls.ts` / `src/index.ts`；
+> 交互参照上游 `robertying/learnX` 的 `data/actions|assignments.ts`、
+> `screens/Assignments.tsx`、`screens/AssignmentDetail.tsx`、`components/AssignmentCard.tsx`。
+> **只取语义，不移植代码**（ADR-0001）。
+
+## 1. 背景与目标
+
+作业是四个内容维度里第二个落地的，与通知同构：**按课程扇出**（先有课程，再有作业），
+列表项要带课程名/教师名（由客户端回填）。交付后用户能在"作业"标签按课程看到**当前学期**的
+作业、看到截止时间与完成状态、点进详情看正文与评分。
+
+## 2. 需求（要什么）
+
+**范围内**：
+
+1. 作业列表：聚合**当前学期所有课程**的作业；
+2. 列表项：课程名、标题、正文摘要（去标签、两行）、教师名、**截止时间**、是否已截止、
+   有附件标记（对齐上游 `AssignmentCard` 的这些字段）；
+3. **完成/评分状态**：未提交 / 已提交未评分 / 已评分（见 §3.1 的关键事实）；
+4. **筛选**：未完成 / 已完成（对齐上游默认选中"未完成"）；排序：**未截止的在前、按截止升序；
+   已截止的在后、按截止降序**（对齐上游，把"要先做的"排在前面）；
+5. **详情**：标题、完成方式/提交方式、截止时间（含补交截止）、正文（**纯文本**）、
+   教师附件名、已提交信息（提交时间/附件名）、评分信息（分数或等级、评语、评分人、评分时间）；
+6. 三态齐备（加载/空/错误+重试）；手动刷新；
+7. 从课程详情页的"作业"页签进入时只列该课程的作业。
+
+**不做（属其他 FR，或本批不做）**：
+
+- **附件点开/下载**：属 **FR-08**（文件）。本批只显示附件名；
+- **作业提交**：属 **FR-20**（P2）。详情页**不显示**上传按钮——显示了却点了不能用，是假动作；
+- **正文富文本渲染**：属 FR-22（P2）。本批一律纯文本（也避免把未清洗的 HTML 塞进 WebView，SECURITY §3）；
+- **优秀作业列表**（上游的 `yzxzylist`）：**PRD 里没有这条需求**，属镀金，不做；
+- 日历同步 / 本地提醒（FR-19 / FR-18，P2）；后台同步（FR-25，P2）；
+- **逐条预取作业详情**（见 §3.3 第 1 条，本项目刻意不照抄）。
+
+## 3. 设计（怎么做）
+
+### 3.1 上游事实（对照基线，逐行核过）
+
+| 事实 | 出处 |
+|---|---|
+| 作业列表由**三个 POST 端点合并**：`…/student/zyListWj`（未提交）、`zyListYjwg`（已提交）、`zyListYpg`（已评分） | `thu-learn-lib/src/urls.ts:91-117` |
+| **`submitted` / `graded` 不是响应字段**，而是**由"哪个端点返回的"写死并注入**：`Wj→{false,false}`、`Yjwg→{true,false}`、`Ypg→{true,true}` | `urls.ts:95-117`、`index.ts:1083`、`types.ts:162-165` |
+| 请求体只有 `aoData`（= `[{name:'wlkcid',value:courseID}]` 的 JSON 字符串，multipart） | `urls.ts:235-239`、`index.ts:1036-1039` |
+| 成功判定 **`result === 'success'`**，容器 **`json.object.aaData`** | `index.ts:1041,1048` |
+| 字段映射：`xszyid→id`、`zyid→baseId`、`bt→title`（解 HTML 实体）、`jzsj→deadline`（**原样字符串**）、`bjjzsj→lateSubmissionDeadline`、`sfbj==='是'→isLateSubmission`、`zywcfs→completionType`(1 个人/2 小组)、`zytjfs→submissionType`(2 网上/0 线下)、`scsj→submitTime`、`cj→grade`+`gradeLevel`、`jsm→graderName`、`pynr→gradeContent`、`pysj→gradeTime`、`sfsc==='是'→isFavorite`、`bznr→comment` | `index.ts:1057-1084` |
+| **详情要额外两次请求**：① HTML 详情页 `…/f/…/viewCj?wlkcid=&xszyid=`（解析正文与**四类附件**）；② POST `…/b/…/student/detail`（`id=baseId`，成功判定同为 `result==='success'`，取 `json.msg` 作 `description`） | `index.ts:1090-1091,1190-1225`、`urls.ts:119-131` |
+| 客户端的**已截止判定在客户端算**（拿 `deadline` 与当前时间比），服务端只给字符串 | `Assignments.tsx:49-50`、`AssignmentCard.tsx:42-51` |
+| 列表排序：未截止在前按截止**升序**、已截止在后按截止**降序** | `data/actions/assignments.ts:46-65` |
+| 筛选：未完成/已完成由 `submitted` 布尔字段决定（不再请求）；默认选中"未完成" | `hooks/useFilteredData.ts:49-57`、`Assignments.tsx:121` |
+| 列表页**没有错误态 UI**（`error` 存了不读） | `Assignments.tsx` 全文 |
+| 课程名/教师名由客户端用 `courses.names[courseId]` 回填（接口不返回） | `actions/assignments.ts:39-45,93-102` |
+| 切学期后**旧学期作业会残留在 items 里**（只有全量刷新才整体替换；单课程刷新只替换该课程） | `reducers/assignments.ts:32-38,51-62`、`App.tsx:349-353` |
+| 作业被 redux-persist 持久化 | `store.ts:20-25` |
+
+### 3.2 模块与文件
+
+| 模块 | 文件 | 职责 |
+|---|---|---|
+| `model` | `assignment.ets` | `Assignment` 类型 + 纯逻辑：排序、摘要、筛选、"是否已截止"判定（注入当前时间，便于测试） |
+| `model` | `urls.ets`（改） | 三个列表端点 + 详情端点（POST 与 HTML 两个） |
+| `network` | `parseAssignment.ets` | **纯解析**：单个端点的响应 → `Assignment[]`（带该端点的 `submitted/graded` 注入）；结构不符抛出 |
+| `network` | `learnClient.ets`（改） | `fetchAssignmentsOfCourse(courseId, courseName)`（三次 POST 合并）；`fetchAssignmentDetail(baseId)` |
+| `repository` | `assignmentRepository.ets` | 扇出（沿用通知的分块并发与部分失败策略）+ 详情取数 |
+| `viewmodel` | `assignmentStore.ets` | 单一应用级 Store：`items`/`fetching`/错误键 + 按 semester+courses 签名对齐 + **末次胜出**；详情按需取（带缓存与并发去重） |
+| `pages` | `Assignments.ets` | 作业列表页（筛选、刷新、三态、部分失败提示），同一组件服务作业标签与课程详情页签 |
+| `pages` | `AssignmentDetail.ets` | 作业详情（纯文本正文 + 附件名 + 评分块），进页时才取详情 |
+| `pages` | `Main.ets` / `CourseDetail.ets`（改） | 接入作业标签与两个栈的目的地；课程详情的"作业"页签 |
+
+### 3.3 关键规则
+
+1. **不逐条预取详情**（刻意不照抄上游）：上游对**列表里每条**作业再发 2 个请求
+   （HTML 详情 + JSON 详情），12 门课 × N 条作业会变成平方级请求量。本项目改为
+   **打开详情页时才取该条**（2 个请求，且结果缓存在 store 里，再次进入不重复取）。
+   代价：详情页有加载态；这正是状态组件该覆盖的场景。
+2. **完成状态来自端点**（§3.1 第 2 条）：解析函数必须由调用方告知"这批来自哪个端点"，
+   从而注入 `submitted/graded`——**不许去响应里找这两个字段**（那里没有）。
+3. **已截止在客户端算**：`deadline` 原串进模型，解析成时间戳（解析失败为 0，**不猜**）；
+   `isPast(timestamp, now)` 做成纯函数（`now` 注入，便于测试）。时间戳为 0 时不显示"已截止"。
+4. **排序对齐上游**：未截止在前（截止升序）、已截止在后（截止降序）；时间戳 0 的（解析不出）
+   排在最后。做成纯函数。
+5. **切学期整表替换**：不残留旧学期作业（上游那条残留是缺陷，不照抄）；沿用
+   `semester + 课程 id 集` 的签名与"末次请求胜出"。
+6. **正文纯文本**（FR-22 再上富文本）。
+7. **失败面沿用通知那套**：单课失败不整页失败（顶部提示"部分课程的作业未能加载"）；
+   **全部失败按错误态**（带重试）——通知那次实测踩到的"全失败静默成空态"不再重演。
+8. **筛选是页面本地状态**（通知那次实测踩到"放进 store 会互相串"）。
+
+## 4. 任务拆分
+
+- [ ] T1 `model/assignment.ets`：类型、排序、摘要、筛选、`isPast`（纯逻辑 + 单测）
+- [ ] T2 `network/parseAssignment.ets`：响应解析（含按端点注入完成状态）（纯逻辑 + 单测）
+- [ ] T3 `model/urls.ets` + `network/learnClient.ets`：三个列表端点与两个详情端点
+- [ ] T4 `repository/assignmentRepository.ets` + `viewmodel/assignmentStore.ets`：扇出、详情按需取与缓存
+- [ ] T5 `pages/Assignments.ets` + `AssignmentDetail.ets` + `Main`/`CourseDetail` 接线
+- [ ] T6 验收（见 §5）
+- [ ] 文档同步：PRD FR-07 状态、`API.md` §2.4（作业端点与"完成状态来自端点"这条）、
+      `ARCHITECTURE.md`（若与现实有出入）、CHANGELOG 未发布段
+
+## 5. 验收标准
+
+**自动化可验证（单元测试，不依赖设备）**：
+
+1. 解析：三个端点的响应分别解析为 `Assignment[]`，且 `submitted/graded` **按端点注入**正确
+   （Wj→false/false、Yjwg→true/false、Ypg→true/true）；非数组 / 坏 JSON / 非 success → 抛出；
+   空数组是合法结果。
+2. 字段映射：标题解 HTML 实体；缺字段退让而不整批失败；`sfbj`/`sfsc` 的中文字面量判据正确。
+3. 排序：未截止按截止升序在前、已截止按截止降序在后；解析不出时间的排最后；顺序稳定。
+4. `isPast`：`now` 注入下的边界（正好等于截止时间算已截止？按上游 `isAfter` 语义：等于不算过期）。
+5. 筛选：未完成/已完成按 `submitted`。
+6. 静态门：`check arkts`（主 + 测试显式传路径）、`check lint` 零错误；`build` 成功；`check-l10n` 一致。
+
+**设备验收（模拟器/真机，已登录）**：
+
+7. 作业标签加载出当前学期多门课的作业；未截止的排在前面；
+8. 列表项含课程名/标题/摘要/教师/截止时间，且"已截止"标记与时间一致；
+9. 筛选切"未完成/已完成"：内容随之变化；
+10. 点一条进详情：先出现加载态，随后显示正文（纯文本）、附件名、评分块（有则显示）；
+11. 课程详情页的"作业"页签只显示该课程的作业（与作业标签互不串）；
+12. 错误面：断网/会话失效 → 错误态 + 重试；部分课程失败 → 顶部提示且已拿到的仍显示。
+
+**需用户确认**：PRD §6 第 2 项里"浏览作业"这一环节。
+
+## 6. 风险 / 待定
+
+| 项 | 说明 | 处置 |
+|---|---|---|
+| `deadline` 的字符串形态未知 | 上游**不做任何解析**、原样交给 `dayjs`；本库也没找到样例值与格式说明 | 实现时**先按真实响应核对形态**（打印一条的形态，不含敏感信息）再定解析；解析失败退 0 并保留原串可显示，**不猜** |
+| 三个端点的合并量 | 每个课程 3 个 POST：12 门课 = 36 个请求（按 4 分块 = 9 块） | 沿用通知的分块并发与上限；实测失败率/耗时后把结论记回本 spec |
+| 详情按需取的缓存失效 | 详情缓存在 store 里，作业列表整体刷新后旧详情可能过期 | 列表刷新时清空详情缓存（同一份 store，一并维护）；具体实现见 T4 |
+| 「已截止」与上游 `isAfter` 语义 | 上游用 `dayjs().isAfter(deadline)`，等于**严格大于** | 对齐：正好等于截止时间**不算**已截止；用例里钉住这条 |
+| 与 FR-08 / FR-20 的边界 | 附件点开属 FR-08、提交属 FR-20 | §2 已明确不做，且详情页**不显示**提交按钮（不放假动作） |
+| 优秀作业列表 | 上游有 `yzxzylist`，PRD 无此需求 | 不做；若要加，先走需求登记 |
