@@ -64,7 +64,7 @@
 | `components` | `StateView.ets` | 加载态 / 空态 / 错误态三个可复用组件（错误态含重试回调） |
 | `components` | `toast.ets` | Toast 统一封装（供各页面调用，避免各页各写一套） |
 | `pages` | `Main.ets` | 五个标签的壳：`Tabs` + 每标签一个 `Navigation`（各带 `NavPathStack`） |
-| `pages` | `tabs/NoticesTab.ets` 等 5 个 | 各标签的首页占位（分别固定展示加载 / 空 / 错误三态，供 FR-15 验收） |
+| `pages` | `Main.ets` 内的占位 builder | 各标签的首页占位。**不拆 5 个文件**：五份近乎相同的占位页属复制粘贴（审查已把这类列为坏味道），故用一个 `tabHome` builder + 各自栈；真实内容页在 FR-05～FR-09 落地时再各自成文件 |
 | `pages` | `Settings.ets` | 设置页骨架（**仅**主题项；其余项由 FR-16 补，本批不留占位行） |
 
 ### 3.2 导航结构（对齐上游）
@@ -217,7 +217,29 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
     被拒（errNum 1001，非 root）。英文是用应用级 `setLanguage` 探针验证的（已证 en_US 资源可用）。
     T7 若要验"系统切英文"，须走模拟器设置界面或取得 root；这条记为 T7 的已知障碍。
 - [ ] T4 状态组件：`StateView.ets`（三态）+ `toast.ets`
-- [ ] T5 导航骨架：`Main.ets` 五标签 + 每标签独立栈；五个占位页接入状态组件
+- [x] T5 导航骨架：`Main.ets` 五标签 + 每标签独立栈
+  - 交付物：`pages/Main.ets`（五 `TabContent` 各挂一个 `Navigation` + 各自的 `NavPathStack`；
+    每标签一个 `navDestination` builder，返回按钮弹出**自己**栈的栈顶）；
+    `pages/Index.ets` 的登录后分支改为 `MainView`，**入口占位页删除**，其"登出"入口随页签
+    搬到设置标签（FR-04 的能力不丢），"登出未完成"的错误呈报也一并搬过去（横幅）；
+    新增 9 个文案键（五标签、占位提示、进入详情、返回、登出），中英齐备。
+  - **返回键行为已定义并对齐上游**：上游 `App.tsx` 未显式设置 `backBehavior`，用的是
+    react-navigation 的默认值 `firstRoute`（官方文档：默认 `firstRoute`，按返回键回到
+    "第一个定义的屏"）。故：栈非空 → 该栈弹出；栈空且非第一个标签 → 回第一个标签；
+    第一个标签且栈空 → 交给系统。前两段已实测（见下），第三段交系统即退到后台。
+  - 证据（2026-09-27，模拟器 `learnx`；临时探针把 Store 初始状态置为已登录以渲染主界面，验后已还原）：
+    - 底部五标签可见、文案正确：`通知 / 作业 / 文件 / 课程 / 设置`；
+    - 点「文件」→ 文件首页；点「进入详情」→ 出现该栈的详情（`返回` 按钮）；
+    - 切到「通知」→ 通知首页；**切回「文件」→ 仍停在详情**（栈随标签保留）；
+    - BACK（详情、栈非空）→ 弹回文件首页；BACK（文件首页、栈空、非首个标签）→ **回到「通知」**；
+      BACK（通知首页、第一个标签）→ 退到后台。
+    - 静态门：`check arkts` 主 27 / 测试 10 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 80/80、
+      `check-l10n` 键集合一致（31/31/28）。
+  - **顺带验证了审查 R-28**：退到后台后桌面节点树显示应用名为 **网络学堂**（此前"取 ability label
+    还是 app label"标了待确认）——说明 Launcher 用的正是 `EntryAbility_label`，改动生效。
+  - 未做（按方案 A 留给 T4）：占位页接入状态三态组件——T4 落地后把 `tabHome` 的占位内容换成
+    `StateView`，无需改导航结构。
+
 - [ ] T6 设置页骨架：仅"主题"一项（跟随系统/浅色/深色），不留 FR-16 占位行
 - [ ] T7 验收：模拟器上五标签切换与栈保持、深色模式、中英切换、状态三态可见
 - [ ] 文档同步：PRD 四条 FR 状态、`ARCHITECTURE.md`（导航结构与分层）、CHANGELOG 未发布段

@@ -24,6 +24,15 @@ const KNOWN_KEYS: string[] = [
   TextKeys.LOGIN_NETWORK_HINT,
   TextKeys.LOGIN_FAILED,
   TextKeys.ERR_LOGOUT_INCOMPLETE,
+  TextKeys.TAB_NOTICES,
+  TextKeys.TAB_ASSIGNMENTS,
+  TextKeys.TAB_FILES,
+  TextKeys.TAB_COURSES,
+  TextKeys.TAB_SETTINGS,
+  TextKeys.PLACEHOLDER_HINT,
+  TextKeys.TAB_OPEN_DETAIL,
+  TextKeys.TAB_BACK,
+  TextKeys.SETTINGS_LOGOUT,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -92,7 +101,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(19);
+      expect(KNOWN_KEYS.length).assertEqual(28);
     });
   });
 }

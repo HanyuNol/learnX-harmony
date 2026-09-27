@@ -47,6 +47,25 @@ export class TextKeys {
   /** 登出未完成：本地凭据未能清除（安全语义，不得谎报成功） */
   static readonly ERR_LOGOUT_INCOMPLETE: string = 'err_logout_incomplete';
 
+  /** 底部标签：通知 */
+  static readonly TAB_NOTICES: string = 'tab_notices';
+  /** 底部标签：作业 */
+  static readonly TAB_ASSIGNMENTS: string = 'tab_assignments';
+  /** 底部标签：文件 */
+  static readonly TAB_FILES: string = 'tab_files';
+  /** 底部标签：课程 */
+  static readonly TAB_COURSES: string = 'tab_courses';
+  /** 底部标签：设置 */
+  static readonly TAB_SETTINGS: string = 'tab_settings';
+  /** 占位页提示：内容将在后续迭代实现（首页与详情占位共用） */
+  static readonly PLACEHOLDER_HINT: string = 'placeholder_hint';
+  /** 占位页按钮：进入详情（用于验证每标签独立栈） */
+  static readonly TAB_OPEN_DETAIL: string = 'tab_open_detail';
+  /** 详情页按钮：返回 */
+  static readonly TAB_BACK: string = 'tab_back';
+  /** 设置页：登出（FR-04 的入口，随页签从入口占位页搬来） */
+  static readonly SETTINGS_LOGOUT: string = 'settings_logout';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

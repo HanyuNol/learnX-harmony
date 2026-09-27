@@ -87,6 +87,42 @@
     {
       "name": "err_trust_limit",
       "value": "The trusted-browser quota for Tsinghua SSO is full. Go to id.tsinghua.edu.cn → Account Settings → Multi-factor Authentication → Trusted Browsers → Maintain, delete the devices you no longer use, then sign in again."
+    },
+    {
+      "name": "tab_notices",
+      "value": "Notices"
+    },
+    {
+      "name": "tab_assignments",
+      "value": "Assignments"
+    },
+    {
+      "name": "tab_files",
+      "value": "Files"
+    },
+    {
+      "name": "tab_courses",
+      "value": "Courses"
+    },
+    {
+      "name": "tab_settings",
+      "value": "Settings"
+    },
+    {
+      "name": "placeholder_hint",
+      "value": "Content will be added in a later iteration."
+    },
+    {
+      "name": "tab_open_detail",
+      "value": "Open detail"
+    },
+    {
+      "name": "tab_back",
+      "value": "Back"
+    },
+    {
+      "name": "settings_logout",
+      "value": "Sign out"
     }
   ]
 }

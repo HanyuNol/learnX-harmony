@@ -16,29 +16,45 @@
 /**
  * 应用入口页：按登录态分发。
  *
- * FR-11（导航）尚未实现，故这里用条件渲染而非路由栈；
- * 登录后的内容页是占位，等 FR-11 与各内容 FR 落地后替换。
+ * 未登录 → 登录表单；网页登录与建立会话中 → SSO 页；已登录 → 主界面（`MainView`，五标签）。
+ * 返回键的"空栈行为"也在这一层处理（页面级 `onBackPress`，见下方说明）。
  */
 
 import { AuthState, AuthStateListener, AuthStore } from '../viewmodel/authStore';
 import { LoginStatus } from '../model/auth';
 import { LoginView } from './Login';
 import { SsoLoginView } from './SsoLogin';
+import { MainView } from './Main';
 
 @Entry
 @Component
 struct Index {
   @State private status: LoginStatus = LoginStatus.LOGGED_OUT;
-  @State private userName: string = '';
   @State private errorKey: string = '';
+  /** 当前底部标签索引。由本页持有：返回键逻辑在页面级，需要读它、也要能改它 */
+  @State private activeTab: number = 0;
 
   private store: AuthStore = AuthStore.getInstance();
 
   private listener: AuthStateListener = (state: AuthState) => {
     this.status = state.status;
-    this.userName = state.userInfo === null ? '' : state.userInfo.name;
     this.errorKey = state.errorTextKey;
   };
+
+  /**
+   * 返回键：栈为空时的行为对齐上游（`@bottom-tabs` 的默认 `backBehavior: 'firstRoute'`，
+   * 上游源码未显式设置该选项）——非第一个标签回第一个标签，第一个标签交给系统。
+   *
+   * 栈非空时不会走到这里：`NavDestination` 会先消费返回键（由该栈弹出）。
+   * 返回 `true` 表示已处理，不再交给系统。
+   */
+  onBackPress(): boolean {
+    if (this.status === LoginStatus.LOGGED_IN && this.activeTab !== 0) {
+      this.activeTab = 0;
+      return true;
+    }
+    return false;
+  }
 
   aboutToAppear(): void {
     this.store.subscribe(this.listener);
@@ -53,7 +69,8 @@ struct Index {
   build() {
     Column() {
       if (this.status === LoginStatus.LOGGED_IN) {
-        this.LoggedInPlaceholder()
+        // 主界面：五标签 + 每标签独立栈。标签索引与错误文案由本页持有/下发
+        MainView({ currentTabIndex: this.activeTab, errorKey: this.errorKey })
       } else if (this.status === LoginStatus.SSO_IN_PROGRESS || this.status === LoginStatus.LOGGING_IN) {
         // WebView 主导的登录页（ADR-0008）：用户在这里完成认证，包括输入验证码。
         // `LOGGING_IN`（认证完成后建立会话的那几秒）**也用它**：该视图在此期间显示
@@ -66,35 +83,5 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-  }
-
-  /**
-   * 登录后的占位页。仅用于验证 FR-01/03/04 的完整链路，
-   * 内容浏览由后续 FR 实现后替换。
-   */
-  @Builder
-  LoggedInPlaceholder() {
-    Column({ space: 16 }) {
-      Text(this.userName.length > 0 ? `已登录：${this.userName}` : '已登录')
-        .fontSize(20)
-      Text('内容页面将在后续迭代中实现')
-        .fontSize(14)
-        .fontColor(Color.Gray)
-      // 登出未完成（本地凭据未能清除）时必须让用户看见——否则点"登出"像没反应，
-      // 而实际仍处于登录态。文案键由 viewmodel 给出（见 common/logout.ets）
-      if (this.errorKey.length > 0) {
-        Text($r('app.string.' + this.errorKey))
-          .fontSize(14)
-          .fontColor($r('app.color.danger'))
-          .width('100%')
-      }
-      Button('登出')
-        .onClick(() => {
-          this.store.logout();
-        })
-    }
-    .width('100%')
-    .height('100%')
-    .justifyContent(FlexAlign.Center)
   }
 }
