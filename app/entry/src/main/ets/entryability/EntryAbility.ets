@@ -13,19 +13,19 @@
  * limitations under the License.
  */
 
-import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
+import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
+import { applyThemeMode } from '../native/themeAdapter';
+import { DEFAULT_THEME_MODE } from '../common/theme';
 
 const DOMAIN = 0x0000;
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
-    try {
-      this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
-    } catch (err) {
-      hilog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
-    }
+    // 主题模式经适配器应用（系统能力不在此直接调用，便于设置页复用同一入口）。
+    // 读取已保存偏好的部分由 T2 的 preferenceStore 接入，此处先用默认值"跟随系统"。
+    applyThemeMode(this.context.getApplicationContext(), DEFAULT_THEME_MODE);
     hilog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
   }
 

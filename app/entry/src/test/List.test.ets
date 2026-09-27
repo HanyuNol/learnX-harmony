@@ -11,6 +11,7 @@ import setCookieTest from './setCookie.test';
 import ssoFormTest from './ssoForm.test';
 import errorsTest from './errors.test';
 import loggerTest from './logger.test';
+import themeTest from './theme.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -19,4 +20,5 @@ export default function testsuite() {
   ssoFormTest();
   errorsTest();
   loggerTest();
+  themeTest();
 }
