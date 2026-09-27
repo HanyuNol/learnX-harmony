@@ -123,6 +123,22 @@
     {
       "name": "settings_logout",
       "value": "登出"
+    },
+    {
+      "name": "state_loading",
+      "value": "加载中…"
+    },
+    {
+      "name": "state_empty",
+      "value": "暂无内容"
+    },
+    {
+      "name": "state_retry",
+      "value": "重试"
+    },
+    {
+      "name": "toast_retrying",
+      "value": "正在重试…"
     }
   ]
 }

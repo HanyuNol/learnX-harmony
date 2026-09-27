@@ -66,6 +66,15 @@ export class TextKeys {
   /** 设置页：登出（FR-04 的入口，随页签从入口占位页搬来） */
   static readonly SETTINGS_LOGOUT: string = 'settings_logout';
 
+  /** 加载态：加载中 */
+  static readonly STATE_LOADING: string = 'state_loading';
+  /** 空态：无内容 */
+  static readonly STATE_EMPTY: string = 'state_empty';
+  /** 错误态：重试按钮 */
+  static readonly STATE_RETRY: string = 'state_retry';
+  /** 轻量反馈：正在重试（Toast） */
+  static readonly TOAST_RETRYING: string = 'toast_retrying';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

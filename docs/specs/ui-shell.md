@@ -61,8 +61,8 @@
 | `common` | `texts.ets` | 文案键定义与"键 → 资源名"映射（纯函数；页面据此取 `$r`） |
 | `storage` | `preferenceStore.ets` | 偏好读写唯一入口（主题模式等键值），复用系统首选项 |
 | `native` | `themeAdapter.ets` | 应用主题模式（`ApplicationContext.setColorMode`）的封装；页面不得直接调用 |
-| `components` | `StateView.ets` | 加载态 / 空态 / 错误态三个可复用组件（错误态含重试回调） |
-| `components` | `toast.ets` | Toast 统一封装（供各页面调用，避免各页各写一套） |
+| `components` | `StateView.ets` | 加载态 / 空态 / 错误态三个可复用 **`@Builder`**（错误态含重试回调）。用 builder 而非 `@Component`：纯展示、无自身状态，项目 lint 的 `avoid-overusing-custom-component-check` 要求优先用 builder |
+| `components` | `toast.ets` | Toast 统一出口（封装 `promptAction`，避免各页各写一套时长与样式） |
 | `pages` | `Main.ets` | 五个标签的壳：`Tabs` + 每标签一个 `Navigation`（各带 `NavPathStack`） |
 | `pages` | `Main.ets` 内的占位 builder | 各标签的首页占位。**不拆 5 个文件**：五份近乎相同的占位页属复制粘贴（审查已把这类列为坏味道），故用一个 `tabHome` builder + 各自栈；真实内容页在 FR-05～FR-09 落地时再各自成文件 |
 | `pages` | `Settings.ets` | 设置页骨架（**仅**主题项；其余项由 FR-16 补，本批不留占位行） |
@@ -216,7 +216,27 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
   - 未覆盖：**系统语言切换**无法在本机验证——`hdc shell param set persist.global.language en-US`
     被拒（errNum 1001，非 root）。英文是用应用级 `setLanguage` 探针验证的（已证 en_US 资源可用）。
     T7 若要验"系统切英文"，须走模拟器设置界面或取得 root；这条记为 T7 的已知障碍。
-- [ ] T4 状态组件：`StateView.ets`（三态）+ `toast.ets`
+- [x] T4 状态组件：`StateView.ets`（三态，全局 `@Builder`）+ `toast.ets`
+  - 交付物：`components/StateView.ets`（`loadingView` / `emptyView` / `errorView`；
+    错误态收 `FailReason` 并经 `textKeyOfFailReason` 取文案——不在组件里硬编码文案，
+    无重试回调时不渲染按钮）；`components/toast.ets`（`showToast`，封装 `promptAction`）；
+    新增 4 个文案键（加载中/暂无内容/重试/正在重试），中英齐备。
+  - 三态接入占位页（FR-15「三态均须有可见入口」）：通知→加载态、作业→空态、
+    文件→错误态（网络不可达 + 重试）、课程→保留"进入详情"（供栈验证）；设置不变。
+  - 两处写法决定（都按项目自己的规则）：① 纯展示结构用 `@Builder` 而非 `@Component`
+    ——lint 的 `avoid-overusing-custom-component-check` 报了 3 处警告，改后归零；
+    ② Toast 放在 `components` 而非 `native`：`promptAction` 是 ArkUI 的 UI 能力，
+    不是设备/存储类系统 Kit。
+  - 证据（2026-09-27，模拟器 `learnx`；临时探针把 Store 初始状态置为已登录，验后已还原）：
+    - 通知页节点树：`加载中…`；作业页：`暂无内容`；文件页：
+      `无法连接网络学堂，请确认已连接校园网或校方 VPN` + `重试` 按钮（文案确由 `FailReason` 映射而来）；
+    - 点「重试」后 hilog 出现 `AceOverlay: Toast node mount to root node` +
+      `open toast animation enter`（15:07:13，与点击同刻）→ **Toast 确实弹出**。
+      注意：**Toast 不在这棵 UI 节点树里**（它挂在 ArkUI 的 overlay 根节点上），
+      故"看节点树找 Toast"必然找不到——这一点已写进 OPERATIONS，供 T7 与后续参考。
+    - 静态门：`check arkts` 主 29 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 80/80、
+      `check-l10n` 键集合一致（35/35/32）。
+
 - [x] T5 导航骨架：`Main.ets` 五标签 + 每标签独立栈
   - 交付物：`pages/Main.ets`（五 `TabContent` 各挂一个 `Navigation` + 各自的 `NavPathStack`；
     每标签一个 `navDestination` builder，返回按钮弹出**自己**栈的栈顶）；

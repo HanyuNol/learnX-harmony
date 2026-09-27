@@ -15,6 +15,9 @@
 
 import { TextKeys } from '../common/texts';
 import { AuthStore } from '../viewmodel/authStore';
+import { FailReason } from '../model/auth';
+import { emptyView, errorView, loadingView } from '../components/StateView';
+import { showToast } from '../components/toast';
 
 @Component
 export struct MainView {
@@ -31,23 +34,44 @@ export struct MainView {
   private coursesStack: NavPathStack = new NavPathStack();
   private settingsStack: NavPathStack = new NavPathStack();
 
-  /** 标签首页占位：真实内容由 FR-05～FR-09、FR-16 各自填充 */
+  /**
+   * 标签首页占位。真实内容由 FR-05～FR-09、FR-16 各自填充。
+   *
+   * 本批次先让三个状态组件**各有可见入口**（FR-15 的验收项）：
+   * 通知 → 加载态；作业 → 空态；文件 → 错误态（含重试）；课程 → 保留"进入详情"，
+   * 用于验证每标签独立栈。这不是调试开关，就是各页此刻的真实内容。
+   */
   @Builder
   tabHome(titleKey: string, stack: NavPathStack) {
-    Column({ space: 12 }) {
-      Text($r('app.string.' + titleKey))
-        .fontSize(24)
-      Text($r('app.string.' + TextKeys.PLACEHOLDER_HINT))
-        .fontSize(14)
-        .fontColor($r('app.color.text_secondary'))
-      Button($r('app.string.' + TextKeys.TAB_OPEN_DETAIL))
-        .onClick(() => {
-          stack.pushPath({ name: titleKey });
+    Column() {
+      if (titleKey === TextKeys.TAB_NOTICES) {
+        loadingView()
+      } else if (titleKey === TextKeys.TAB_ASSIGNMENTS) {
+        emptyView()
+      } else if (titleKey === TextKeys.TAB_FILES) {
+        // 错误态演示用"网络不可达"：这条最需要与"密码错误"区分开（NFR-NET）
+        errorView(FailReason.NETWORK_UNREACHABLE, () => {
+          showToast($r('app.string.' + TextKeys.TOAST_RETRYING));
         })
+      } else {
+        Column({ space: 12 }) {
+          Text($r('app.string.' + titleKey))
+            .fontSize(24)
+          Text($r('app.string.' + TextKeys.PLACEHOLDER_HINT))
+            .fontSize(14)
+            .fontColor($r('app.color.text_secondary'))
+          Button($r('app.string.' + TextKeys.TAB_OPEN_DETAIL))
+            .onClick(() => {
+              stack.pushPath({ name: titleKey });
+            })
+        }
+        .width('100%')
+        .height('100%')
+        .justifyContent(FlexAlign.Center)
+      }
     }
     .width('100%')
     .height('100%')
-    .justifyContent(FlexAlign.Center)
     .backgroundColor($r('app.color.bg_page'))
   }
 

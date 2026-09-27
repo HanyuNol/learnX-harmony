@@ -33,6 +33,10 @@ const KNOWN_KEYS: string[] = [
   TextKeys.TAB_OPEN_DETAIL,
   TextKeys.TAB_BACK,
   TextKeys.SETTINGS_LOGOUT,
+  TextKeys.STATE_LOADING,
+  TextKeys.STATE_EMPTY,
+  TextKeys.STATE_RETRY,
+  TextKeys.TOAST_RETRYING,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -101,7 +105,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(28);
+      expect(KNOWN_KEYS.length).assertEqual(32);
     });
   });
 }

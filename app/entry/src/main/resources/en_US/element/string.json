@@ -123,6 +123,22 @@
     {
       "name": "settings_logout",
       "value": "Sign out"
+    },
+    {
+      "name": "state_loading",
+      "value": "Loading…"
+    },
+    {
+      "name": "state_empty",
+      "value": "Nothing here yet"
+    },
+    {
+      "name": "state_retry",
+      "value": "Retry"
+    },
+    {
+      "name": "toast_retrying",
+      "value": "Retrying…"
     }
   ]
 }
