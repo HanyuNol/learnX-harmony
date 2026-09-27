@@ -31,18 +31,19 @@ app/entry/src/main/ets/
 ├── components/       可复用 UI 组件（对应上游 components/）
 ├── viewmodel/        页面状态与业务编排（对应上游 hooks/ + 部分 data/actions）
 ├── repository/       数据获取与缓存编排（对应上游 data/actions + data/source）
-├── network/          HTTP 客户端、Cookie 管理、CSRF、SM2、页面抓取、错误归类
+├── network/          HTTP 客户端、会话 Cookie、CSRF、SM2、页面抓取、SSO 表单逻辑、错误归类
 ├── storage/          凭据、偏好、列表缓存、文件管理
-├── native/           系统 Kit 适配层（日历/通知/分享/PDF/生物识别/文件选择）
+├── native/           系统 Kit 适配层（设备信息、应用资源；日历/通知/分享/PDF/生物识别/文件选择后续补）
 ├── model/            领域模型与类型定义（对应上游 data/types + thu-learn-lib 类型）
 ├── i18n/             中英文文案资源
 └── common/           无副作用工具（日期、HTML 清洗、日志、格式化）
 ```
 
 > **纯逻辑与平台调用分离的约定**：凡与外部服务互操作、且不依赖系统能力的逻辑
-> （密文格式拼接、页面抓取正则、Cookie 解析），一律单独成模块并保持**零系统 Kit 依赖**，
-> 以便在无设备环境下单元测试。当前此类模块：`network/sm2Format.ets`、`network/parse.ets`、
-> `network/cookieJar.ets`。新增同类逻辑时遵循该约定。
+> （密文格式拼接、页面抓取正则、Set-Cookie 切分、SSO 注入脚本拼装与回传消息解析），
+> 一律单独成模块并保持**零系统 Kit 依赖**，以便在无设备环境下单元测试。
+> 当前此类模块：`network/sm2Format.ets`、`network/parse.ets`、`network/ssoForm.ets`、
+> `network/setCookie.ets`。新增同类逻辑时遵循该约定。
 
 **依赖方向（单向，禁止反向穿透）**：
 
@@ -64,6 +65,8 @@ pages → viewmodel → repository → network / storage / native
 | 实体 | 关键字段 | 说明 |
 |---|---|---|
 | `Auth` | `username`、`password`、`fingerPrint` 等 | 凭据，仅存于加密存储 |
+| `SsoInjection` | `username`、`password`、`fingerPrint`、`deviceName` | WebView 注入登录页所需的取值，**只驻留内存**、不进 `@State`、不入日志 |
+| `SsoFormBody` | 页面表单的字段表 | WebView 抓到的表单体，用于重放登录；含 `i_rememberme` 时走已信任设备端点 |
 | `Semester` | 学期标识、名称 | 数据按学期划分 |
 | `Notice` | id、标题、发布时间、已读标记、正文 | 通知公告 |
 | `Assignment` | id、标题、截止时间、完成状态、提交状态、附件 | 作业 |
@@ -96,27 +99,57 @@ pages → viewmodel → repository → network / storage / native
 
 ### 5.1 认证与会话
 
-登录共七步，逐步对齐上游 `thu-learn-lib@4.0.0` 的真实契约：
+**主路径：WebView 主导登录**（ADR-0008，2026-09-27 起）：
 
-1. 重置本地会话（清空自管 Cookie 容器）。
-2. `GET` 统一身份认证登录页，抓取 `#sm2publicKey`。
-3. `POST` 加密后的凭据（`i_user` / `i_pass` / `singleLogin` / `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` / `i_captcha`）。
-4. 从校验响应中提取漫游工单 `ticket`。
-5. `GET` 带工单漫游到网络学堂，建立会话。
-6. `GET` 网络学堂首页，正则提取 `_csrf` 令牌。
-7. 后续对 `*.tsinghua.edu.cn` 的请求一律追加 `_csrf` 查询参数。
+1. 应用侧先清掉旧会话 Cookie，以干净会话起步（`LearnClient.startFreshSession`）。
+2. `pages/SsoLogin.ets` 用 ArkWeb 的 `Web` 组件打开**真实的**统一身份认证登录页，
+   并以 `javaScriptOnDocumentStart` 注入 `resources/rawfile/sso_inject.js`（只匹配
+   `id.tsinghua.edu.cn` 来源）。注入脚本：预填学号密码（只读）→ 页面询问"是否信任此浏览器"时
+   替用户答"是"并写入应用持久化的设备指纹 → 提交时抓取**完整表单体**经 JS 通道回传。
+3. **用户在该页面内完成认证，包括输入多因子认证验证码**。应用不代填、不代答验证码
+   （那是用户的步骤，不是遗漏）；这段时间应用只能等。
+4. 导航目标命中网络学堂漫游地址（`LEARN_ROAMING_PREFIX`）即视为认证完成；
+   `onLoadIntercept` 取消该次导航，把抓到的表单体交给上层。
+5. 收尾建会话，**两条路径按可靠性排序**：
+   - **首选：用截到的漫游地址里的票据直接漫游**（`LearnClient.loginWithRoamUrl`）。
+     它就是浏览器原本要做的那一步，因此不需要密码、也不需要设备已被登记为信任浏览器。
+     这条路径的存在有实测理由：校方页面会判定"浏览器处于隐私或匿名模式"而**拒绝登记
+     信任浏览器**，一旦没登记上，服务端对任何重新登录都会再要一次验证码——重新登录
+     就永远走不通，而票据路径绕开了整个重新认证。
+   - **兜底：带页面生成的设备信任标识重新登录**（`loginWithFingerPrints`）：从抓到的表单体
+     取出 `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3`，在全新会话里由新公钥重新加密
+     密码再登录。**不重放页面那份密文**（它与页面会话绑定，真机实测拿不到工单）。
+     上游 `thu-learn-lib` 的 `login(username, password, fingerPrint, fingerGenPrint, fingerGenPrint3)`
+     就是这条。
+   两条路径都以"取首页 CSRF"收尾。
+
+**备选路径：纯 API 七步登录**（`LearnClient.login`，仅适用未启用多因子认证的账号，
+以及启动时的静默恢复与失效自动重登）：
+
+1. `GET` 统一身份认证登录页，抓取 `#sm2publicKey`；页面含 `checkSingle` 时改用已信任设备表单。
+2. `POST` 加密后的凭据（`i_user` / `i_pass` / `singleLogin` / `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` / `i_captcha`）。
+3. 从校验响应中提取漫游工单 `ticket`。
+4. `GET` 带工单漫游到网络学堂，建立会话。
+5. `GET` 网络学堂首页，正则提取 `_csrf` 令牌。
+6. 后续对 `*.tsinghua.edu.cn` 的请求一律追加 `_csrf` 查询参数。
 
 **密码以 SM2 国密加密后提交**，不是明文：公钥取自登录页，加密用平台加密框架
 （非对称加解密目前仅支持 RSA 与 SM2），并须把框架产出的 ASN.1 密文转成服务端要求的
-裸 C1C3C2 拼接格式（`network/sm2Format.ets`）。
+裸 C1C3C2 拼接格式（`network/sm2Format.ets`）。表单以 multipart 提交（对齐上游的 FormData）；
+对照实验表明 urlencoded 同样被服务端接受，两种编码都不是失败原因。
 
-**会话与 Cookie**：框架的 `enableAutoCookie` 起始版本为 API 26，本项目 SDK 为 24，
-故 Cookie 由 `network/cookieJar.ets` 自管，**按主机名分组**——登录横跨
-`id.tsinghua.edu.cn` 与 `learn.tsinghua.edu.cn` 两个主机，分组错了会串会话。
+**会话与 Cookie**：由 `network/webCookieStore.ets` 承载，底层是 `webview.WebCookieManager`
+（进程级、同步读写、可强制落盘）。选它而非自管容器的原因见 ADR-0008：WebView 与 API 请求
+**必须是同一份会话**——页面加密密码用的公钥绑在它那次会话上。自管容器（原 `network/cookieJar.ets`）
+已退役，其 Set-Cookie 切分逻辑保留为 `network/setCookie.ets`
+（`configCookieSync` 每次只接受一条 Cookie）。框架的 `enableAutoCookie` 起始版本为 API 26，
+本项目 SDK 为 24，不可用。
 
 **失效与重登**：响应状态 403 或响应体含 `login_timeout` 即判定失效；
-带凭据的请求命中失效时自动重登**一次**并重放，再次失效则向上抛认证失败，
+带凭据的请求命中失效时自动重登**一次**并重放（走备选路径），再次失效则向上抛认证失败，
 不再循环。无凭据时直接抛认证失败，由页面引导重新登录。
+启动时的静默恢复**先看已持久化的会话是否还活**，活着就不再登录——
+否则会把一份好端端的会话清掉（实测踩过的缺陷）。
 
 ### 5.2 CSRF
 
@@ -157,6 +190,8 @@ pages → viewmodel → repository → network / storage / native
 | 状态管理方案选型 | ADR-0004 |
 | 仓库布局与工具链落盘位置（避让系统盘） | ADR-0005 |
 | 外部依赖与校园网前提的接受 | ADR-0006 |
+| 凭据与设备指纹存于关键资产存储服务 | ADR-0007 |
+| 登录改为 WebView（ArkWeb）主导，纯 API 登录降为备选 | ADR-0008 |
 
 **当前不做**（避免过度设计）：
 

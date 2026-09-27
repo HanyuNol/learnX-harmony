@@ -9,7 +9,8 @@
 
 - **协议形态**：应用与校方服务之间为 HTTP(S)；与系统能力之间为 HarmonyOS Kit 接口；内部模块之间为 ArkTS 接口。
 - **认证**：基于会话 Cookie（登录后由 `network/LearnClient` 统一注入），写操作另需 CSRF 令牌。
-- **编码**：请求与响应按 UTF-8 处理；表单提交按 `application/x-www-form-urlencoded`，GraphQL 按 `application/json`。
+- **编码**：请求与响应按 UTF-8 处理；表单提交按 `multipart/form-data`（对齐上游的 FormData；
+  urlencoded 经对照实验证实同样被服务端接受），GraphQL 按 `application/json`。
 - **超时**：单次请求超时上限 15s（对应 NFR-PERF）；超时归入"网络不可达"类错误。
 - **分页**：全部数据按学期一次性获取后本地分页/筛选，不做服务端分页（与上游行为一致）。
 - **版本**：无显式接口版本；语义变更通过 §2 的对照基线发现。
@@ -18,15 +19,44 @@
 
 > 本节的目的是**在接口发生变更时能快速定位影响面**，不是逐字段抄录上游文档。字段语义以参照实现 `thu-learn-lib` 为准。
 
-### 2.1 登录（账号密码）
+### 2.1 登录（主路径＝WebView 主导；备选＝纯 API）
 
 登录**不在网络学堂完成**，而是经统一身份认证换工单、再漫游回网络学堂。
+**主路径由 ArkWeb 承载真实认证页**（ADR-0008）——因为多因子认证的验证码只能由用户在真实页面上输入。
+
+#### 2.1.1 主路径：WebView 主导（FR-01 + FR-02）
+
+- **页面**：`GET https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0`
+  - 在应用内 `Web` 组件中打开，`javaScriptOnDocumentStart` 注入脚本（仅匹配 `id.tsinghua.edu.cn`）
+  - 注入脚本预填 `input#i_user` / `input#i_pass`（只读），用户其余步骤在页面内完成
+- **信任浏览器登记**：页面以 XHR `POST /b/doubleAuth/personal/saveFinger` 询问"是否信任此浏览器"
+  - 注入脚本覆写该请求体：`fingerprint` = 应用持久化设备指纹、`deviceName` = 设备名、`radioVal` = `是`
+  - **该方法与验证码无关**：验证码由用户自行输入，应用不代填、不代答
+- **表单抓取**：提交时注入脚本抓取完整表单体（urlencoded）经 JS 通道回传
+  - 字段：`i_user`、`i_pass`、`singleLogin`、`fingerPrint`、`fingerGenPrint`、`fingerGenPrint3`、`i_captcha`
+  - 其中 `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` **只能由页面生成**，应用无法自行构造
+- **认证完成判据**：导航目标命中 `https://learn.tsinghua.edu.cn/f/j_spring_security_thauth_roaming_entry`
+  （注意与下方 API 侧漫游的 `/b/...` 是两条不同路径，上游两者都在用）
+- **建会话（两条路径，按可靠性排序）**：
+  1. **首选：用截到的漫游地址里的 `ticket` 直接发起漫游**（`GET <截到的漫游地址>`）——
+     它就是浏览器原本要做的那一步，不需要密码、也不需要设备已被登记为信任浏览器；
+     随后取首页 CSRF 令牌。
+  2. **兜底：带页面生成的设备信任标识重新登录**——从抓到的表单体取出
+     `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3`，在**全新会话**里由新公钥重新加密
+     密码再登录（对齐上游 `thu-learn-lib` 的同名参数）。**不重放页面那份密文**：
+     它与页面会话绑定，实测真实账号下拿不到工单。
+- **错误**：用户中途关闭页面 → 归"用户取消"，不报错；认证页结构变化 → **接口语义变更**；
+  页面提示"信任浏览器数量已达到上限"或"浏览器处于隐私模式" → 给出可操作引导，见 spec §8.2 / §9
+
+#### 2.1.2 备选路径：纯 API 七步登录（仅未启用多因子认证的账号、静默恢复与自动重登）
 
 - **步骤 1｜取登录页**：`GET https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/bb5df85216504820be7bba2b0ae1535b/0`
   - 响应：HTML，其中含 `id="sm2publicKey"` 的元素，文本为 SM2 公钥十六进制串
-  - 错误：取不到该元素 → **接口语义变更**
+  - 若响应含 `checkSingle` → 改用**已信任设备**表单（步骤 2'）
+  - 若响应含 `$("#c_code").removeClass('hidden');` → 需要图形验证码，本项目不做识别，归**接口语义变更**并引导走网页登录
+  - 错误：取不到公钥 → **接口语义变更**
 - **步骤 2｜提交凭据**：`POST https://id.tsinghua.edu.cn/do/off/ui/auth/login/check`
-  - 请求：`application/x-www-form-urlencoded`
+  - 请求：`multipart/form-data`（对齐上游的 FormData；**对照实验表明 urlencoded 同样被接受**，两种编码都不是失败原因）
 
     | 字段 | 取值 |
     |---|---|
@@ -39,7 +69,9 @@
     | `i_captcha` | 空串 |
 
   - 响应：HTML，含跳转锚点 `<a href="...ticket=xxx">`
-  - 错误：取不到锚点/工单 → 通常是凭据错误，归**认证失败**
+  - 错误：取不到锚点/工单 → 通常是凭据错误，归**认证失败**；响应含「二次认证」→ **接口语义变更**（该账号必须走主路径）
+- **步骤 2'｜已信任设备**：`POST https://id.tsinghua.edu.cn/do/off/ui/auth/login/checkSingle`
+  - 请求：`i_rememberme` = `on`、`fingerPrint`、`fingerGenPrint`（不再需要密码）
 - **步骤 3｜漫游建会话**：`GET https://learn.tsinghua.edu.cn/b/j_spring_security_thauth_roaming_entry?ticket=<ticket>`
   - 响应：非 2xx 即失败；成功后 `learn.tsinghua.edu.cn` 下发送会话 Cookie
 - **步骤 4｜取 CSRF**：`GET https://learn.tsinghua.edu.cn/f/wlxt/index/course/student/`
@@ -49,14 +81,22 @@
 
 **会话失效的表达**：响应状态 `403`，或最终落到含 `login_timeout` 的页面。
 
-> 待真机验证项：登录表单的提交格式。上游用 multipart（React Native 的 FormData），
-> 本项目按"该校方页面是标准 HTML 表单"的判断改用 urlencoded。若服务端只接受 multipart，
-> 改动局限于 `learnClient.postForm`。
+**会话 Cookie 的载体**：`webview.WebCookieManager`（进程级、与 WebView 共享），
+而非应用自管容器——主路径的"重放同一份会话"依赖它。见 ADR-0008 与 ARCHITECTURE §5.1。
 
-### 2.2 统一身份认证（SSO，属 FR-02，尚未实现）
+### 2.2 统一身份认证（SSO）的页面结构依赖
 
-- **路径**：`https://id.tsinghua.edu.cn/do/off/ui/auth/login/form/<token>/0`
-- **方式**：WebView 流程；用户在页面内完成认证后，从 WebView 会话中提取 Cookie
+主路径依赖校方页面的以下结构，**全部集中在 `resources/rawfile/sso_inject.js` 一处维护**
+（校方改版时只改这一个文件，失败会归入"接口语义变更"而不是被误报成"密码错误"）：
+
+| 依赖 | 用途 |
+|---|---|
+| `input#i_user` / `input#i_pass` | 预填学号与密码 |
+| `[name="fingerPrint"]` / `[name="singleLogin"]` | 提交前写入应用指纹、勾选单点登录 |
+| XHR 路径 `/b/doubleAuth/personal/saveFinger` | 回答"是否信任此浏览器" |
+| 页面文案「信任浏览器数量」 | 名额已满时回报，触发可操作引导 |
+| 提交事件（原生 `submit` 捕获 + jQuery `$.fn.submit` 覆写） | 抓取完整表单体；**两条路径并存**，因为 ArkWeb 不保证页面用 jQuery 提交 |
+
 - **错误**：用户中途放弃 → 归入"用户取消"，不报错
 
 ### 2.3 学期列表
@@ -102,6 +142,9 @@
 | 边界 | 职责 | 禁止 |
 |---|---|---|
 | `network.LearnClient` | 校方请求的唯一出口；Cookie 与 CSRF 统一处理 | 任何上层模块不得自行发 HTTP 请求 |
+| `network.WebCookieStore` | 会话 Cookie 的唯一载体（`webview.WebCookieManager`）；WebView 与 API 共享 | 其余模块不得自行读写 Cookie |
+| `native.resourceAdapter` | 应用资源（rawfile）读取的唯一出口 | 页面不得直接调 `resourceManager` |
+| `native.deviceAdapter` | 设备信息的唯一出口 | 页面不得直接调 `deviceInfo` |
 | `network` 对内暴露 | 返回数据或归类后的错误 | 不得泄漏底层 HTTP 细节到上层 |
 | `storage.CredentialStore` | 凭据读写唯一出口 | 其他模块不得直接触碰凭据存储 |
 | `native.*Adapter` | 各系统能力的唯一出口 | 不得在 `pages` / `viewmodel` 中直接调用系统 Kit |

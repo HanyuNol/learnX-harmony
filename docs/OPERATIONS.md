@@ -214,9 +214,35 @@ export HVIGOR_USER_HOME="D:/harmonyos/hvigor"
 ### 7.2 覆盖范围的边界
 
 Local Test 只覆盖**不依赖系统能力**的代码。依赖 Kit 的模块（`network/sm2`、`network/learnClient`、
-`storage/credentialStore`、`repository`、`viewmodel`、`pages`）在宿主侧无法运行，
+`network/webCookieStore`、`storage/credentialStore`、`repository`、`viewmodel`、`pages`）在宿主侧无法运行，
 **不会被任何单元测试覆盖**——它们的正确性只能靠设备/模拟器验证。
-这也是把纯逻辑拆成独立模块（`sm2Format` / `parse` / `cookieJar`）的原因。
+这也是把纯逻辑拆成独立模块（`sm2Format` / `parse` / `setCookie` / `ssoForm`）的原因。
+
+### 7.3 平台上的一条实测知识：API 24 的会话 Cookie
+- 框架的 `HttpResponse.cookies` 与 `response.header` 在 **API 24 上都取不到会话 Cookie**；
+  能取到 set-cookie 的是 `httpRequest.on('headersReceive')` 事件通道（其载荷是
+  `{"set-cookie": [...]}` 形状的对象）。
+- 自 API 26 起有 `enableAutoCookie`，本项目 SDK 为 24，用不上；改用
+  `webview.WebCookieManager`（`fetchCookieSync` / `configCookieSync` / `saveCookieAsync`）。
+  **`configCookieSync` 每次只接受一条 Cookie**，故写入前须按 `, ` 切分，
+  且要传 `includeHttpOnly = true`，否则 HttpOnly 的会话 Cookie 写不进去。
+- 上述关于 Cookie 的取舍与"WebView 与 API 共享会话"的原因见 ADR-0008 与 ARCHITECTURE §5.1。
+
+### 7.4 注入脚本的入口点检查（改 `resources/rawfile/*.js` 后必跑）
+
+```bash
+node scripts/check-sso-inject.mjs
+```
+
+注入脚本跑在**校方页面**里、横插在登录流程中间：它一旦抛异常，后果不是"应用报错"，
+而是**页面的请求发不出去**（页面只显示「网络异常，请重新登录或稍后重试」），
+**而应用侧一条日志都没有**——实测为此绕了好几个来回。
+
+两道现有检查都盖不住它：`check arkts` 不扫 rawfile；`node --check` 只查语法，
+而那次是**事件回调里**的一处未声明变量赋值（严格模式抛 `ReferenceError`），
+不调用就永不触发。该脚本因此在桩沙箱里执行脚本、推进它注册的定时器，
+并**主动调用被覆盖的 `XMLHttpRequest.prototype.send`**（含 `saveFinger` 路径），
+断言请求体被改写为 `radioVal=是`。已验证它能抓住上述那类缺陷。
 
 ## 8. 本地模拟器
 
@@ -266,3 +292,23 @@ devecocli emulator start <名称>
 DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huawei/DevEcoStudio6.1`
 （IDE 缓存与索引，实测约 169 MB 且会增长）。这与镜像不同，属 IDE 行为，
 **移动它可能影响 Studio 运行**，本项目暂不重定向——仅在此记录，不假装 C 盘零占用。
+
+### 8.4 用命令行驱动界面做验收（实测有效的方法）
+
+命令行驱动 UI 是本项目做"实机验收"的主要手段。以下几点都是实测踩出来的：
+
+- **截图当前不可用**：`snapshot_display` 返回**空白帧**，`devecocli ui screenshot` 同样；
+  `devecocli run` 会打印 `write to ... as jpeg failed!; blank check skipped` 并给
+  `Smoke: PASS (screenshot unavailable, blank check skipped)`。
+  这是模拟器的渲染/抓帧问题，不是应用问题（同一时刻 UI 节点树完整、交互可用）。
+  → 验收改以**UI 节点树（`devecocli ui layout --format json`）+ hilog** 为依据。
+- **坐标是物理像素**，与 `ui layout` 报出的 `bounds` 同一坐标系；点击取元素中心
+  （`devecocli ui click <x> <y>`，位置参数，不是 `--x`）。
+- **软键盘弹出时，被挤出可视区的节点不在节点树里**：直接按旧坐标点会**静默无效**
+  （命令报成功但应用毫无反应）。正确顺序是：
+  先 `devecocli ui text` 输入 → `hdc shell uinput -K -d 2 -u 2` 收起键盘 →
+  重新 `ui layout` 取当前 `bounds` → 再 `ui click`。
+- **应用日志**：`hdc shell "hilog -x" | grep "A00a11/learnX"`（tag 前缀是域号）。
+  驱动前先 `hdc shell hilog -r` 清缓冲，免得在几千行里找。
+- **`hdc` 路径**：`D:/DevEco Studio/sdk/default/openharmony/toolchains/hdc.exe`；
+  在 Git Bash 下传设备路径要 `export MSYS_NO_PATHCONV=1`，否则 `/data/...` 会被改写成 `C:/...`。

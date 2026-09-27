@@ -19,8 +19,16 @@
 - **提交前**：本次改动范围内必须同时满足
   1. `devecocli check arkts` 零错误；
   2. `devecocli check lint` 零错误；
-  3. 项目可构建（`devecocli build`）。
+  3. 项目可构建（`devecocli build`）；
+  4. **改动过 `resources/rawfile/*.js` 时**另跑 `node scripts/check-sso-inject.mjs`（注入脚本入口点检查）。
   未满足不得形成最终提交（与 `testing-and-quality.md` 的验证门同级）。
+
+  > 第 4 项是 2026-09-27 加的：注入脚本跑在校方页面里、横插在登录流程中间，
+  > 它一旦抛异常，后果是**页面的请求发不出去**（表现为页面提示"网络异常"），
+  > 而应用侧一条日志都没有。`check arkts` 不扫 rawfile，`node --check` 只查语法——
+  > 那次是一处未声明的变量赋值（严格模式抛 `ReferenceError`）在事件回调里炸掉，
+  > 前两道都查不出来。该检查在桩沙箱里执行脚本、推进定时器、并主动调用被覆盖的
+  > `XMLHttpRequest.prototype.send`，能抓住这类"回调里抛异常"的缺陷。
 - **CI 门禁**：本项目当前为单人开发、**暂未接入 CI**。若后续接入，上述三项必须作为合并前的强制门禁，与测试同级。
 - **依赖漏洞**：ohpm 依赖引入或升级时走 `sdd-bump-dependencies` 流程（读变更说明、最小升级、跑回归），升级后重跑上列三项。
 - **禁用某条 lint 规则**：必须在 `code-linter.json5` 中集中声明并注明原因，**不得**在代码里零散地内联关闭。
