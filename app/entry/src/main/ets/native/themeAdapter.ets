@@ -21,12 +21,18 @@ const TAG: string = 'themeAdapter';
  *
  * 失败**不向上抛**：主题是外观偏好，取不到就退回系统默认深浅，
  * 不应因为设置颜色失败而拦住启动或让用户的操作失败。
+ *
+ * **但必须如实把结果返回给调用方**：写偏好成功不等于主题已生效。设置页（T6）
+ * 要据此区分"已保存但未应用"并提示用户，不能只看 `writeThemeMode` 的返回值
+ * （代码审查 R-09）。启动路径可以忽略返回值——那时没有可告知的对象。
  */
-export function applyThemeMode(applicationContext: common.ApplicationContext, mode: ThemeMode): void {
+export function applyThemeMode(applicationContext: common.ApplicationContext, mode: ThemeMode): boolean {
   try {
     applicationContext.setColorMode(themeModeToColorMode(mode));
     Logger.info(TAG, `已应用主题模式 mode=${mode}`);
+    return true;
   } catch (err) {
     Logger.warn(TAG, `应用主题模式失败 mode=${mode} code=${(err as BusinessError).code}`);
+    return false;
   }
 }
