@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from '@ohos/hypium';
-import { Notice, NoticeFilter, filterNotices, sortNotices, summarize } from '../main/ets/model/notice';
+import { Notice, NoticeBatch, NoticeFilter, filterNotices, mergeNoticeBatches, sortNotices, summarize } from '../main/ets/model/notice';
 import { parseNoticeList } from '../main/ets/network/parseNotice';
 
 /** 上游学生形态的最小样本：正文是 Base64（"你好" 的 UTF-8） */
@@ -55,6 +55,39 @@ export default function noticeTest() {
         expect(filterNotices(items, NoticeFilter.UNREAD).length).assertEqual(1);
         expect(filterNotices(items, NoticeFilter.UNREAD)[0].id).assertEqual('b');
         expect(filterNotices(items, NoticeFilter.ALL).length).assertEqual(2);
+      });
+    });
+
+    describe('按课程扇出的合并', () => {
+
+      it('全部成功时应合并并排序', 0, () => {
+        const batch: NoticeBatch = mergeNoticeBatches([
+          [notice('a', 100, false)], [notice('b', 200, false)]]);
+        expect(batch.totalCourses).assertEqual(2);
+        expect(batch.failedCourses).assertEqual(0);
+        expect(batch.items.length).assertEqual(2);
+        expect(batch.items[0].id).assertEqual('b');
+      });
+
+      it('部分失败时应保留已拿到的通知，并记下失败课程数', 0, () => {
+        const batch: NoticeBatch = mergeNoticeBatches([
+          [notice('a', 100, false)], null, [notice('c', 300, false)]]);
+        expect(batch.totalCourses).assertEqual(3);
+        expect(batch.failedCourses).assertEqual(1);
+        expect(batch.items.length).assertEqual(2);
+      });
+
+      it('全部失败时返回空列表而不是抛错，由调用方决定是否呈错误态', 0, () => {
+        const batch: NoticeBatch = mergeNoticeBatches([null, null]);
+        expect(batch.items.length).assertEqual(0);
+        expect(batch.failedCourses).assertEqual(2);
+        expect(batch.failedCourses === batch.totalCourses).assertTrue();
+      });
+
+      it('空课程列表应得到空结果，不算失败', 0, () => {
+        const batch: NoticeBatch = mergeNoticeBatches([]);
+        expect(batch.totalCourses).assertEqual(0);
+        expect(batch.failedCourses).assertEqual(0);
       });
     });
 

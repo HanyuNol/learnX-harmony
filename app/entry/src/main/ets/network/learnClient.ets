@@ -27,6 +27,7 @@ import {
   LEARN_LOGOUT,
   LEARN_SEMESTER_LIST,
   learnCourseList,
+  learnNoticeList,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
 import { Logger } from '../common/logger';
@@ -37,6 +38,8 @@ import { SsoFingerPrints, classifyCheckResponse } from './ssoForm';
 import { encryptPassword } from './sm2';
 import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
 import { parseCourseList } from './parseCourse';
+import { parseNoticeList } from './parseNotice';
+import { Notice } from '../model/notice';
 import { Course } from '../model/course';
 
 const TAG: string = 'learnClient';
@@ -604,6 +607,31 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取课程列表');
     }
     return parseCourseList(result.body);
+  }
+
+  /**
+   * 某课程的**全部**通知：未过期与已过期两批（上游也是两次请求再合并）。
+   *
+   * `courseName` 由 repository 从课程列表取好传进来——通知接口不返回课程信息，
+   * 上游同样是在客户端回填。
+   */
+  async fetchNoticesOfCourse(courseId: string, courseName: string): Promise<Notice[]> {
+    const unexpired: Notice[] = await this.fetchNoticeBatch(courseId, courseName, false);
+    const expired: Notice[] = await this.fetchNoticeBatch(courseId, courseName, true);
+    return unexpired.concat(expired);
+  }
+
+  /** 单批通知（`expired=false` 未过期 / `true` 已过期）。表单体只有 `aoData` 一个字段 */
+  private async fetchNoticeBatch(courseId: string, courseName: string, expired: boolean): Promise<Notice[]> {
+    const fields: Map<string, string> = new Map();
+    // 与上游一致的形态：aoData 是一个 JSON 数组的字符串（multipart 表单字段）
+    fields.set('aoData', JSON.stringify([{ name: 'wlkcid', value: courseId }]));
+
+    const result: HttpResult = await this.postMultipart(learnNoticeList(expired), fields);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取通知列表');
+    }
+    return parseNoticeList(result.body, courseId, courseName);
   }
 
   /** 服务端认定的当前学期 id */

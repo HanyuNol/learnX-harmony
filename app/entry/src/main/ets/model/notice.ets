@@ -125,3 +125,44 @@ export function filterNotices(items: Notice[], filter: NoticeFilter): Notice[] {
   }
   return items;
 }
+
+/** 按课程扇出后的合并结果 */
+export class NoticeBatch {
+  /** 已按发布时间倒序的通知 */
+  readonly items: Notice[];
+  /** 加载失败的课程数（0 表示全部成功） */
+  readonly failedCourses: number;
+  /** 参与扇出的课程总数 */
+  readonly totalCourses: number;
+
+  constructor(items: Notice[], failedCourses: number, totalCourses: number) {
+    this.items = items;
+    this.failedCourses = failedCourses;
+    this.totalCourses = totalCourses;
+  }
+}
+
+/**
+ * 合并"每门课的结果或失败"。
+ *
+ * **部分失败不整页失败**（notices spec §3.3 第 2 条，本项目刻意不照抄上游的 Promise.all）：
+ * 上游只要有一门课失败就整体失败、整页空白；这里保留拿到的通知，只记下失败课程数，
+ * 由页面用一条提示告诉用户"有几门课没取到"。**全部失败也仍然返回空列表而不是抛错**——
+ * 是否呈现为错误态由调用方按 `failedCourses === totalCourses` 判断。
+ *
+ * `null` 表示该课程失败。
+ */
+export function mergeNoticeBatches(batches: Array<Notice[] | null>): NoticeBatch {
+  const merged: Notice[] = [];
+  let failed: number = 0;
+  for (const batch of batches) {
+    if (batch === null) {
+      failed++;
+      continue;
+    }
+    for (const notice of batch) {
+      merged.push(notice);
+    }
+  }
+  return new NoticeBatch(sortNotices(merged), failed, batches.length);
+}
