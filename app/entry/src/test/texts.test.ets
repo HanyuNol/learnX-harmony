@@ -23,6 +23,7 @@ const KNOWN_KEYS: string[] = [
   TextKeys.LOGIN_SSO_HINT,
   TextKeys.LOGIN_NETWORK_HINT,
   TextKeys.LOGIN_FAILED,
+  TextKeys.ERR_LOGOUT_INCOMPLETE,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -91,7 +92,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(18);
+      expect(KNOWN_KEYS.length).assertEqual(19);
     });
   });
 }

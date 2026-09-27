@@ -81,6 +81,10 @@
       "value": "The Learn service appears to have changed, so sign-in is temporarily unavailable."
     },
     {
+      "name": "err_logout_incomplete",
+      "value": "Sign-out is incomplete: local credentials could not be cleared. Please try again."
+    },
+    {
       "name": "err_trust_limit",
       "value": "The trusted-browser quota for Tsinghua SSO is full. Go to id.tsinghua.edu.cn → Account Settings → Multi-factor Authentication → Trusted Browsers → Maintain, delete the devices you no longer use, then sign in again."
     }

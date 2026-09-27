@@ -30,12 +30,14 @@ import { SsoLoginView } from './SsoLogin';
 struct Index {
   @State private status: LoginStatus = LoginStatus.LOGGED_OUT;
   @State private userName: string = '';
+  @State private errorKey: string = '';
 
   private store: AuthStore = AuthStore.getInstance();
 
   private listener: AuthStateListener = (state: AuthState) => {
     this.status = state.status;
     this.userName = state.userInfo === null ? '' : state.userInfo.name;
+    this.errorKey = state.errorTextKey;
   };
 
   aboutToAppear(): void {
@@ -75,6 +77,14 @@ struct Index {
       Text('内容页面将在后续迭代中实现')
         .fontSize(14)
         .fontColor(Color.Gray)
+      // 登出未完成（本地凭据未能清除）时必须让用户看见——否则点"登出"像没反应，
+      // 而实际仍处于登录态。文案键由 viewmodel 给出（见 common/logout.ets）
+      if (this.errorKey.length > 0) {
+        Text($r('app.string.' + this.errorKey))
+          .fontSize(14)
+          .fontColor($r('app.color.danger'))
+          .width('100%')
+      }
       Button('登出')
         .onClick(() => {
           this.store.logout();

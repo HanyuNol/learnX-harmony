@@ -5,7 +5,7 @@
  * ——保证"网络唯一出口""凭据唯一入口"两条不变量。
  */
 
-import { AuthError, Credentials, SsoInjection, UserInfo } from '../model/auth';
+import { AuthError, Credentials, LogoutResult, SsoInjection, UserInfo } from '../model/auth';
 import { LearnClient } from '../network/learnClient';
 import { SsoFormBody, classifySsoProblem, fingerPrintsOf } from '../network/ssoForm';
 import { CredentialStore } from '../storage/credentialStore';
@@ -92,11 +92,31 @@ export class AuthRepository {
     return classifySsoProblem(code);
   }
 
-  /** 登出：先通知服务端，再清掉本地会话与凭据（**保留设备指纹**，见 `CredentialStore.clearCredentials`） */
-  static async logout(): Promise<void> {
+  /**
+   * 登出：清本地凭据 + 通知服务端（**保留设备指纹**，见 `CredentialStore.clearCredentials`）。
+   *
+   * **顺序与错误处理都是刻意的**：
+   * - 先清凭据：它是"登出"这件事的**唯一实质**。清除失败必须作为结果上报，
+   *   不能被"服务端登出失败可忽略"一起吞掉——那样界面会谎报登出成功，而凭据还在，
+   *   下次启动会静默重新登录（代码审查 R-02）。
+   * - 再通知服务端并清会话 Cookie：`LearnClient.logout` 内部已兜底（服务端失败也清本地会话），
+   *   故它不会让本方法失败；即便失败也不改变本地登出的结论。
+   */
+  static async logout(): Promise<LogoutResult> {
+    let credentialsCleared: boolean = true;
+    try {
+      await CredentialStore.clearCredentials();
+    } catch (err) {
+      const error = normalize(err, '清除凭据');
+      Logger.error(TAG, `本地凭据未能清除 reason=${error.reason}：登出未完成`);
+      credentialsCleared = false;
+    }
+
     await LearnClient.getInstance().logout();
-    await CredentialStore.clearCredentials();
-    Logger.info(TAG, '已登出并清理本地凭据');
+    if (credentialsCleared) {
+      Logger.info(TAG, '已登出并清理本地凭据');
+    }
+    return new LogoutResult(credentialsCleared);
   }
 
   /**

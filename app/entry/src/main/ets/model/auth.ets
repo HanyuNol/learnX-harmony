@@ -50,6 +50,21 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * 登出结果。
+ *
+ * 只关心一件事：**本地凭据是否真的被清除了**。判断依据在此而不在"有没有抛异常"——
+ * 凭据清除失败意味着"登出"这件事没做到，上层不得据此谎报成功（见 `common/logout.ets`）。
+ * 服务端登出失败不在此列：它不影响本地凭据的清除，且会话 Cookie 已由客户端清理。
+ */
+export class LogoutResult {
+  readonly credentialsCleared: boolean;
+
+  constructor(credentialsCleared: boolean) {
+    this.credentialsCleared = credentialsCleared;
+  }
+}
+
 /** 用户凭据；仅在存储层与网络层之间传递，禁止进入 UI 状态与日志 */
 export class Credentials {
   readonly username: string;

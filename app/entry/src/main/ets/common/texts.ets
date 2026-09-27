@@ -44,6 +44,8 @@ export class TextKeys {
   static readonly LOGIN_NETWORK_HINT: string = 'login_network_hint';
   /** 失败时的兜底文案。**不含技术细节**（`AuthError.detail` 只进日志） */
   static readonly LOGIN_FAILED: string = 'login_failed';
+  /** 登出未完成：本地凭据未能清除（安全语义，不得谎报成功） */
+  static readonly ERR_LOGOUT_INCOMPLETE: string = 'err_logout_incomplete';
 
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';

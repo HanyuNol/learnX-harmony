@@ -12,12 +12,13 @@
  * （见 architecture-invariants 与 spec §5 第 6 项）。
  */
 
-import { AuthError, FailReason, LoginStatus, SsoInjection, UserInfo } from '../model/auth';
+import { AuthError, FailReason, LoginStatus, LogoutResult, SsoInjection, UserInfo } from '../model/auth';
 import { AuthRepository } from '../repository/authRepository';
 import { SsoFormBody } from '../network/ssoForm';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
+import { LogoutOutcome, logoutOutcome } from '../common/logout';
 
 const TAG: string = 'authStore';
 
@@ -229,18 +230,34 @@ export class AuthStore {
     }
   }
 
+  /**
+   * 登出。
+   *
+   * **只有本地凭据被真正清除才转 `LOGGED_OUT`**；未清除时保持登录态并给出文案键。
+   * 这不只是文案问题：谎报登出会让人在共用/丢失设备上误判风险，且残留凭据会在
+   * 下次启动被静默复用（代码审查 R-02）。判定逻辑在 `common/logout.ets`（可单测）。
+   */
   async logout(): Promise<void> {
+    let result: LogoutResult;
     try {
-      await AuthRepository.logout();
+      result = await AuthRepository.logout();
     } catch (err) {
+      // 未预期的异常一律按"凭据未清除"处理——宁可保留登录态，也不谎报成功
       const error = normalize(err, '登出');
-      Logger.warn(TAG, `登出时出错 reason=${error.reason}`);
+      Logger.error(TAG, `登出中止 reason=${error.reason}`);
+      result = new LogoutResult(false);
     }
+
+    const outcome: LogoutOutcome = logoutOutcome(result);
     this.clearInjection();
-    this.status = LoginStatus.LOGGED_OUT;
-    this.userInfo = null;
-    this.errorReason = null;
-    this.errorTextKey = '';
+    if (outcome.loggedOut) {
+      this.status = LoginStatus.LOGGED_OUT;
+      this.userInfo = null;
+      this.errorReason = null;
+      this.errorTextKey = '';
+    } else {
+      this.errorTextKey = outcome.errorTextKey;
+    }
     this.notify();
   }
 
