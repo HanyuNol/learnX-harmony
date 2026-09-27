@@ -15,6 +15,7 @@ import themeTest from './theme.test';
 import textsTest from './texts.test';
 import logoutTest from './logout.test';
 import semesterTest from './semester.test';
+import courseTest from './course.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -27,4 +28,5 @@ export default function testsuite() {
   textsTest();
   logoutTest();
   semesterTest();
+  courseTest();
 }
