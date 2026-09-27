@@ -31,6 +31,12 @@ const CONTENT_TAB_KEYS: string[] = [TextKeys.TAB_NOTICES, TextKeys.TAB_ASSIGNMEN
 export struct CourseDetailView {
   /** 要展示的课程 id */
   @Prop courseId: string;
+  /**
+   * 打开通知详情。由持有课程栈的 `Main` 提供——在课程详情里点通知，
+   * **推在课程栈上**（与上游一致：`CourseStack` 里也注册了 `NoticeDetail`），
+   * 这样返回时是回到课程详情，而不是跳到通知标签。
+   */
+  onOpenNotice?: (noticeId: string) => void;
 
   @State private activeTab: number = 0;
 
@@ -47,8 +53,12 @@ export struct CourseDetailView {
 
       Tabs({ barPosition: BarPosition.Start, index: this.activeTab }) {
         TabContent() {
-          // 与通知标签共用同一套列表，只是按当前课程过滤（对齐上游在课程详情里内嵌列表）
-          NoticeListTab({ courseId: this.courseId })
+          // 与通知标签共用同一套列表，只是按当前课程过滤（对齐上游在课程详情里内嵌列表）；
+          // onOpenNotice 必须传下去——列表行的点击在回调为空时是**静默无效**的
+          NoticeListTab({
+            courseId: this.courseId,
+            onOpenNotice: this.onOpenNotice
+          })
         }
         .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
 

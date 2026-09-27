@@ -166,9 +166,23 @@ export struct MainView {
   coursesDetail(name: string, param: object) {
     if (name === COURSE_DETAIL_DESTINATION) {
       NavDestination() {
-        CourseDetailView({ courseId: (param as CourseDetailParam).courseId })
+        CourseDetailView({
+          courseId: (param as CourseDetailParam).courseId,
+          // 在课程详情里点通知 → 推在**课程栈**上（返回即回课程详情），与上游 CourseStack 一致
+          onOpenNotice: (noticeId: string) => {
+            this.coursesStack.pushPath({
+              name: NOTICE_DETAIL_DESTINATION,
+              param: new NoticeDetailParam(noticeId)
+            });
+          }
+        })
       }
       .title($r('app.string.' + TextKeys.TAB_COURSES))
+    } else if (name === NOTICE_DETAIL_DESTINATION) {
+      NavDestination() {
+        NoticeDetailView({ noticeId: (param as NoticeDetailParam).noticeId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_NOTICES))
     } else {
       this.detailOf(this.coursesStack, name)
     }
