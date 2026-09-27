@@ -175,6 +175,18 @@
     {
       "name": "semester_season_unknown",
       "value": "Semester"
+    },
+    {
+      "name": "settings_semester",
+      "value": "Semester"
+    },
+    {
+      "name": "semester_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "semester_switch_failed",
+      "value": "The switch could not be saved. Please try again."
     }
   ]
 }

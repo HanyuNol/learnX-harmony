@@ -175,6 +175,18 @@
     {
       "name": "semester_season_unknown",
       "value": "学期"
+    },
+    {
+      "name": "settings_semester",
+      "value": "学期切换"
+    },
+    {
+      "name": "semester_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "semester_switch_failed",
+      "value": "切换未能保存，请重试"
     }
   ]
 }

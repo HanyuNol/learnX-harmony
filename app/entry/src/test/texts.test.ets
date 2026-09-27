@@ -46,6 +46,9 @@ const KNOWN_KEYS: string[] = [
   TextKeys.SEMESTER_SEASON_SPRING,
   TextKeys.SEMESTER_SEASON_SUMMER,
   TextKeys.SEMESTER_SEASON_UNKNOWN,
+  TextKeys.SETTINGS_SEMESTER,
+  TextKeys.SEMESTER_REFRESH,
+  TextKeys.SEMESTER_SWITCH_FAILED,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -114,7 +117,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(41);
+      expect(KNOWN_KEYS.length).assertEqual(44);
     });
   });
 }

@@ -96,6 +96,13 @@ export class TextKeys {
   /** 学期季节：识别不出（id 形态异常）——保留原串可显示，不崩 */
   static readonly SEMESTER_SEASON_UNKNOWN: string = 'semester_season_unknown';
 
+  /** 设置页入口：学期切换 */
+  static readonly SETTINGS_SEMESTER: string = 'settings_semester';
+  /** 学期页：重新加载 */
+  static readonly SEMESTER_REFRESH: string = 'semester_refresh';
+  /** 学期切换未能保存（安全语义：不得谎报切换成功，同审查 R-02 的教训） */
+  static readonly SEMESTER_SWITCH_FAILED: string = 'semester_switch_failed';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

@@ -14,6 +14,7 @@ import { changeThemeMode, loadThemeMode } from '../viewmodel/settingsStore';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
+import { applicationContextOf } from '../native/contextAdapter';
 
 /** 主题三个选项的取值与文案键（顺序即展示顺序） */
 const THEME_OPTIONS: ThemeMode[] = [ThemeMode.FOLLOW_SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK];
@@ -35,17 +36,9 @@ export struct SettingsView {
 
   private store: AuthStore = AuthStore.getInstance();
 
-  /**
-   * 供偏好读写使用的上下文。
-   *
-   * **必须与启动路径一致用 ApplicationContext**：`getHostContext()` 给的是
-   * UIAbilityContext，实测它写入的偏好**重启后读不回来**（2026-09-27 真机：
-   * 设置页写 FOLLOW_SYSTEM → force-stop 重启 → 读到旧值 DARK），
-   * 而启动路径用 ApplicationContext 写的值能持久化。故这里统一到应用级上下文。
-   */
-  private appContext(): common.Context {
-    const host: common.Context = this.getUIContext().getHostContext() as common.Context;
-    return host.getApplicationContext();
+  /** 偏好读写一律走应用级上下文；原因见 `native/contextAdapter.ets` */
+  private appContext(): common.ApplicationContext {
+    return applicationContextOf(this.getUIContext().getHostContext() as common.Context);
   }
 
   aboutToAppear(): void {
