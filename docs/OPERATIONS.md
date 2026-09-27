@@ -244,6 +244,21 @@ node scripts/check-sso-inject.mjs
 并**主动调用被覆盖的 `XMLHttpRequest.prototype.send`**（含 `saveFinger` 路径），
 断言请求体被改写为 `radioVal=是`。已验证它能抓住上述那类缺陷。
 
+### 7.5 文案键一致性检查（改文案后必跑）
+
+```bash
+node scripts/check-l10n.mjs
+```
+
+`$r('app.string.' + key)` 传变量时是**运行时**解析资源 id：键写错不会编译报错，
+只会**不渲染那个节点**（实测：登录页只剩输入框，标题与按钮文字整片消失）；
+缺 `en_US` 键也不报错，系统静默回落中文，表现为"英文界面里混着中文"。
+故该脚本比对 `base` 与 `en_US` 两份 `string.json` 的键集合，并核对
+`common/texts.ets` 里声明的键都真实存在；退出码非 0 即不通过。
+
+> 键 → 资源名的取用一律写成 `$r('app.string.' + key)`（**全名**）。
+> 传裸键 `$r(key)` 会静默不渲染——这是本项目踩过的坑，见 `common/texts.ets` 的说明。
+
 ## 8. 本地模拟器
 
 ### 8.1 镜像默认下载到 C 盘（必须重定向）
