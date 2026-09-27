@@ -1,9 +1,14 @@
 /**
  * 通知接口的**响应解析**（纯逻辑；除 Base64 解码外零系统依赖，可宿主侧穷举测试）。
  *
- * 上游判定与映射（`thu-learn-lib/src/index.ts:475-497`）：
- * 结果容器是 `object.aaData`，取不到时退 `object.resultsList`；正文 `ggnr` 是 **Base64**，
- * 标题等文本字段需解 HTML 实体；已读判据 `sfyd === '是'`。
+ * 上游判定与映射（`thu-learn-lib/src/index.ts:470-497`，逐行核过）：
+ * - 成功标记是 **`result === 'success'`**（注意同学期/课程接口用的 `message` 不是同一个字段）；
+ * - 结果容器 `object.aaData`，取不到退 `object.resultsList`；
+ * - 正文 `ggnr` 是 **Base64**；标题等文本字段解 HTML 实体；
+ * - 已读判据 `sfyd === '是'`；**重要标记是 `Number(sfqd) === 1`**（不是 `zd`；
+ *   `sfqd` 在学生形态是数字、教师形态是字符串，故用 `Number` 归一）；
+ * - `url` 是**客户端按 (courseId, noticeId) 拼**的，响应里没有这个字段；
+ * - 发布时间取 `fbsj`，为空时退 `fbsjStr`。
  *
  * 与本项目其他解析层一样：**结构不符就抛错**（由调用方归"解析失败"），
  * 但**单项字段缺失不抛**——缺字段的通知照样要能显示，只是内容空。
@@ -13,6 +18,7 @@ import { buffer } from '@kit.ArkTS';
 import { Notice } from '../model/notice';
 import { parseFailed } from '../common/errors';
 import { decodeHtmlEntities } from './parseCourse';
+import { learnNoticeDetailUrl } from '../model/urls';
 
 /** `sfyd` 表示"已读"的字面量 */
 const READ_MARKER: string = '是';
@@ -36,6 +42,12 @@ function decodeBase64(value: string): string {
   } catch (err) {
     return value;
   }
+}
+
+/** 发布时间字段：优先 `fbsj`，为空退 `fbsjStr`（上游 `index.ts:487` 就是这么取的） */
+function publishTimeOf(raw: Record<string, Object>): string {
+  const primary: string = str(raw['fbsj']);
+  return primary.length > 0 ? primary : str(raw['fbsjStr']);
 }
 
 /**
@@ -67,6 +79,11 @@ export function parseNoticeList(body: string, courseId: string, courseName: stri
   }
 
   const envelope: Record<string, Object> = parsed as Record<string, Object>;
+  const resultFlag: Object | undefined = envelope['result'];
+  if (typeof resultFlag !== 'string' || resultFlag !== 'success') {
+    throw parseFailed('通知列表响应缺少 success 标记');
+  }
+
   const objectValue: Object | undefined = envelope['object'];
   if (typeof objectValue !== 'object' || objectValue === null) {
     throw parseFailed('通知列表响应缺少 object');
@@ -95,10 +112,10 @@ export function parseNoticeList(body: string, courseId: string, courseName: stri
       decodeHtmlEntities(str(raw['bt'])),
       decodeHtmlEntities(decodeBase64(str(raw['ggnr']))),
       str(raw['sfyd']) === READ_MARKER,
-      str(raw['zd']).length > 0,
-      parsePublishTime(str(raw['fbsj'])),
+      Number(str(raw['sfqd'])) === 1,
+      parsePublishTime(publishTimeOf(raw)),
       str(raw['fbrxm']),
-      str(raw['url']),
+      learnNoticeDetailUrl(courseId, str(raw['ggid'])),
       str(raw['fjmc']).length > 0 ? str(raw['fjmc']) : str(raw['fjbt'])
     ));
   }

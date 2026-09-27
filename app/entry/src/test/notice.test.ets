@@ -10,9 +10,9 @@ import { Notice, NoticeFilter, filterNotices, sortNotices, summarize } from '../
 import { parseNoticeList } from '../main/ets/network/parseNotice';
 
 /** 上游学生形态的最小样本：正文是 Base64（"你好" 的 UTF-8） */
-const ONE_NOTICE: string = '{"object":{"aaData":[{' +
+const ONE_NOTICE: string = '{"result":"success","object":{"aaData":[{' +
   '"ggid":"gg1","bt":"关于选课 &amp; 退课","ggnr":"5L2g5aW9","sfyd":"否",' +
-  '"fbrxm":"教务","fbsj":"2026-09-01 10:00:00","zd":"是","fjmc":"附件.pdf"}]}}';
+  '"fbrxm":"教务","fbsj":"2026-09-01 10:00:00","sfqd":"1","fjmc":"附件.pdf"}]}}';
 
 function notice(id: string, publishTime: number, hasRead: boolean): Notice {
   return new Notice(id, 'c1', '课程甲', '标题', '正文', hasRead, false, publishTime, '发布者', 'url', '');
@@ -68,6 +68,9 @@ export default function noticeTest() {
         expect(list[0].content).assertEqual('你好');
         expect(list[0].hasRead).assertFalse();
         expect(list[0].markedImportant).assertTrue();
+        // url 是客户端按 (courseId, noticeId) 拼的，响应里没有该字段
+        expect(list[0].url.includes('beforeViewXs')).assertTrue();
+        expect(list[0].url.includes('id=gg1')).assertTrue();
         expect(list[0].publisher).assertEqual('教务');
         expect(list[0].attachmentName).assertEqual('附件.pdf');
         expect(list[0].courseId).assertEqual('c1');
@@ -76,11 +79,11 @@ export default function noticeTest() {
       });
 
       it('空列表是合法结果', 0, () => {
-        expect(parseNoticeList('{"object":{"aaData":[]}}', 'c1', '甲').length).assertEqual(0);
+        expect(parseNoticeList('{"result":"success","object":{"aaData":[]}}', 'c1', '甲').length).assertEqual(0);
       });
 
       it('退让容器 resultsList 可用，且字段缺失的项不应让整批失败', 0, () => {
-        const list: Notice[] = parseNoticeList('{"object":{"resultsList":[{"ggid":"x"}]}}', 'c1', '甲');
+        const list: Notice[] = parseNoticeList('{"result":"success","object":{"resultsList":[{"ggid":"x"}]}}', 'c1', '甲');
         expect(list.length).assertEqual(1);
         expect(list[0].title).assertEqual('');
         expect(list[0].hasRead).assertFalse();
@@ -88,7 +91,8 @@ export default function noticeTest() {
       });
 
       it('坏 JSON 或缺少结果容器都应抛错', 0, () => {
-        const bad: string[] = ['[', '{"object":{}}', '{"object":{"aaData":{}}}'];
+        const bad: string[] = ['[', '{"result":"success","object":{}}',
+          '{"result":"success","object":{"aaData":{}}}', '{"result":"fail","object":{"aaData":[]}}'];
         bad.forEach((body: string) => {
           let threw: boolean = false;
           try {

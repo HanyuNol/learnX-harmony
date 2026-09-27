@@ -77,6 +77,28 @@ export function learnCourseList(semesterId: string, lang: string): string {
     `/${encodeURIComponent(semesterId)}/${encodeURIComponent(lang)}`;
 }
 
+/**
+ * 通知列表。**按课程取**，且分"未过期/已过期"两批。
+ *
+ * 路径照抄上游 `thu-learn-lib@4.0.0` 的 `urls.ts:78-81`（学生形态）：
+ * `…/student/pageListXsby` + `Wgq`（未过期）/ `Ygq`（已过期）。
+ * 注意它是 `/b/...`（数据接口），与详情页的 `/f/...` 不是同一类。
+ */
+export function learnNoticeList(expired: boolean): string {
+  return `${LEARN_PREFIX}/b/wlxt/kcgg/wlkc_ggb/student/pageListXsby${expired ? 'Ygq' : 'Wgq'}`;
+}
+
+/**
+ * 通知详情页 URL（`/f/...` 形态）。
+ *
+ * **由客户端拼**而不是取响应字段：上游就是这么构造的（`index.ts:481`），
+ * 它同时是"打开详情时发一次已读请求"的目标。
+ */
+export function learnNoticeDetailUrl(courseId: string, noticeId: string): string {
+  return `${LEARN_PREFIX}/f/wlxt/kcgg/wlkc_ggb/student/beforeViewXs` +
+    `?wlkcid=${encodeURIComponent(courseId)}&id=${encodeURIComponent(noticeId)}`;
+}
+
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 
