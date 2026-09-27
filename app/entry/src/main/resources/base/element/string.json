@@ -191,6 +191,10 @@
     {
       "name": "semester_current",
       "value": "当前"
+    },
+    {
+      "name": "err_parse_failed",
+      "value": "服务端返回的内容无法识别，请稍后重试"
     }
   ]
 }

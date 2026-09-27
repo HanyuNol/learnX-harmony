@@ -122,6 +122,8 @@ export class TextKeys {
   static readonly ERR_AUTH_FAILED: string = 'err_auth_failed';
   /** 接口语义变更 */
   static readonly ERR_API_CHANGED: string = 'err_api_changed';
+  /** 解析失败：响应结构不符合预期（服务端改了结构，或返回了无法识别的内容） */
+  static readonly ERR_PARSE_FAILED: string = 'err_parse_failed';
   /** 信任浏览器名额已满（带可操作步骤，故与通用 API_CHANGED 文案分开） */
   static readonly ERR_TRUST_LIMIT: string = 'err_trust_limit';
 
@@ -154,9 +156,14 @@ export function textKeyOfFailReason(reason: FailReason, hintKey: string = ''): s
   if (reason === FailReason.API_CHANGED) {
     return TextKeys.ERR_API_CHANGED;
   }
+  if (reason === FailReason.PARSE_FAILED) {
+    return TextKeys.ERR_PARSE_FAILED;
+  }
   if (reason === FailReason.CANCELLED) {
     return TextKeys.NONE;
   }
+  // 兜底：`FailReason` 目前 5 个取值都已覆盖，这里防的是**将来新增取值**时漏配文案。
+  // 它给的是"登录失败"，语气不准——若真落到这里，应视为漏配而不是正常路径。
   return TextKeys.LOGIN_FAILED;
 }
 

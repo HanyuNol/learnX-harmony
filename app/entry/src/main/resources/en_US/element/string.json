@@ -191,6 +191,10 @@
     {
       "name": "semester_current",
       "value": "Current"
+    },
+    {
+      "name": "err_parse_failed",
+      "value": "The server returned something we could not recognize. Please try again later."
     }
   ]
 }

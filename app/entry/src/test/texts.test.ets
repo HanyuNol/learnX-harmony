@@ -58,6 +58,7 @@ const KNOWN_KEYS: string[] = [
   TextKeys.ERR_NETWORK_UNREACHABLE,
   TextKeys.ERR_AUTH_FAILED,
   TextKeys.ERR_API_CHANGED,
+  TextKeys.ERR_PARSE_FAILED,
   TextKeys.ERR_TRUST_LIMIT
 ];
 
@@ -102,7 +103,17 @@ export default function textsTest() {
       expect(network === auth).assertFalse();
       expect(network === api).assertFalse();
       expect(auth === api).assertFalse();
-      expect(parse.length > 0).assertTrue();
+      expect(network === parse).assertFalse();
+      expect(auth === parse).assertFalse();
+      expect(api === parse).assertFalse();
+    });
+
+    it('解析失败应有专用文案，不得报成"登录失败"', 0, () => {
+      // 解析失败的场景（学期/课程/通知响应结构变了）与登录无关，
+      // 报成"登录失败"会诱导用户去查密码——这是审查 N-03 记的错误面误报
+      const parse: string = textKeyOfFailReason(FailReason.PARSE_FAILED);
+      expect(parse).assertEqual(TextKeys.ERR_PARSE_FAILED);
+      expect(parse === TextKeys.LOGIN_FAILED).assertFalse();
     });
 
     it('映射结果只能是键本身，不得把排障细节带进用户文案', 0, () => {
@@ -110,7 +121,9 @@ export default function textsTest() {
       // 说明"技术细节"没有进入映射的输入通道
       expect(textKeyOfFailReason(FailReason.PARSE_FAILED, TextKeys.ERR_NETWORK_UNREACHABLE))
         .assertEqual(TextKeys.ERR_NETWORK_UNREACHABLE);
-      expect(textKeyOfFailReason(FailReason.PARSE_FAILED)).assertEqual(TextKeys.LOGIN_FAILED);
+      // 注意：这一条原先断言 PARSE_FAILED 映射到 LOGIN_FAILED——那正是审查 N-03 记的
+      // 错误面误报，被旧断言固化成了"期望行为"。现在改为断言专用键。
+      expect(textKeyOfFailReason(FailReason.PARSE_FAILED)).assertEqual(TextKeys.ERR_PARSE_FAILED);
     });
 
     it('键名应符合资源名格式，且除哨兵外都非空', 0, () => {
@@ -118,7 +131,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(45);
+      expect(KNOWN_KEYS.length).assertEqual(46);
     });
   });
 }
