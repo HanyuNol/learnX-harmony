@@ -53,6 +53,7 @@ import {
 import { readRawFileText } from '../native/resourceAdapter';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
+import { TextKeys } from '../common/texts';
 
 const TAG: string = 'ssoLogin';
 
@@ -101,7 +102,7 @@ export struct SsoLoginView {
   /** 收尾只做一次：漫游地址可能被多次导航命中 */
   private finishing: boolean = false;
   /** 应用自身资源缺失等致命问题：页面无法工作时的提示 */
-  @State private fatalText: string = '';
+  @State private fatalKey: string = '';
 
   private listener: AuthStateListener = (state: AuthState) => {
     // 上层若已离开网页登录流程（成功、失败或取消），本页随之失效
@@ -116,7 +117,7 @@ export struct SsoLoginView {
     const injection: SsoInjection | null = this.store.ssoInjection();
     if (injection === null) {
       Logger.warn(TAG, '缺少网页登录所需的取值，无法注入');
-      this.fatalText = '登录流程状态已丢失，请返回重新登录';
+      this.fatalKey = TextKeys.SSO_STATE_LOST;
       return;
     }
 
@@ -127,7 +128,7 @@ export struct SsoLoginView {
     const context: common.Context | undefined = this.getUIContext().getHostContext();
     if (context === undefined) {
       Logger.error(TAG, '未能取得宿主上下文，无法读取注入脚本');
-      this.fatalText = '应用资源缺失，无法打开登录页';
+      this.fatalKey = TextKeys.SSO_RESOURCE_MISSING;
       return;
     }
 
@@ -145,7 +146,7 @@ export struct SsoLoginView {
     } catch (err) {
       const error = normalize(err, '读取登录页注入脚本');
       Logger.error(TAG, `注入脚本读取失败 reason=${error.reason}`);
-      this.fatalText = '应用资源缺失，无法打开登录页';
+      this.fatalKey = TextKeys.SSO_RESOURCE_MISSING;
     }
   }
 
@@ -226,13 +227,13 @@ export struct SsoLoginView {
     Column() {
       // 顶部条：让用户知道这是登录流程的一部分，并随时可退出
       Row({ space: 12 }) {
-        Text('登录网络学堂')
+        Text($r('app.string.' + TextKeys.SSO_TITLE))
           .fontSize(18)
           .layoutWeight(1)
-        Button('取消')
+        Button($r('app.string.' + TextKeys.SSO_CANCEL))
           .fontSize(14)
           .backgroundColor(Color.Transparent)
-          .fontColor(Color.Blue)
+          .fontColor($r('app.color.accent'))
           .onClick(() => {
             this.store.cancelSso();
           })
@@ -245,10 +246,10 @@ export struct SsoLoginView {
           .width('100%')
       }
 
-      if (this.fatalText.length > 0) {
-        Text(this.fatalText)
+      if (this.fatalKey.length > 0) {
+        Text($r('app.string.' + this.fatalKey))
           .fontSize(14)
-          .fontColor(Color.Red)
+          .fontColor($r('app.color.danger'))
           .padding(16)
       } else {
         Stack() {
@@ -315,7 +316,7 @@ export struct SsoLoginView {
           if (this.establishing) {
             Column({ space: 12 }) {
               LoadingProgress().width(48).height(48)
-              Text('正在建立登录会话…').fontSize(14)
+              Text($r('app.string.' + TextKeys.SSO_ESTABLISHING)).fontSize(14)
             }
             .width('100%')
             .height('100%')

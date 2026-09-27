@@ -36,9 +36,9 @@ const NETWORK_UNREACHABLE_CODES: number[] = [
 /** 判定为"认证失败"的 HTTP 状态码 */
 const AUTH_STATUS_CODES: number[] = [401, 403];
 
-/** 业务错误：非预期状态码等 */
-export function apiChanged(detail: string, userHint: string = ''): AuthError {
-  return new AuthError(FailReason.API_CHANGED, detail, userHint);
+/** 业务错误：非预期状态码等。`hintKey` 是"可操作引导"的文案键，见 `AuthError.hintKey` */
+export function apiChanged(detail: string, hintKey: string = ''): AuthError {
+  return new AuthError(FailReason.API_CHANGED, detail, hintKey);
 }
 
 /** 构造"网络不可达"错误 */

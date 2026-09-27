@@ -12,6 +12,7 @@
 import { AuthError } from '../model/auth';
 import { apiChanged, networkUnreachable } from '../common/errors';
 import { LEARN_ROAMING_PREFIX } from '../model/urls';
+import { TextKeys } from '../common/texts';
 
 /** 注入脚本模板中待替换的占位符。改动须同步 `resources/rawfile/sso_inject.js` */
 export const PLACEHOLDER_USERNAME: string = '__LEARNX_USERNAME__';
@@ -42,10 +43,8 @@ export const FIELD_FINGER_PRINT: string = 'fingerPrint';
 export const FIELD_FINGER_GEN_PRINT: string = 'fingerGenPrint';
 export const FIELD_FINGER_GEN_PRINT3: string = 'fingerGenPrint3';
 
-/** 「信任浏览器数量已达上限」的可操作引导。属可预见失败，不是缺陷（spec §8.2） */
-export const TRUST_LIMIT_GUIDANCE: string =
-  '统一身份认证的「信任浏览器」名额已满。请先到 id.tsinghua.edu.cn → 账号设置 → 多因子认证 → ' +
-  '信任浏览器数量 → 维护，删除不再使用的设备，再回来登录';
+/** 「信任浏览器数量已达上限」的可操作引导：存**文案键**，由页面取文案（spec §3.4） */
+export const TRUST_LIMIT_HINT_KEY: string = TextKeys.ERR_TRUST_LIMIT;
 
 /** 一条来自 WebView 的消息 */
 export class SsoBridgeMessage {
@@ -318,7 +317,7 @@ const SECOND_AUTH_MARKER: string = '二次认证';
 export function classifySsoProblem(code: string): AuthError {
   if (code === MSG_TRUST_LIMIT) {
     // 这条有具体可操作步骤，放进 userHint——通用文案会把它盖掉，用户就无从知道该删旧设备
-    return apiChanged('WebView 登录页提示信任浏览器数量已达上限', TRUST_LIMIT_GUIDANCE);
+    return apiChanged('WebView 登录页提示信任浏览器数量已达上限', TRUST_LIMIT_HINT_KEY);
   }
   if (code === MSG_PREFILL_FAILED) {
     return apiChanged('统一身份认证页面结构似乎已变化，未能预填登录表单');

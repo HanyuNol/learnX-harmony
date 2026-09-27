@@ -12,6 +12,7 @@ import ssoFormTest from './ssoForm.test';
 import errorsTest from './errors.test';
 import loggerTest from './logger.test';
 import themeTest from './theme.test';
+import textsTest from './texts.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -21,4 +22,5 @@ export default function testsuite() {
   errorsTest();
   loggerTest();
   themeTest();
+  textsTest();
 }

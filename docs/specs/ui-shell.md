@@ -114,6 +114,14 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
   资源 id；传变量时改为运行时解析（`ets-loader` 对非字面量参数生成 id `-1`，由运行时
   `__getResourceId__` 解析）。且**缺 `en_US` 键不会编译报错**——系统回落 `base`，表现为"漏翻译"。
   故以 `scripts/check-l10n.mjs`（§5.2）+ 键映射覆盖单测为门，不依赖编译期检查。
+- **变量形式的 `$r` 必须传全名（实测硬规则，2026-09-27）**：`$r` 的参数只要是**变量**
+  （含 `$r(TextKeys.X)` 这种属性访问），必须写成 `$r('app.string.' + key)`；传**裸键**
+  `$r(TextKeys.X)` 时资源解析失败，**不编译报错、不打日志、直接不渲染该节点**——
+  现象是登录页只剩输入框，标题、按钮文字、提示整片消失（本轮真机上踩到，靠 UI 节点树发现）。
+  故 `common/texts.ets` 只提供裸键，页面取资源时自己拼 `app.string.` 前缀。
+  > 这条正是"编译器给不了保证"的具体后果，也是本批必须靠**设备验收**（节点树）而非静态门的原因。
+- **`pages/Index.ets` 的入口占位文案不迁移**：T5 会用 `Main`（五标签）替换整个占位页，
+  现在改成文案键等于改了又删。故 T3 的迁移范围不含它，T5 直接删除该占位页。
 - **迁移现有硬编码中文（清单要全，否则 T3 必漏）**：
   - `pages/Login.ets`：`网络学堂` / `学号` / `密码` / `记住密码` / `登录` / `登录中…` /
     `下一步会在网页中打开统一身份认证，请在页面上完成登录（含验证码）` / `需连接校园网或校方 VPN 后使用`；
@@ -184,8 +192,30 @@ SettingStack`，各自 `createNativeStackNavigator`。ArkUI 侧对应：
     - 静态门：`check arkts` 24 文件 / 测试 8 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 70/70。
   - 遗留状态：模拟器上的主题偏好现为 `DARK`（验证写入时留下，且已证明跨装包存活）。
     T6 的设置页将提供改回"跟随系统"的开关；在此之前该偏好会一直生效。
-- [ ] T3 多语言：中英文案资源骨架 + §3.4 清单里的硬编码中文全部迁移为文案键 +
+- [x] T3 多语言：中英文案资源骨架 + §3.4 清单里的硬编码中文全部迁移为文案键 +
   `scripts/check-l10n.mjs`（键集合一致性）+ 键映射覆盖单测
+  - 交付物：`resources/base`（中）与 `resources/en_US`（英）两份 `string.json`（各 21 键）、
+    `common/texts.ets`（`TextKeys` 裸键 + `textKeyOfFailReason` 纯映射）、`scripts/check-l10n.mjs`、
+    `texts.test.ets`（6 用例）。迁移面：`pages/Login.ets`、`pages/SsoLogin.ets`、
+    `viewmodel/authStore.ets`、`network/ssoForm.ets`、`model/auth.ets`。
+  - `AuthError` 调整：`userHint`（中文散文）→ `hintKey`（文案键）；`detail` 退出 UI，
+    改由 `authStore` 以 `Logger.debug` 记录（排障能力不丢，用户不再看到技术串）。
+    原先"把 `detail` 拼进用户文案"的兜底路径已删除。
+  - 顺带落实语义色引用：登录页把写死的 `Color.Red`/`Color.Gray` 换成
+    `app.color.danger`/`text_secondary`，并加 `bg_page` 背景——T1 引入的语义色开始有真实引用。
+  - 证据（2026-09-27，模拟器 `learnx`）：
+    - 中文（系统 zh-Hans）：节点树显示 `网络学堂 / 记住密码 / 登录 / 下一步会在网页中打开统一身份认证… / 需连接校园网或校方 VPN 后使用`；
+    - **英文**：临时探针 `ApplicationContext.setLanguage('en-US')` 后节点树显示
+      `Learn / Remember password / Sign in / Next, the Tsinghua SSO page opens in a web view… / Requires the campus network or the university VPN.`；
+      移除探针后回到系统语言（中文），临时探针已删净。
+    - `check-l10n.mjs` 非空转：删掉 en_US 的 `err_auth_failed` 后**退出码 1** 并指出"会回落成中文"，还原后退出码 0。
+    - 键映射非空转：把 `AUTH_FAILED` 改成映射到 `ERR_API_CHANGED` 后该用例转 Failure（构建仍 `BUILD SUCCESSFUL`），还原后 76/76。
+    - 静态门：`check arkts` 主 25 文件 / 测试 9 文件 0 error、`lint` 0、`build` 成功、`hvigorw test` 76/76。
+  - **本轮踩到并已修正的真机缺陷**：`$r(TextKeys.X)`（裸键、变量形式）导致 Text/Button
+    **整片不渲染**且无任何报错；改为 `$r('app.string.' + key)` 后恢复。详见 §3.4 的硬规则。
+  - 未覆盖：**系统语言切换**无法在本机验证——`hdc shell param set persist.global.language en-US`
+    被拒（errNum 1001，非 root）。英文是用应用级 `setLanguage` 探针验证的（已证 en_US 资源可用）。
+    T7 若要验"系统切英文"，须走模拟器设置界面或取得 root；这条记为 T7 的已知障碍。
 - [ ] T4 状态组件：`StateView.ets`（三态）+ `toast.ets`
 - [ ] T5 导航骨架：`Main.ets` 五标签 + 每标签独立栈；五个占位页接入状态组件
 - [ ] T6 设置页骨架：仅"主题"一项（跟随系统/浅色/深色），不留 FR-16 占位行

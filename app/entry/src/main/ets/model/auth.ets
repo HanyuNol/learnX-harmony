@@ -30,20 +30,23 @@ export class AuthError extends Error {
   /** 供排障用的补充信息；**不得**放入凭据或 Cookie */
   readonly detail: string;
   /**
-   * 可直接呈现给用户的补充说明（如"信任浏览器名额已满"的操作步骤）。
+   * 可直接呈现给用户的补充说明的**文案键**（如"信任浏览器名额已满"的操作步骤）。
    *
-   * 与 `detail` 分开的原因：`detail` 是给排障看的（含状态码等技术细节），
+   * 存键而不是存文案：`model` 不持有 `Resource`（UI 层概念，架构不变量 §1），
+   * 页面用 `$r('app.string.' + key)` 取文案（见 `common/texts.ets`）。
+   *
+   * 与 `detail` 分开的原因：`detail` 是给排障看的（含状态码等技术细节，**只进日志**），
    * 而某些失败有**具体可操作**的引导，通用文案（"接口似乎有变化"）会把它盖掉——
-   * 用户就无从知道该去删旧设备。为空时由 viewmodel 按 `reason` 给通用文案。
+   * 用户就无从知道该去删旧设备。为空时由 `textKeyOfFailReason` 按 `reason` 给通用键。
    */
-  readonly userHint: string;
+  readonly hintKey: string;
 
-  constructor(reason: FailReason, detail: string, userHint: string = '') {
+  constructor(reason: FailReason, detail: string, hintKey: string = '') {
     super(`${reason}: ${detail}`);
     this.name = 'AuthError';
     this.reason = reason;
     this.detail = detail;
-    this.userHint = userHint;
+    this.hintKey = hintKey;
   }
 }
 

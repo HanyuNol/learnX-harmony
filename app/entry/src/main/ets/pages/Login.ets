@@ -10,6 +10,7 @@
 
 import { AuthState, AuthStateListener, AuthStore } from '../viewmodel/authStore';
 import { LoginStatus } from '../model/auth';
+import { TextKeys } from '../common/texts';
 
 @Component
 export struct LoginView {
@@ -28,7 +29,7 @@ export struct LoginView {
   @State private password: string = '';
   @State private rememberPassword: boolean = true;
   @State private submitting: boolean = false;
-  @State private errorText: string = '';
+  @State private errorKey: string = '';
 
   private store: AuthStore = AuthStore.getInstance();
 
@@ -38,7 +39,7 @@ export struct LoginView {
    */
   private listener: AuthStateListener = (state: AuthState) => {
     this.submitting = state.status === LoginStatus.LOGGING_IN || state.status === LoginStatus.SSO_IN_PROGRESS;
-    this.errorText = state.errorDetail;
+    this.errorKey = state.errorTextKey;
   };
 
   aboutToAppear(): void {
@@ -63,11 +64,11 @@ export struct LoginView {
     // 实测会导致「登录」按钮点不到（真机验证发现，非猜测）
     Scroll() {
       Column({ space: 16 }) {
-        Text('网络学堂')
+        Text($r('app.string.' + TextKeys.LOGIN_TITLE))
           .fontSize(28)
           .fontWeight(FontWeight.Bold)
 
-        TextInput({ placeholder: '学号', text: this.username })
+        TextInput({ placeholder: $r('app.string.' + TextKeys.LOGIN_USERNAME), text: this.username })
           .type(InputType.Number)
           .width('100%')
           .enabled(!this.submitting)
@@ -75,7 +76,7 @@ export struct LoginView {
             this.username = value;
           })
 
-        TextInput({ placeholder: '密码' })
+        TextInput({ placeholder: $r('app.string.' + TextKeys.LOGIN_PASSWORD) })
           .type(InputType.Password)
           .width('100%')
           .enabled(!this.submitting)
@@ -90,19 +91,20 @@ export struct LoginView {
             .onChange((checked: boolean) => {
               this.rememberPassword = checked;
             })
-          Text('记住密码').fontSize(14)
+          Text($r('app.string.' + TextKeys.LOGIN_REMEMBER_PASSWORD)).fontSize(14)
         }
         .width('100%')
 
-        // 错误按四分类给出不同文案：网络问题不得与密码错误混为一谈
-        if (this.errorText.length > 0) {
-          Text(this.errorText)
+        // 错误按分类给出不同文案：网络问题不得与密码错误混为一谈。
+        // 文案键由 viewmodel 给出，页面负责取 Resource（分层见 common/texts.ets）
+        if (this.errorKey.length > 0) {
+          Text($r('app.string.' + this.errorKey))
             .fontSize(14)
-            .fontColor(Color.Red)
+            .fontColor($r('app.color.danger'))
             .width('100%')
         }
 
-        Button(this.submitting ? '登录中…' : '登录')
+        Button(this.submitting ? $r('app.string.' + TextKeys.LOGIN_SUBMITTING) : $r('app.string.' + TextKeys.LOGIN_SUBMIT))
           .width('100%')
           .enabled(this.canSubmit())
           .onClick(() => {
@@ -110,14 +112,14 @@ export struct LoginView {
           })
 
         // 让用户对"下一步会打开网页"有预期——多因子认证的验证码要在那里输入
-        Text('下一步会在网页中打开统一身份认证，请在页面上完成登录（含验证码）')
+        Text($r('app.string.' + TextKeys.LOGIN_SSO_HINT))
           .fontSize(12)
-          .fontColor(Color.Gray)
+          .fontColor($r('app.color.text_secondary'))
           .width('100%')
 
-        Text('需连接校园网或校方 VPN 后使用')
+        Text($r('app.string.' + TextKeys.LOGIN_NETWORK_HINT))
           .fontSize(12)
-          .fontColor(Color.Gray)
+          .fontColor($r('app.color.text_secondary'))
       }
       .width('100%')
       .padding(24)
@@ -125,5 +127,6 @@ export struct LoginView {
     .width('100%')
     .height('100%')
     .align(Alignment.Center)
+    .backgroundColor($r('app.color.bg_page'))
   }
 }

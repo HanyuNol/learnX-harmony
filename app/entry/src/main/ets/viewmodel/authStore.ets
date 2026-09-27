@@ -17,6 +17,7 @@ import { AuthRepository } from '../repository/authRepository';
 import { SsoFormBody } from '../network/ssoForm';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
+import { textKeyOfFailReason } from '../common/texts';
 
 const TAG: string = 'authStore';
 
@@ -26,13 +27,13 @@ export class AuthState {
   readonly userInfo: UserInfo | null;
   readonly errorReason: FailReason | null;
   /** 面向用户的错误说明，已由四分类映射为可理解的文案键 */
-  readonly errorDetail: string;
+  readonly errorTextKey: string;
 
-  constructor(status: LoginStatus, userInfo: UserInfo | null, errorReason: FailReason | null, errorDetail: string) {
+  constructor(status: LoginStatus, userInfo: UserInfo | null, errorReason: FailReason | null, errorTextKey: string) {
     this.status = status;
     this.userInfo = userInfo;
     this.errorReason = errorReason;
-    this.errorDetail = errorDetail;
+    this.errorTextKey = errorTextKey;
   }
 }
 
@@ -44,7 +45,7 @@ export class AuthStore {
   private status: LoginStatus = LoginStatus.LOGGED_OUT;
   private userInfo: UserInfo | null = null;
   private errorReason: FailReason | null = null;
-  private errorDetail: string = '';
+  private errorTextKey: string = '';
   private listeners: AuthStateListener[] = [];
 
   /**
@@ -89,7 +90,7 @@ export class AuthStore {
   }
 
   private snapshot(): AuthState {
-    return new AuthState(this.status, this.userInfo, this.errorReason, this.errorDetail);
+    return new AuthState(this.status, this.userInfo, this.errorReason, this.errorTextKey);
   }
 
   private notify(): void {
@@ -103,7 +104,7 @@ export class AuthStore {
     this.status = LoginStatus.LOGGED_IN;
     this.userInfo = userInfo;
     this.errorReason = null;
-    this.errorDetail = '';
+    this.errorTextKey = '';
     this.notify();
   }
 
@@ -111,37 +112,10 @@ export class AuthStore {
     this.status = LoginStatus.LOGGED_OUT;
     this.userInfo = null;
     this.errorReason = error.reason;
-    this.errorDetail = this.describe(error.reason, error.detail, error.userHint);
+    this.errorTextKey = textKeyOfFailReason(error.reason, error.hintKey);
+    // detail 只进日志（含状态码等技术细节），不进用户可见文案
+    Logger.debug(TAG, `失败详情 reason=${error.reason} detail=${error.detail}`);
     this.notify();
-  }
-
-  /**
-   * 把失败原因映射为面向用户的说明。
-   *
-   * 四分类在这里落地为**不同的用户可见文案**——尤其"网络不可达"必须与
-   * "密码错误"区分开，否则用户会去反复检查密码而非网络（NFR-NET）。
-   *
-   * `userHint` 非空时优先：那是**具体可操作**的引导（如"去删旧设备"），
-   * 通用文案会把它盖掉。本方法此前从未被调用（死代码），用户看到的是
-   * "漫游到网络学堂 (status=401)" 这类技术细节——不可理解，也不指向任何动作。
-   */
-  private describe(reason: FailReason, detail: string, userHint: string): string {
-    if (userHint.length > 0) {
-      return userHint;
-    }
-    if (reason === FailReason.NETWORK_UNREACHABLE) {
-      return '无法连接网络学堂，请确认已连接校园网或校方 VPN';
-    }
-    if (reason === FailReason.AUTH_FAILED) {
-      return '学号或密码不正确，或登录状态已失效';
-    }
-    if (reason === FailReason.API_CHANGED) {
-      return '网络学堂接口似乎有变化，暂时无法登录';
-    }
-    if (reason === FailReason.CANCELLED) {
-      return '';
-    }
-    return `登录失败：${detail}`;
   }
 
   /**
@@ -173,7 +147,7 @@ export class AuthStore {
 
     this.status = LoginStatus.SSO_IN_PROGRESS;
     this.errorReason = null;
-    this.errorDetail = '';
+    this.errorTextKey = '';
     this.notify();
   }
 
@@ -217,7 +191,7 @@ export class AuthStore {
     this.status = LoginStatus.LOGGED_OUT;
     this.userInfo = null;
     this.errorReason = null;
-    this.errorDetail = '';
+    this.errorTextKey = '';
     this.notify();
   }
 
@@ -266,7 +240,7 @@ export class AuthStore {
     this.status = LoginStatus.LOGGED_OUT;
     this.userInfo = null;
     this.errorReason = null;
-    this.errorDetail = '';
+    this.errorTextKey = '';
     this.notify();
   }
 

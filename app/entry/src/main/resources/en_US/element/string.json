@@ -1,0 +1,88 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "description"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "label"
+    },
+    {
+      "name": "login_title",
+      "value": "Learn"
+    },
+    {
+      "name": "login_username",
+      "value": "Student ID"
+    },
+    {
+      "name": "login_password",
+      "value": "Password"
+    },
+    {
+      "name": "login_remember_password",
+      "value": "Remember password"
+    },
+    {
+      "name": "login_submit",
+      "value": "Sign in"
+    },
+    {
+      "name": "login_submitting",
+      "value": "Signing in…"
+    },
+    {
+      "name": "login_sso_hint",
+      "value": "Next, the Tsinghua SSO page opens in a web view. Please complete sign-in there (including the verification code)."
+    },
+    {
+      "name": "login_network_hint",
+      "value": "Requires the campus network or the university VPN."
+    },
+    {
+      "name": "login_failed",
+      "value": "Sign-in failed. Please try again later."
+    },
+    {
+      "name": "sso_title",
+      "value": "Sign in to Learn"
+    },
+    {
+      "name": "sso_cancel",
+      "value": "Cancel"
+    },
+    {
+      "name": "sso_establishing",
+      "value": "Establishing session…"
+    },
+    {
+      "name": "sso_state_lost",
+      "value": "The sign-in state was lost. Please go back and sign in again."
+    },
+    {
+      "name": "sso_resource_missing",
+      "value": "An app resource is missing, so the sign-in page cannot be opened."
+    },
+    {
+      "name": "err_network_unreachable",
+      "value": "Cannot reach Learn. Please make sure you are on the campus network or the university VPN."
+    },
+    {
+      "name": "err_auth_failed",
+      "value": "Incorrect student ID or password, or the session has expired."
+    },
+    {
+      "name": "err_api_changed",
+      "value": "The Learn service appears to have changed, so sign-in is temporarily unavailable."
+    },
+    {
+      "name": "err_trust_limit",
+      "value": "The trusted-browser quota for Tsinghua SSO is full. Go to id.tsinghua.edu.cn → Account Settings → Multi-factor Authentication → Trusted Browsers → Maintain, delete the devices you no longer use, then sign in again."
+    }
+  ]
+}

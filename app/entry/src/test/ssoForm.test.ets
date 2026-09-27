@@ -33,6 +33,7 @@ import {
   ticketOfRoamUrl
 } from '../main/ets/network/ssoForm';
 import { FailReason } from '../main/ets/model/auth';
+import { TextKeys } from '../main/ets/common/texts';
 
 /** 模板骨架：只含四个占位符，便于断言替换结果 */
 const SAMPLE_TEMPLATE: string =
@@ -232,8 +233,9 @@ export default function ssoFormTest() {
       it('信任浏览器名额已满应归接口语义变更，并带可操作引导', 0, () => {
         const error = classifySsoProblem(MSG_TRUST_LIMIT);
         expect(error.reason).assertEqual(FailReason.API_CHANGED);
-        // 通用文案会盖掉引导，用户就无从知道要去删旧设备
-        expect(error.userHint.includes('信任浏览器')).assertTrue();
+        // 通用文案会盖掉引导，用户就无从知道要去删旧设备。
+        // 这里断言**键**而非文案内容：文案已迁到资源里，键才是本层该保证的事实
+        expect(error.hintKey).assertEqual(TextKeys.ERR_TRUST_LIMIT);
       });
 
       it('预填失败应归接口语义变更，不得误报为密码错误', 0, () => {
