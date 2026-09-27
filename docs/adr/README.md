@@ -13,6 +13,7 @@
 | [0007](0007-credential-storage.md) | 凭据与会话存储采用关键资产存储服务 | 已接受 |
 | [0008](0008-webview-driven-login.md) | 登录改为 WebView（ArkWeb）主导，纯 API 登录降为备选 | 已接受（建会话方式由 0009 取代） |
 | [0009](0009-login-finish-via-roaming-ticket.md) | 登录收尾以"漫游票据"建会话为主，重新登录降为兜底 | 已接受 |
+| [0010](0010-injection-raises-storage-quota-reading.md) | 注入脚本抬高校方页面用于隐私模式判定的存储配额读数（必要性待实验） | 已接受 |
 
 > 模板：状态 / 背景 / 决策 / 理由 / 后果 / 备选方案。
 
