@@ -7,14 +7,16 @@
 
 import sm2FormatTest from './sm2Format.test';
 import parseTest from './parse.test';
-import cookieJarTest from './cookieJar.test';
+import setCookieTest from './setCookie.test';
+import ssoFormTest from './ssoForm.test';
 import errorsTest from './errors.test';
 import loggerTest from './logger.test';
 
 export default function testsuite() {
   sm2FormatTest();
   parseTest();
-  cookieJarTest();
+  setCookieTest();
+  ssoFormTest();
   errorsTest();
   loggerTest();
 }

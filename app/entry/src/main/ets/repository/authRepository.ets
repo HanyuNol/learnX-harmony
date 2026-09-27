@@ -5,37 +5,97 @@
  * ——保证"网络唯一出口""凭据唯一入口"两条不变量。
  */
 
-import { Credentials, UserInfo } from '../model/auth';
+import { AuthError, Credentials, SsoInjection, UserInfo } from '../model/auth';
 import { LearnClient } from '../network/learnClient';
+import { SsoFormBody, classifySsoProblem, fingerPrintsOf } from '../network/ssoForm';
 import { CredentialStore } from '../storage/credentialStore';
+import { deviceLabel } from '../native/deviceAdapter';
 import { Logger } from '../common/logger';
+import { normalize } from '../common/errors';
 
 const TAG: string = 'authRepository';
 
 export class AuthRepository {
   /**
-   * 登录。
+   * 进入 WebView 主导登录前的准备：清掉旧会话，以干净会话起步。
    *
-   * @param rememberPassword 是否持久化密码。为 false 时只保存学号与设备指纹，
-   *        下次启动需重新输入密码。
+   * 由本层（而非页面）调用网络层——`pages` 不得直接触碰网络或系统能力（架构不变量 §1）。
    */
-  static async login(username: string, password: string, rememberPassword: boolean): Promise<UserInfo> {
-    const fingerPrint: string = await CredentialStore.getOrCreateFingerPrint();
-    const credentials: Credentials = new Credentials(username, password, fingerPrint);
+  static prepareSsoSession(): void {
+    LearnClient.getInstance().startFreshSession();
+  }
 
+  /**
+   * 准备 WebView 注入登录页所需的取值。
+   *
+   * 设备指纹在此取得（注入脚本要用它回答"是否信任此浏览器"，且必须复用——
+   * 每次换新指纹会很快占满信任浏览器名额）；设备名由 `native` 适配层提供。
+   */
+  static async buildSsoInjection(username: string, password: string): Promise<SsoInjection> {
+    const fingerPrint: string = await CredentialStore.getOrCreateFingerPrint();
+    return new SsoInjection(username, password, fingerPrint, deviceLabel());
+  }
+
+  /**
+   * **主路径**：用 WebView 抓到的信息完成登录（ADR-0008）。
+   *
+   * 两条收尾路径，按可靠性排序：
+   * 1. **用截到的漫游票据直接建会话**（首选）：它就是浏览器原本要做的那一步，
+   *    不需要密码、也不需要设备已被登记为信任浏览器。
+   * 2. **带页面生成的设备信任标识重新登录**（兜底）：用于没截到票据的情况。
+   *
+   * 为什么必须有首选路径：校方页面在判定"浏览器处于隐私或匿名模式"时会**拒绝登记
+   * 信任浏览器**（真机实测），一旦没登记上，服务端对任何重新登录都会再要一次验证码，
+   * 兜底路径就永远走不通——而票据路径绕开了整个重新认证。
+   *
+   * 凭据落盘的时机在这里——只有真的登录成功才值得存。
+   */
+  static async loginWithSsoForm(
+    injection: SsoInjection,
+    body: SsoFormBody,
+    roamUrl: string,
+    rememberPassword: boolean
+  ): Promise<UserInfo> {
+    const credentials: Credentials = new Credentials(injection.username, injection.password, injection.fingerPrint);
     const client: LearnClient = LearnClient.getInstance();
-    await client.login(credentials);
+
+    let established: boolean = false;
+    if (roamUrl.length > 0) {
+      try {
+        await client.loginWithRoamUrl(credentials, roamUrl, '漫游票据建会话');
+        established = true;
+      } catch (err) {
+        const error = normalize(err, '漫游票据建会话');
+        Logger.warn(TAG, `漫游票据建会话失败 reason=${error.reason}，改用重新登录`);
+      }
+    } else {
+      Logger.warn(TAG, '未截到漫游地址，直接走重新登录');
+    }
+
+    if (!established) {
+      await client.loginWithFingerPrints(credentials, fingerPrintsOf(body));
+    }
 
     await CredentialStore.save(credentials, rememberPassword);
-    Logger.info(TAG, '登录流程完成');
+    Logger.info(TAG, `WebView 主导登录流程完成 建会话方式=${established ? '漫游票据' : '重新登录'}`);
 
     return await client.fetchUserInfo();
   }
 
-  /** 登出：先通知服务端，再无条件清理本地凭据与会话 */
+  /**
+   * 归类 WebView 上报的异常信号。
+   *
+   * 归类留在本层（而非页面）：`pages` 只做 UI，不含业务判断（架构不变量 §1）；
+   * 页面只负责把信号原样传上来。
+   */
+  static classifySsoProblem(code: string): AuthError {
+    return classifySsoProblem(code);
+  }
+
+  /** 登出：先通知服务端，再清掉本地会话与凭据（**保留设备指纹**，见 `CredentialStore.clearCredentials`） */
   static async logout(): Promise<void> {
     await LearnClient.getInstance().logout();
-    await CredentialStore.clear();
+    await CredentialStore.clearCredentials();
     Logger.info(TAG, '已登出并清理本地凭据');
   }
 
@@ -52,8 +112,8 @@ export class AuthRepository {
     }
 
     const client: LearnClient = LearnClient.getInstance();
-    await client.login(credentials);
-    Logger.info(TAG, '已用保存的凭据恢复登录态');
+    await client.restoreSession(credentials);
+    Logger.info(TAG, '已恢复登录态');
     return await client.fetchUserInfo();
   }
 

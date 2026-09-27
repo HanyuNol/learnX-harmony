@@ -12,8 +12,9 @@
  * （见 architecture-invariants 与 spec §5 第 6 项）。
  */
 
-import { FailReason, UserInfo, LoginStatus } from '../model/auth';
+import { AuthError, FailReason, LoginStatus, SsoInjection, UserInfo } from '../model/auth';
 import { AuthRepository } from '../repository/authRepository';
+import { SsoFormBody } from '../network/ssoForm';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 
@@ -45,6 +46,16 @@ export class AuthStore {
   private errorReason: FailReason | null = null;
   private errorDetail: string = '';
   private listeners: AuthStateListener[] = [];
+
+  /**
+   * 待注入 WebView 的取值（含密码明文）。
+   *
+   * 刻意**不是** `@State`：组件状态会被无障碍树读取，密码明文不能出现在那里
+   * （见 `SsoInjection` 的说明）。离开网页登录流程即清除。
+   */
+  private injection: SsoInjection | null = null;
+  /** 用户是否勾选"记住密码"；在登录真正成功时才据此决定是否落盘 */
+  private pendingRemember: boolean = true;
 
   static getInstance(): AuthStore {
     if (AuthStore.instance === null) {
@@ -96,11 +107,11 @@ export class AuthStore {
     this.notify();
   }
 
-  private setFailure(reason: FailReason, detail: string): void {
+  private setFailure(error: AuthError): void {
     this.status = LoginStatus.LOGGED_OUT;
     this.userInfo = null;
-    this.errorReason = reason;
-    this.errorDetail = detail;
+    this.errorReason = error.reason;
+    this.errorDetail = this.describe(error.reason, error.detail, error.userHint);
     this.notify();
   }
 
@@ -109,8 +120,15 @@ export class AuthStore {
    *
    * 四分类在这里落地为**不同的用户可见文案**——尤其"网络不可达"必须与
    * "密码错误"区分开，否则用户会去反复检查密码而非网络（NFR-NET）。
+   *
+   * `userHint` 非空时优先：那是**具体可操作**的引导（如"去删旧设备"），
+   * 通用文案会把它盖掉。本方法此前从未被调用（死代码），用户看到的是
+   * "漫游到网络学堂 (status=401)" 这类技术细节——不可理解，也不指向任何动作。
    */
-  private describe(reason: FailReason, detail: string): string {
+  private describe(reason: FailReason, detail: string, userHint: string): string {
+    if (userHint.length > 0) {
+      return userHint;
+    }
     if (reason === FailReason.NETWORK_UNREACHABLE) {
       return '无法连接网络学堂，请确认已连接校园网或校方 VPN';
     }
@@ -120,29 +138,104 @@ export class AuthStore {
     if (reason === FailReason.API_CHANGED) {
       return '网络学堂接口似乎有变化，暂时无法登录';
     }
+    if (reason === FailReason.CANCELLED) {
+      return '';
+    }
     return `登录失败：${detail}`;
   }
 
-  /** 用户主动登录 */
-  async login(username: string, password: string, rememberPassword: boolean): Promise<void> {
-    if (this.status === LoginStatus.LOGGING_IN) {
+  /**
+   * 进入 WebView 主导的登录（ADR-0008 的主路径）。
+   *
+   * 只把"打开页面所需的取值"备好并切到 `SSO_IN_PROGRESS`；真正的认证由用户在
+   * 页面内完成（多因子认证的验证码只能由用户输入）。
+   */
+  async startSso(username: string, password: string, rememberPassword: boolean): Promise<void> {
+    if (this.status === LoginStatus.SSO_IN_PROGRESS || this.status === LoginStatus.LOGGING_IN) {
       Logger.warn(TAG, '登录已在进行中，忽略重复请求');
       return;
     }
 
-    this.status = LoginStatus.LOGGING_IN;
+    // 先把注入取值备齐，**再**切状态：SSO 页在 aboutToAppear 就取用这些取值，
+    // 状态先切会让它在取值就绪前渲染，直接落到"缺少取值"的失败分支。
+    // 真机实测踩过：日志表现为「已清空全部 Cookie」紧跟「缺少网页登录所需的取值」。
+    try {
+      AuthRepository.prepareSsoSession();
+      this.injection = await AuthRepository.buildSsoInjection(username, password);
+      this.pendingRemember = rememberPassword;
+    } catch (err) {
+      const error = normalize(err, '准备网页登录');
+      Logger.warn(TAG, `准备网页登录失败 reason=${error.reason}`);
+      this.injection = null;
+      this.setFailure(error);
+      return;
+    }
+
+    this.status = LoginStatus.SSO_IN_PROGRESS;
     this.errorReason = null;
     this.errorDetail = '';
     this.notify();
+  }
+
+  /** 供 SSO 页面取用注入脚本的取值；未进入该流程时返回 null */
+  ssoInjection(): SsoInjection | null {
+    return this.injection;
+  }
+
+  /**
+   * WebView 抓到了完整表单体与漫游地址，据此建立会话。
+   *
+   * 由 SSO 页面在导航命中漫游地址时调用。`roamUrl` 是截到的那次导航目标——
+   * 带票据的首选建会话路径要用它；为空则退回"重新登录"。
+   */
+  async completeSso(body: SsoFormBody, roamUrl: string): Promise<void> {
+    const injection: SsoInjection | null = this.injection;
+    if (injection === null) {
+      Logger.warn(TAG, '未持有注入取值，忽略本次网页登录结果');
+      return;
+    }
+
+    this.status = LoginStatus.LOGGING_IN;
+    this.notify();
 
     try {
-      const userInfo: UserInfo = await AuthRepository.login(username, password, rememberPassword);
+      const userInfo: UserInfo =
+        await AuthRepository.loginWithSsoForm(injection, body, roamUrl, this.pendingRemember);
+      this.clearInjection();
       this.setLoggedIn(userInfo);
     } catch (err) {
-      const error = normalize(err, '登录');
-      Logger.warn(TAG, `登录失败 reason=${error.reason}`);
-      this.setFailure(error.reason, error.detail);
+      const error = normalize(err, '网页登录');
+      Logger.warn(TAG, `网页登录失败 reason=${error.reason}`);
+      this.clearInjection();
+      this.setFailure(error);
     }
+  }
+
+  /** 用户主动放弃网页登录：归"用户取消"，**不报错**（spec §8.2） */
+  cancelSso(): void {
+    this.clearInjection();
+    this.status = LoginStatus.LOGGED_OUT;
+    this.userInfo = null;
+    this.errorReason = null;
+    this.errorDetail = '';
+    this.notify();
+  }
+
+  /**
+   * 上报 WebView 侧的异常信号，由本层归类后呈现。
+   *
+   * 页面只把信号原样传上来，不做归类判断（分层：pages 不含业务判断）。
+   */
+  reportSsoProblem(code: string): void {
+    const error: AuthError = AuthRepository.classifySsoProblem(code);
+    Logger.warn(TAG, `网页登录异常 code=${code} reason=${error.reason}`);
+    this.clearInjection();
+    this.setFailure(error);
+  }
+
+  /** 清掉内存中的注入取值（含密码明文）：离开该流程即不再需要 */
+  private clearInjection(): void {
+    this.injection = null;
   }
 
   /**
@@ -169,6 +262,7 @@ export class AuthStore {
       const error = normalize(err, '登出');
       Logger.warn(TAG, `登出时出错 reason=${error.reason}`);
     }
+    this.clearInjection();
     this.status = LoginStatus.LOGGED_OUT;
     this.userInfo = null;
     this.errorReason = null;

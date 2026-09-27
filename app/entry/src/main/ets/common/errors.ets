@@ -37,8 +37,8 @@ const NETWORK_UNREACHABLE_CODES: number[] = [
 const AUTH_STATUS_CODES: number[] = [401, 403];
 
 /** 业务错误：非预期状态码等 */
-export function apiChanged(detail: string): AuthError {
-  return new AuthError(FailReason.API_CHANGED, detail);
+export function apiChanged(detail: string, userHint: string = ''): AuthError {
+  return new AuthError(FailReason.API_CHANGED, detail, userHint);
 }
 
 /** 构造"网络不可达"错误 */

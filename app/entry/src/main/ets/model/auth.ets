@@ -29,12 +29,21 @@ export class AuthError extends Error {
   readonly reason: FailReason;
   /** 供排障用的补充信息；**不得**放入凭据或 Cookie */
   readonly detail: string;
+  /**
+   * 可直接呈现给用户的补充说明（如"信任浏览器名额已满"的操作步骤）。
+   *
+   * 与 `detail` 分开的原因：`detail` 是给排障看的（含状态码等技术细节），
+   * 而某些失败有**具体可操作**的引导，通用文案（"接口似乎有变化"）会把它盖掉——
+   * 用户就无从知道该去删旧设备。为空时由 viewmodel 按 `reason` 给通用文案。
+   */
+  readonly userHint: string;
 
-  constructor(reason: FailReason, detail: string) {
+  constructor(reason: FailReason, detail: string, userHint: string = '') {
     super(`${reason}: ${detail}`);
     this.name = 'AuthError';
     this.reason = reason;
     this.detail = detail;
+    this.userHint = userHint;
   }
 }
 
@@ -64,13 +73,44 @@ export class UserInfo {
 }
 
 /**
+ * WebView 注入登录页所需的取值。
+ *
+ * **只驻留内存**：不落盘（凭据落盘走 `storage.CredentialStore` 的加密存储）、
+ * 不入日志、也不进 ArkUI 的 `@State`——页面组件的状态会被无障碍树读取，
+ * 密码明文不能出现在那里（spec §8.1 的隐含约束）。
+ */
+export class SsoInjection {
+  readonly username: string;
+  readonly password: string;
+  readonly fingerPrint: string;
+  readonly deviceName: string;
+
+  constructor(username: string, password: string, fingerPrint: string, deviceName: string) {
+    this.username = username;
+    this.password = password;
+    this.fingerPrint = fingerPrint;
+    this.deviceName = deviceName;
+  }
+}
+
+/**
  * 登录态。
  *
- * 状态迁移：LOGGED_OUT → LOGGING_IN → LOGGED_IN | LOGGED_OUT(失败)
+ * 状态迁移：
+ * ```
+ * LOGGED_OUT → SSO_IN_PROGRESS → LOGGING_IN → LOGGED_IN
+ *                    ↓                ↓
+ *              LOGGED_OUT(取消)   LOGGED_OUT(失败)
+ * LOGGED_OUT → LOGGING_IN → LOGGED_IN（备选路径：纯 API 登录）
+ * ```
  * 不允许出现"既非登录中又非已知结果"的中间态（见 spec §5 第 6 项）。
+ *
+ * `SSO_IN_PROGRESS` 是"用户正在真实页面上完成认证"的状态——多因子认证的验证码
+ * 只能由用户输入，这段时间应用只能等（ADR-0008）。
  */
 export enum LoginStatus {
   LOGGED_OUT = 'LOGGED_OUT',
+  SSO_IN_PROGRESS = 'SSO_IN_PROGRESS',
   LOGGING_IN = 'LOGGING_IN',
   LOGGED_IN = 'LOGGED_IN'
 }

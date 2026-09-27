@@ -23,6 +23,7 @@
 import { AuthState, AuthStateListener, AuthStore } from '../viewmodel/authStore';
 import { LoginStatus } from '../model/auth';
 import { LoginView } from './Login';
+import { SsoLoginView } from './SsoLogin';
 
 @Entry
 @Component
@@ -51,6 +52,9 @@ struct Index {
     Column() {
       if (this.status === LoginStatus.LOGGED_IN) {
         this.LoggedInPlaceholder()
+      } else if (this.status === LoginStatus.SSO_IN_PROGRESS) {
+        // WebView 主导的登录页（ADR-0008）：用户在这里完成认证，包括输入验证码
+        SsoLoginView()
       } else {
         LoginView()
       }

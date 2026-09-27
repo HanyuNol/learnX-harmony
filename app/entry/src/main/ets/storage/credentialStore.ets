@@ -188,13 +188,26 @@ export class CredentialStore {
     }
   }
 
-  /** 清除全部凭据与设备指纹。登出必须调用 */
-  static async clear(): Promise<void> {
+  /**
+   * 清除学号与密码。**刻意保留设备指纹**。
+   *
+   * 为什么保留（原实现把指纹也一起清了，2026-09-27 更正）：指纹是**设备标识**，
+   * 服务端靠它把本机认成"同一台已登记的信任浏览器"。清掉它的后果是——每次登出再登录，
+   * 应用都拿着一个全新指纹去做信任登记，服务端自然认不出来，于是**每次都要重新二次验证**。
+   * 实测现象：登出后紧跟一句"已生成新的设备指纹"，随后登记请求返回 `msg:"否"`、
+   * 页面提示"未使用可信浏览器"。上游 `learnX` 也永不清指纹——它的 auth reducer 没有登出分支。
+   *
+   * 它不是凭据：不含用户信息、不由用户输入、服务端本就存有它的副本；
+   * 本地同样存于加密存储中。
+   *
+   * 顺带把这条要求从"登出清指纹"改掉：`docs/specs/auth-login.md` §3.5 与
+   * `docs/SECURITY.md` §2 的原文已按此更正。
+   */
+  static async clearCredentials(): Promise<void> {
     try {
       await removeIfPresent(ALIAS_USERNAME);
       await removeIfPresent(ALIAS_PASSWORD);
-      await removeIfPresent(ALIAS_FINGER_PRINT);
-      Logger.info(TAG, '凭据已清除');
+      Logger.info(TAG, '学号与密码已清除（设备指纹保留）');
     } catch (err) {
       throw normalize(err, '清除凭据');
     }
@@ -210,6 +223,8 @@ export class CredentialStore {
     try {
       const existing: string | null = await readSecret(ALIAS_FINGER_PRINT);
       if (existing !== null && existing.length === FINGER_PRINT_HEX_LENGTH) {
+        // 复用要留痕：排障时"这次登出后指纹是新生成的还是复用的"决定了服务端认不认设备
+        Logger.info(TAG, '复用已有设备指纹');
         return existing;
       }
       const generated: string = await generateFingerPrint();

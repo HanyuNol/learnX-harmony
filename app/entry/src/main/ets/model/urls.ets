@@ -23,6 +23,24 @@ export const ID_LOGIN_FORM: string =
 /** 登录凭据校验端点（POST，表单） */
 export const ID_LOGIN_CHECK: string = `${ID_PREFIX}/do/off/ui/auth/login/check`;
 
+/**
+ * 登录校验端点（设备已在"信任浏览器"名单内时页面使用的形态）。
+ *
+ * 该形态的表单含 `i_rememberme`，不再需要密码。端点选择见 `network/ssoForm.ets`。
+ */
+export const ID_LOGIN_CHECK_SINGLE: string = `${ID_PREFIX}/do/off/ui/auth/login/checkSingle`;
+
+/**
+ * 网络学堂漫游地址前缀。WebView 导航命中它即视为认证完成。
+ *
+ * 注意与 `learnAuthRoam()` 的 `/b/...` 是**两条不同路径**：前者是认证页会跳到的入口，
+ * 后者是 API 侧建立会话的入口——两者上游都在用，不要合并。
+ */
+export const LEARN_ROAMING_PREFIX: string = `${LEARN_PREFIX}/f/j_spring_security_thauth_roaming_entry`;
+
+/** 统一身份认证的来源；注入脚本只对它匹配，避免脚本进入无关页面 */
+export const ID_ORIGIN: string = ID_PREFIX;
+
 /** 带漫游工单跳转到网络学堂，完成会话建立 */
 export function learnAuthRoam(ticket: string): string {
   return `${LEARN_PREFIX}/b/j_spring_security_thauth_roaming_entry?ticket=${ticket}`;

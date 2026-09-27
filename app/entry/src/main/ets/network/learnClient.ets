@@ -1,25 +1,36 @@
 /**
  * 网络学堂 HTTP 客户端：本项目对外请求的**唯一出口**。
  *
- * 职责：会话 Cookie、CSRF 注入、会话失效自动重登、以及七步登录流程。
+ * 职责：会话 Cookie、CSRF 注入、会话失效自动重登，以及两条登录路径：
+ * - `loginWithFormData`：**主路径**，重放 WebView 抓到的表单体（ADR-0008）。
+ * - `login`：备选路径，纯 API 七步登录，适用于未启用多因子认证的账号。
+ *
  * 业务层不得绕过本类自行发请求（架构不变量 §3）。
  *
- * 与上游 thu-learn-lib 的三处**有意差异**（均因平台能力所限）：
- * 1. 上游登录前清除 id.tsinghua.edu.cn 的 JSESSIONID；框架无单 Cookie 清除接口，
- *    故改为**清空整个自管 Cookie 容器**——效果严格强于只清一个 Cookie。
- * 2. 上游用响应最终 URL 是否含 login_timeout 判定会话失效；框架的 HttpResponse
+ * 与上游 thu-learn-lib 的**有意差异**（均因平台能力所限）：
+ * 1. 上游用响应最终 URL 是否含 login_timeout 判定会话失效；框架的 HttpResponse
  *    不暴露重定向后的最终 URL，故改为**状态码 403 或响应体含 login_timeout**判定。
- * 3. 上游用 tough-cookie 自动管理 Cookie；框架的 enableAutoCookie 起始版本为 API 26
- *    （本 SDK 为 24），故由本类自管（见 cookieJar.ets）。
+ * 2. 上游用 tough-cookie 自动管理 Cookie；框架的 enableAutoCookie 起始版本为 API 26
+ *    （本 SDK 为 24），故改由 `WebCookieStore` 承载——它与 WebView 共享同一份会话，
+ *    这正是"重放页面表单体"能成立的前提。
  */
 
 import { http } from '@kit.NetworkKit';
 import { Credentials, FailReason, AuthError, UserInfo } from '../model/auth';
-import { ID_LOGIN_FORM, ID_LOGIN_CHECK, learnAuthRoam, LEARN_STUDENT_HOME, LEARN_LOGOUT } from '../model/urls';
+import {
+  ID_PREFIX,
+  ID_LOGIN_FORM,
+  ID_LOGIN_CHECK,
+  ID_LOGIN_CHECK_SINGLE,
+  learnAuthRoam,
+  LEARN_STUDENT_HOME,
+  LEARN_LOGOUT
+} from '../model/urls';
 import { Logger } from '../common/logger';
 import { apiChanged, authFailed, fromStatusCode, normalize } from '../common/errors';
 import { extractSm2PublicKey, extractTicket, extractCsrfToken, isSessionExpired, extractUserName } from './parse';
-import { CookieJar } from './cookieJar';
+import { WebCookieStore } from './webCookieStore';
+import { SsoFingerPrints, classifyCheckResponse } from './ssoForm';
 import { encryptPassword } from './sm2';
 
 const TAG: string = 'learnClient';
@@ -33,9 +44,6 @@ const LOGIN_RETRY_LIMIT: number = 1;
 /** 网络学堂域名标识，用于决定是否注入 CSRF */
 const TSINGHUA_HOST_MARKER: string = 'tsinghua.edu.cn';
 
-/** 会话失效的响应体标记 */
-const SESSION_EXPIRED_BODY_MARKER: string = 'login_timeout';
-
 /**
  * 二次认证页面的标记。
  *
@@ -44,6 +52,17 @@ const SESSION_EXPIRED_BODY_MARKER: string = 'login_timeout';
  * 否则会把用户与排障都引向错误方向（见 NFR-NET 的错误四分类要求）。
  */
 const SECOND_AUTH_MARKER: string = '二次认证';
+
+/**
+ * 需要图形验证码的页面标记。
+ *
+ * 上游对同一片段做同样判定。本项目不做图形验证码识别——真出现该形态时，
+ * 只能引导用户走 WebView 登录（那里由用户自己看验证码）。
+ */
+const CAPTCHA_MARKER: string = '$("#c_code").removeClass(\'hidden\');';
+
+/** 登录页的"设备已被信任"形态标记，对应另一个校验端点 */
+const CHECK_SINGLE_MARKER: string = 'checkSingle';
 
 /** 一次请求的原始结果 */
 export class HttpResult {
@@ -64,13 +83,23 @@ function asText(result: string | Object | ArrayBuffer): string {
   return JSON.stringify(result);
 }
 
+/**
+ * 日志用：只报三项设备信任标识**拿到了没有**，不报值。
+ *
+ * 这三项是"服务端是否把本机当成已登记浏览器"的关键，排障时首先要知道它们有没有拿到；
+ * 值本身是设备标识，不进日志。
+ */
+function describePrints(prints: SsoFingerPrints): string {
+  const has = (value: string): string => (value.length > 0 ? '有' : '无');
+  return `设备信任标识 fingerPrint=${has(prints.fingerPrint)} fingerGenPrint=${has(prints.fingerGenPrint)} ` +
+    `fingerGenPrint3=${has(prints.fingerGenPrint3)}`;
+}
+
 export class LearnClient {
   private static instance: LearnClient | null = null;
 
   /** 会话级请求实例。全程复用同一个，避免连接层状态反复重建 */
   private request: http.HttpRequest;
-  /** 自管 Cookie：框架的 enableAutoCookie 起始版本为 API 26，本 SDK(24) 不可用 */
-  private jar: CookieJar = new CookieJar();
   private csrfToken: string = '';
   private credentials: Credentials | null = null;
 
@@ -88,25 +117,24 @@ export class LearnClient {
    * 前两条（`HttpResponse.cookies` 字段、`response.header` 的 set-cookie）在 API 24 上
    * 都取不到会话 Cookie，服务端因此丢会话、解不开 SM2 密文。官方文档称 `headersReceive`
    * 自 API 8 起替代旧的 `headerReceive`，是独立于 `response.header` 的事件通道。
-   * 此处先打印其实际内容（截断），以便确认字段名与结构。
    */
   private headerCallback: (header: Object) => void = (header: Object) => {
     try {
-      const text: string = JSON.stringify(header);
-      Logger.info(TAG, `headersReceive len=${text.length} head=${text.substring(0, 300)}`);
-
-      const parsed: Record<string, Object> = JSON.parse(text) as Record<string, Object>;
+      // 回调入参是响应头对象（官方示例即把它当对象处理），但类型签名只给到 `Object`；
+      // 收窄成表类型才能按键名取值——ArkTS 禁动态属性访问。
+      // 不用 JSON 往返来收窄：那是深拷贝，代价大且会被 linter 判为反模式。
+      const parsed: Record<string, Object> = header as Record<string, Object>;
       let raw: Object = parsed['set-cookie'];
       if (raw === undefined) {
         raw = parsed['Set-Cookie'];
       }
       if (typeof raw === 'string') {
-        this.jar.store(this.pendingUrl, raw);
+        WebCookieStore.storeFromResponse(this.pendingUrl, raw);
       } else if (Array.isArray(raw)) {
         const items: Array<string> = raw as Array<string>;
         for (const item of items) {
           if (typeof item === 'string') {
-            this.jar.store(this.pendingUrl, item);
+            WebCookieStore.storeFromResponse(this.pendingUrl, item);
           }
         }
       }
@@ -123,12 +151,13 @@ export class LearnClient {
   }
 
   /**
-   * 重置会话：清空 Cookie、CSRF 与内存凭据。
+   * 重置会话的**应用内**状态：CSRF 与内存凭据。
    *
-   * 登录开始前与登出后都必须调用——否则会串用上一次会话的 Cookie。
+   * 刻意不动 Cookie：Cookie 由 WebCookieStore 承载，且 WebView 主导登录时它承载的正是
+   * "页面那一次会话"——清掉它，服务端就解不开页面加密的密码（ADR-0008）。
+   * 需要干净会话起步时另调 `WebCookieStore.clearSession()`（见 `login`）。
    */
   private resetSession(): void {
-    this.jar.clear();
     this.csrfToken = '';
     this.credentials = null;
   }
@@ -155,7 +184,7 @@ export class LearnClient {
     if (contentType.length > 0) {
       headers['Content-Type'] = contentType;
     }
-    const cookie: string = this.jar.headerFor(url);
+    const cookie: string = WebCookieStore.headerFor(url);
     if (cookie.length > 0) {
       headers['Cookie'] = cookie;
     }
@@ -171,7 +200,6 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `GET ${this.maskUrl(url)}`);
@@ -194,7 +222,6 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `POST ${this.maskUrl(url)}`);
@@ -204,9 +231,9 @@ export class LearnClient {
   /**
    * 发起一次 multipart/form-data POST。
    *
-   * **实测修正**：登录表单原先用 application/x-www-form-urlencoded（当时的判断是
-   * "该校方页面是标准 HTML 表单"）。真实凭据下服务端不返回漫游工单，说明该判断不成立——
-   * 上游用 React Native 的 FormData（multipart）才是服务端接受的格式，此处对齐上游。
+   * 校方登录表单接受 multipart（上游用 React Native 的 FormData 即此格式）；
+   * 对照实验也表明 urlencoded 同样被接受，故两种编码都不是失败原因
+   * （见 CHANGELOG 的更正说明）。这里沿用 multipart 以对齐上游。
    */
   private async postMultipart(url: string, fields: Map<string, string>): Promise<HttpResult> {
     const boundary: string = '----learnXBoundary8f3a1c';
@@ -226,53 +253,9 @@ export class LearnClient {
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
-      this.captureCookies(url, response);
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
       throw normalize(err, `POST(multipart) ${this.maskUrl(url)}`);
-    }
-  }
-
-  /**
-   * 从响应中收纳 Cookie。**本方法绝不允许中断请求**。
-   *
-   * 实测教训（两点）：
-   * 1. 框架的 `HttpResponse.cookies` 在本 SDK（API 24）上始终为空，会话 Cookie 从未进入容器，
-   *    服务端因此丢会话、解不开 SM2 密文——用户表现为"密码正确也登不上"。
-   * 2. 改从响应头 `set-cookie` 读取时，用模板串拼接该值触发了**栈溢出**
-   *    （该值可能含循环结构）。故此处**只接受字符串**，绝不字符串化任意对象，并整体兜底。
-   */
-  private captureCookies(url: string, response: http.HttpResponse): void {
-    try {
-      if (response.cookies !== undefined && response.cookies.length > 0) {
-        this.jar.store(url, response.cookies);
-        return;
-      }
-
-      // 官方文档：`header` "当前返回的是 JSON 格式字符串，需开发者自行解析"——
-      // 它不是对象，直接取 header['set-cookie'] 恒为 undefined（这正是此前的失败原因）
-      const rawHeader: string = response.header as string;
-      if (typeof rawHeader !== 'string' || rawHeader.length === 0) {
-        return;
-      }
-      const parsed: Record<string, Object> = JSON.parse(rawHeader) as Record<string, Object>;
-      // 头部名大小写不保证，两种写法都试
-      let raw: Object = parsed['set-cookie'];
-      if (raw === undefined) {
-        raw = parsed['Set-Cookie'];
-      }
-      if (typeof raw === 'string') {
-        this.jar.store(url, raw);
-      } else if (Array.isArray(raw)) {
-        const items: Array<string> = raw as Array<string>;
-        for (const item of items) {
-          if (typeof item === 'string') {
-            this.jar.store(url, item);
-          }
-        }
-      }
-    } catch (err) {
-      Logger.warn(TAG, '收纳 Cookie 失败，本次请求继续');
     }
   }
 
@@ -288,77 +271,24 @@ export class LearnClient {
   }
 
   /**
-   * 七步登录流程（见 spec §3.2）。
+   * 登录链路的收尾：取漫游工单 → 漫游建会话 → 取 CSRF。
    *
-   * 成功后本实例即可用于带会话的后续请求。
+   * 两条登录路径共用本段——它们的差别只在"如何提交凭据"。
    */
-  async login(credentials: Credentials): Promise<void> {
-    this.resetSession();
-
-    let attempt: number = 0;
-    while (true) {
-      try {
-        await this.performLogin(credentials);
-        this.credentials = credentials;
-        Logger.info(TAG, '登录成功');
-        return;
-      } catch (err) {
-        const error: AuthError = normalize(err, '登录');
-        // 只对网络不可达重试：认证失败与接口语义变更重试无意义，且会放大失败
-        const retryable: boolean = error.reason === FailReason.NETWORK_UNREACHABLE;
-        if (!retryable || attempt >= LOGIN_RETRY_LIMIT) {
-          throw error;
-        }
-        attempt++;
-        Logger.warn(TAG, `登录因网络问题失败，第 ${attempt} 次重试`);
-      }
-    }
-  }
-
-  private async performLogin(credentials: Credentials): Promise<void> {
-    // 步骤 2：取 SM2 公钥
-    const loginPage: HttpResult = await this.get(ID_LOGIN_FORM);
-    if (loginPage.status !== 200) {
-      throw fromStatusCode(loginPage.status, '获取统一身份认证登录页');
-    }
-    const publicKeyHex: string = extractSm2PublicKey(loginPage.body);
-    // 诊断：服务端依赖会话 Cookie（JSESSIONID）绑定 SM2 密钥对。
-    // 实测（Node 复刻上游协议）表明：不带该 Cookie 提交会得到 1300 字节的
-    // "数据已丢失，请重新操作" 错误页，而非工单。此日志用于确认 Cookie 是否取到。
-    Logger.info(TAG, `登录页取毕 cookieLen=${this.jar.headerFor(ID_LOGIN_FORM).length}`);
-    if (publicKeyHex.length === 0) {
-      throw apiChanged('登录页未找到 SM2 公钥，页面结构可能已变更');
-    }
-
-    // 步骤 3：提交加密后的凭据
-    const encryptedPassword: string = await encryptPassword(credentials.password, publicKeyHex);
-    const fields: Map<string, string> = new Map();
-    fields.set('i_user', credentials.username);
-    fields.set('i_pass', `04${encryptedPassword.startsWith('04') ? encryptedPassword.substring(2) : encryptedPassword}`);
-    fields.set('singleLogin', 'on');
-    fields.set('fingerPrint', credentials.fingerPrint);
-    fields.set('fingerGenPrint', '');
-    fields.set('fingerGenPrint3', '');
-    fields.set('i_captcha', '');
-
-    const checkResult: HttpResult = await this.postMultipart(ID_LOGIN_CHECK, fields);
-    Logger.info(TAG, `提交登录时 cookieLen=${this.jar.headerFor(ID_LOGIN_CHECK).length}`);
-    if (checkResult.status !== 200) {
-      throw fromStatusCode(checkResult.status, '提交登录凭据');
-    }
-
+  private async establishSession(checkResult: HttpResult, context: string): Promise<void> {
     // 步骤 4：从响应中取漫游工单
     const ticket: string = extractTicket(checkResult.body);
     if (ticket.length === 0) {
-      // 只记长度与开头片段，不记全文：用于区分"服务端拒绝凭据"与"响应结构变了"，
+      // 只记长度、归类与开头片段，不记全文：用于区分"服务端拒绝凭据"与"响应结构变了"，
       // 这两种原因在用户看来都是"登录不上"，此前无法从日志分辨
       const excerpt: string = checkResult.body.substring(0, 120).replace(/\s+/g, ' ');
-      Logger.warn(TAG, `登录校验响应未含工单 len=${checkResult.body.length} head=${excerpt}`);
+      Logger.warn(TAG, `${context} 响应未含工单 status=${checkResult.status} ` +
+        `len=${checkResult.body.length} 归类=${classifyCheckResponse(checkResult.body)} head=${excerpt}`);
 
       // 账号开启二次认证时，服务端返回"二次认证"页而非工单。
       // 这**不是**密码错误——此前一律报"密码错误"，会把用户和排障都带偏。
       if (checkResult.body.includes(SECOND_AUTH_MARKER)) {
-        throw apiChanged('该账号需要二次认证（短信/OTP），当前版本尚未支持该流程');
+        throw apiChanged('该账号需要多因子认证，且本机尚未被登记为信任浏览器，请回到网页登录完成认证');
       }
       throw authFailed('未取得漫游工单，通常是学号或密码错误');
     }
@@ -369,7 +299,11 @@ export class LearnClient {
       throw fromStatusCode(roamResult.status, '漫游到网络学堂');
     }
 
-    // 步骤 6：从首页提取 CSRF 令牌
+    await this.fetchCsrf();
+  }
+
+  /** 从网络学堂首页提取 CSRF 令牌，并把 Cookie 落盘 */
+  private async fetchCsrf(): Promise<void> {
     const homeResult: HttpResult = await this.get(LEARN_STUDENT_HOME);
     if (homeResult.status !== 200) {
       throw fromStatusCode(homeResult.status, '获取网络学堂首页');
@@ -379,9 +313,195 @@ export class LearnClient {
       throw apiChanged('未能从首页提取 CSRF 令牌，接口可能已变更');
     }
     this.csrfToken = token;
+
+    // 立刻落盘：验收要求"杀进程重开仍保持登录态"，不能只靠 30s 的周期保存
+    WebCookieStore.persist();
   }
 
-  /** 登出并清空本地会话状态 */
+  /**
+   * 用 WebView 截到的**漫游票据**直接建立会话——收尾的首选路径。
+   *
+   * 为什么它比"重新登录一遍"更可靠：它就是浏览器原本要做的那一步，因此
+   * **不需要密码、不需要设备已被登记为信任浏览器**。后者在真实账号上恰恰会失败
+   * （校方页面判定"浏览器处于隐私模式"而拒绝登记），一旦没登记上，任何重新登录
+   * 都会被要求验证码，纯 API 路径就永远走不通。
+   *
+   * **刻意不清 Cookie**：漫游请求本就该带着页面的会话（浏览器自己发的话也是带着的），
+   * 清掉反而可能让票据校验失去上下文。
+   */
+  async loginWithRoamUrl(credentials: Credentials, roamUrl: string, context: string): Promise<void> {
+    this.resetSession();
+
+    const roamResult: HttpResult = await this.get(roamUrl);
+    if (roamResult.status !== 200) {
+      throw fromStatusCode(roamResult.status, context);
+    }
+
+    await this.fetchCsrf();
+    this.credentials = credentials;
+    Logger.info(TAG, `${context}成功（复用网页会话，未重新登录）`);
+  }
+
+  /**
+   * 备选路径：纯 API 登录（spec §3.2）。
+   *
+   * 仅适用于**未启用多因子认证**的账号，以及启动时的静默恢复与会话失效自动重登。
+   * 启用多因子认证的账号必须走 WebView 主导路径——验证码只能在真实页面上由用户输入。
+   */
+  async login(credentials: Credentials): Promise<void> {
+    await this.loginWithFingerPrints(credentials, SsoFingerPrints.empty(), '纯 API 登录');
+  }
+
+  /**
+   * **主路径的收尾**：带着页面生成的设备信任标识，在**全新会话**里重新登录（ADR-0008）。
+   *
+   * 为什么是"重新登录"而不是"重放页面那份表单体"：
+   * - `i_pass` 是页面用它那次会话的 SM2 公钥加密的，密文与页面会话绑定；重放它要求
+   *   我们的请求恰好带着页面那次会话，实测在真实账号下拿不到漫游工单。
+   * - 上游 `learnX` 也是重新登录：抓取表单体的目的**只是拿到
+   *   `fingerPrint` / `fingerGenPrint` / `fingerGenPrint3` 这三个应用构造不出的设备信任标识，
+   *   密码则由新会话的公钥重新加密（`thu-learn-lib` 的
+   *   `login(username, password, fingerPrint, fingerGenPrint, fingerGenPrint3)`）。
+   *   服务端据此认出"同一台已登记的浏览器"，不再要求验证码。
+   *
+   * 这与 ADR-0008 §决策 5（"以抓到的表单数据执行既有 API 登录流程以建立会话"）一致——
+   * 早期实现把"以抓到的表单数据"读成了"重放表单体"，是误读。
+   */
+  async loginWithFingerPrints(
+    credentials: Credentials,
+    prints: SsoFingerPrints,
+    context: string = 'WebView 表单登录'
+  ): Promise<void> {
+    // 干净会话起步（对齐上游登录前清 JSESSIONID）：SM2 密钥对绑在会话上，
+    // 沿用旧会话会让服务端把这次登录绑到上一次的会话上。
+    // **只清会话 Cookie**，保留可能用于认设备的持久 Cookie。
+    WebCookieStore.clearSession();
+    this.resetSession();
+
+    let attempt: number = 0;
+    while (true) {
+      try {
+        await this.performLogin(credentials, prints);
+        this.credentials = credentials;
+        Logger.info(TAG, `${context}成功 ${describePrints(prints)}`);
+        return;
+      } catch (err) {
+        const error: AuthError = normalize(err, context);
+        // 只对网络不可达重试：认证失败与接口语义变更重试无意义，且会放大失败
+        if (error.reason !== FailReason.NETWORK_UNREACHABLE || attempt >= LOGIN_RETRY_LIMIT) {
+          throw error;
+        }
+        attempt++;
+        Logger.warn(TAG, `${context} 因网络问题失败，第 ${attempt} 次重试`);
+      }
+    }
+  }
+
+  /**
+   * 一次登录尝试：取登录页 → 提交凭据（或走已信任设备表单）→ 收尾。
+   *
+   * `prints` 为页面抓到的设备信任标识；纯 API 路径传空串（与旧行为一致）。
+   */
+  private async performLogin(credentials: Credentials, prints: SsoFingerPrints): Promise<void> {
+    const loginPage: HttpResult = await this.get(ID_LOGIN_FORM);
+    if (loginPage.status !== 200) {
+      throw fromStatusCode(loginPage.status, '获取统一身份认证登录页');
+    }
+
+    // 设备指纹优先用页面抓到的那一个：它是服务端登记过的信任标识，与本地持久化的是
+    // 同一个值（注入脚本就是把它写进页面的），但以服务端见过的为准。
+    const fingerPrint: string = prints.fingerPrint.length > 0 ? prints.fingerPrint : credentials.fingerPrint;
+
+    // 设备已在"信任浏览器"名单内时，页面换成另一套表单，校验端点也不同
+    if (loginPage.body.includes(CHECK_SINGLE_MARKER)) {
+      const singleFields: Map<string, string> = new Map();
+      singleFields.set('i_rememberme', 'on');
+      singleFields.set('fingerPrint', fingerPrint);
+      singleFields.set('fingerGenPrint', prints.fingerGenPrint);
+      const singleResult: HttpResult = await this.postMultipart(ID_LOGIN_CHECK_SINGLE, singleFields);
+      if (singleResult.status !== 200) {
+        throw fromStatusCode(singleResult.status, '提交登录凭据（已信任设备）');
+      }
+      await this.establishSession(singleResult, '已信任设备登录');
+      return;
+    }
+
+    if (loginPage.body.includes(CAPTCHA_MARKER)) {
+      throw apiChanged('登录需要图形验证码，请使用网页登录方式完成认证');
+    }
+
+    const publicKeyHex: string = extractSm2PublicKey(loginPage.body);
+    if (publicKeyHex.length === 0) {
+      throw apiChanged('登录页未找到 SM2 公钥，页面结构可能已变更');
+    }
+
+    // 诊断：服务端依赖会话 Cookie（JSESSIONID）绑定 SM2 密钥对。
+    // 实测：不带该 Cookie 提交会得到"数据已丢失，请重新操作"的错误页而非工单。
+    Logger.info(TAG, `登录页取毕 cookieLen=${WebCookieStore.headerFor(ID_LOGIN_FORM).length}`);
+
+    const encryptedPassword: string = await encryptPassword(credentials.password, publicKeyHex);
+    const fields: Map<string, string> = new Map();
+    fields.set('i_user', credentials.username);
+    fields.set('i_pass', `04${encryptedPassword.startsWith('04') ? encryptedPassword.substring(2) : encryptedPassword}`);
+    fields.set('singleLogin', 'on');
+    fields.set('fingerPrint', fingerPrint);
+    fields.set('fingerGenPrint', prints.fingerGenPrint);
+    fields.set('fingerGenPrint3', prints.fingerGenPrint3);
+    fields.set('i_captcha', '');
+
+    const checkResult: HttpResult = await this.postMultipart(ID_LOGIN_CHECK, fields);
+    Logger.info(TAG, `提交登录时 cookieLen=${WebCookieStore.headerFor(ID_LOGIN_CHECK).length}`);
+    if (checkResult.status !== 200) {
+      throw fromStatusCode(checkResult.status, '提交登录凭据');
+    }
+
+    await this.establishSession(checkResult, '登录校验');
+  }
+
+  /**
+   * 用已保存的凭据静默恢复会话（应用启动时）。
+   *
+   * **先看 Cookie 里的会话还活着没有**：活着就什么都不做——那正是"杀进程重开仍是
+   * 登录态"；只有会话确实失效才走一次纯 API 登录。
+   *
+   * 此前实现无条件调 `login()`，而 `login()` 会清掉会话 Cookie，
+   * 于是启动时会把一份好端端的持久化会话清掉：登录态永远恢复不了，且从日志
+   * 只能看到"登录失败"，看不出是被自己清掉的。
+   */
+  async restoreSession(credentials: Credentials): Promise<void> {
+    // 先挂上：会话失效时 getWithAuth 才有凭据可自动重登
+    this.credentials = credentials;
+
+    const home: HttpResult = await this.get(LEARN_STUDENT_HOME);
+    if (home.status === 200 && !this.isExpired(home)) {
+      const token: string = extractCsrfToken(home.body);
+      if (token.length > 0) {
+        this.csrfToken = token;
+        Logger.info(TAG, '沿用已持久化的会话');
+        return;
+      }
+    }
+
+    Logger.info(TAG, '已持久化的会话不可用，重新登录');
+    await this.login(credentials);
+  }
+
+  /**
+   * 以干净的**会话**起步（进入 WebView 主导登录前）。
+   *
+   * 只清会话 Cookie，**保留持久 Cookie**——服务端可能用后者认设备，
+   * 抹掉它会让本机每次登录都被当成"从未见过、且不能持久化"的浏览器
+   * （见 `WebCookieStore.clearSession` 的说明）。
+   * 对齐上游"登录前只清 id 域 JSESSIONID"的意图。
+   */
+  startFreshSession(): void {
+    Logger.info(TAG, `进入登录页前 id 域 Cookie=[${WebCookieStore.cookieNamesFor(ID_PREFIX)}]`);
+    WebCookieStore.clearSession();
+    Logger.info(TAG, `清除后 id 域 Cookie=[${WebCookieStore.cookieNamesFor(ID_PREFIX)}]`);
+    this.resetSession();
+  }
+
+  /** 登出并清空本地**会话**状态（保留持久 Cookie，见 `WebCookieStore.clearSession`） */
   async logout(): Promise<void> {
     try {
       await this.postForm(LEARN_LOGOUT, new Map<string, string>());
@@ -389,6 +509,7 @@ export class LearnClient {
       // 登出失败不影响本地状态清理：把用户登出意图贯彻到底
       Logger.warn(TAG, '服务端登出失败，仍清理本地会话');
     }
+    WebCookieStore.clearSession();
     this.resetSession();
   }
 
@@ -396,6 +517,9 @@ export class LearnClient {
    * 带会话的请求；命中会话失效则自动重登一次并重放。
    *
    * 无凭据（用户未保存密码）时直接抛认证失败，由页面引导重新登录。
+   *
+   * 已知限制：自动重登走的是**纯 API 路径**，对启用多因子认证的账号依赖
+   * "设备已被信任"才能成功；失败时向上抛认证失败，由页面引导用户重新走网页登录。
    */
   async getWithAuth(url: string): Promise<HttpResult> {
     const first: HttpResult = await this.get(this.addCsrf(url));
