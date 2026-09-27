@@ -10,7 +10,7 @@
  */
 
 import { Course } from '../model/course';
-import { Assignment, sortAssignments } from '../model/assignment';
+import { Assignment, AssignmentAttachments, sortAssignments } from '../model/assignment';
 import { LearnClient } from '../network/learnClient';
 import { Logger } from '../common/logger';
 
@@ -114,13 +114,44 @@ export class AssignmentRepository {
     return filled;
   }
 
+  /** 单条作业的详情（正文 + 四类附件）。详情页"重试"用；两半都没取到时抛出 */
+  static async loadDetail(item: Assignment): Promise<Assignment> {
+    const filled: Assignment = await AssignmentRepository.fillOneDetail(item);
+    if (!filled.detailLoaded) {
+      throw new Error('作业详情未能加载');
+    }
+    return filled;
+  }
+
   private static async fillOneDetail(item: Assignment): Promise<Assignment> {
+    const client: LearnClient = LearnClient.getInstance();
+    // 正文与附件在两个端点（JSON detail 的 msg / HTML 详情页的附件块）。
+    // 各取各的、各自降级：正文取不到就空着，附件取不到就四类皆空——
+    // 任一失败都不该让整条作业从列表里消失。
+    // 用"取到了"而不是"内容非空"作判据：正文本来就可能是空的（无描述的作业），
+    // 那不是加载失败。
+    let description: string = item.description;
+    let descriptionOk: boolean = false;
     try {
-      const description: string = await LearnClient.getInstance().fetchAssignmentDescription(item.baseId);
-      return item.withDetail(description, item.attachments);
+      description = await client.fetchAssignmentDescription(item.baseId);
+      descriptionOk = true;
     } catch (err) {
-      Logger.warn(TAG, `作业详情加载失败 id=${item.id}`);
+      Logger.warn(TAG, `作业正文加载失败 id=${item.id}`);
+    }
+
+    let attachments: AssignmentAttachments = item.attachments;
+    let attachmentsOk: boolean = false;
+    try {
+      attachments = await client.fetchAssignmentAttachments(item.courseId, item.id);
+      attachmentsOk = true;
+    } catch (err) {
+      Logger.warn(TAG, `作业附件加载失败 id=${item.id}`);
+    }
+
+    if (!descriptionOk && !attachmentsOk) {
+      // 两半都没拿到：保持 detailLoaded=false，详情页给"详情未能加载 + 重试"
       return item;
     }
+    return item.withDetail(description, attachments);
   }
 }

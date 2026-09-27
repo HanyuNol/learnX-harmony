@@ -132,6 +132,24 @@
     **详情 URL 由客户端按 (courseId, noticeId) 拼**（响应里没有该字段）
 - **通知详情路径**：`GET {LEARN_PREFIX}/f/wlxt/kcgg/wlkc_ggb/student/beforeViewXs?wlkcid=&id=`
   （本项目本批只用它发"已读"请求；正文已在列表里）
+- **作业列表路径**（照抄上游 `urls.ts:91-117`）：**三个 POST 端点合并**——
+  `…/b/wlxt/kczy/zy/student/zyListWj`（未提交）/ `zyListYjwg`（已提交）/ `zyListYpg`（已评分）；
+  表单体同通知（`aoData` = `[{"name":"wlkcid","value":"<课程 id>"}]` 的 JSON 字符串，multipart）
+  - 判定：**`result === 'success'`**；容器 `object.aaData`
+  - 字段映射：`xszyid→id`、`zyid→baseId`、`bt→title`（解 HTML 实体）、`jzsj→deadline`（**原样字符串**）、
+    `bjjzsj→补交截止`、`sfbj==='是'→isLateSubmission`、`zywcfs→completionType`（1 个人 / 2 小组）、
+    `zytjfs→submissionType`（2 网上 / 0 线下）、`scsj→submitTime`、`cj→分数`（**负数代码经上游
+    `GRADE_LEVEL_MAP` 映射成等级名**，如 `-100→checked`）、`jsm→graderName`、`pynr→gradeContent`、
+    `pysj→gradeTime`
+  - **`submitted`/`graded` 不是响应字段**：由"这批来自哪个端点"写死注入
+    （Wj→false/false、Yjwg→true/false、Ypg→true/true）。去响应里找这两个字段会永远读到 false
+- **作业详情**：**两个请求各取一半**（上游亦然）
+  - 正文：`POST …/b/wlxt/kczy/zy/student/detail`，表单体 `id=<baseId>`，判定 `result==='success'`，取 `msg`
+  - 附件：`GET …/f/wlxt/kczy/zy/student/viewCj?wlkcid=&xszyid=`（**HTML 详情页**），
+    按 `div.list.fujian.clearfix` 的**出现位置**对应教师 / 答案 / 已提交 / 评分四类附件；
+    每块取第一个 `<a href>`，`fileId` 从查询参数取，下载地址是 `LEARN_PREFIX + href`
+    （href 带 `downloadUrl` 参数时以它为准）
+  - **是否已截止由客户端算**（拿 `deadline` 与当前时间比，严格大于才算过期）——服务端只给字符串
 - **POST 的两个坑（实测）**：① 必须带 `_csrf`（上游在 `#myFetchWithToken` 里对**所有**请求注入，
   只在 GET 注入会让 POST 全 403）；② `Accept` 用 `*/*`，声明 `text/html` 会被判 406。
 - **通知/作业/文件**：**按课程取**，请求带课程 id（非学期 id）；三者都从课程列表派生 courseIds 再扇出

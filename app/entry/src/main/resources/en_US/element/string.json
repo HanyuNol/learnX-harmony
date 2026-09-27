@@ -215,6 +215,154 @@
     {
       "name": "notice_attachment",
       "value": "Attachment"
+    },
+    {
+      "name": "assignment_filter_unfinished",
+      "value": "Unfinished"
+    },
+    {
+      "name": "assignment_filter_finished",
+      "value": "Finished"
+    },
+    {
+      "name": "assignment_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "assignment_partial_failed",
+      "value": "Some courses' assignments could not be loaded"
+    },
+    {
+      "name": "assignment_submitted",
+      "value": "Submitted"
+    },
+    {
+      "name": "assignment_graded",
+      "value": "Graded"
+    },
+    {
+      "name": "assignment_completion_individual",
+      "value": "Complete Individually"
+    },
+    {
+      "name": "assignment_completion_group",
+      "value": "Complete as a Group"
+    },
+    {
+      "name": "assignment_submission_online",
+      "value": "Submit Online"
+    },
+    {
+      "name": "assignment_submission_offline",
+      "value": "Submit Offline"
+    },
+    {
+      "name": "assignment_attachment",
+      "value": "Attachment"
+    },
+    {
+      "name": "assignment_submitted_attachment",
+      "value": "Submitted file"
+    },
+    {
+      "name": "assignment_grade_attachment",
+      "value": "Graded file"
+    },
+    {
+      "name": "assignment_late_deadline",
+      "value": "Late submission deadline"
+    },
+    {
+      "name": "assignment_submit_time",
+      "value": "Submitted at"
+    },
+    {
+      "name": "assignment_grade",
+      "value": "Grade"
+    },
+    {
+      "name": "assignment_grader",
+      "value": "Graded by"
+    },
+    {
+      "name": "assignment_grade_time",
+      "value": "Graded at"
+    },
+    {
+      "name": "assignment_no_description",
+      "value": "No assignment description"
+    },
+    {
+      "name": "assignment_detail_failed",
+      "value": "The details could not be loaded"
+    },
+    {
+      "name": "assignment_due_minute",
+      "value": "Due in %d min"
+    },
+    {
+      "name": "assignment_due_hour",
+      "value": "Due in %d h"
+    },
+    {
+      "name": "assignment_due_day",
+      "value": "Due in %d d"
+    },
+    {
+      "name": "assignment_due_month",
+      "value": "Due in %d mo"
+    },
+    {
+      "name": "assignment_due_year",
+      "value": "Due in %d y"
+    },
+    {
+      "name": "assignment_overdue_minute",
+      "value": "Closed %d min ago"
+    },
+    {
+      "name": "assignment_overdue_hour",
+      "value": "Closed %d h ago"
+    },
+    {
+      "name": "assignment_overdue_day",
+      "value": "Closed %d d ago"
+    },
+    {
+      "name": "assignment_overdue_month",
+      "value": "Closed %d mo ago"
+    },
+    {
+      "name": "assignment_overdue_year",
+      "value": "Closed %d y ago"
+    },
+    {
+      "name": "grade_level_checked",
+      "value": "Reviewed"
+    },
+    {
+      "name": "grade_level_distinction",
+      "value": "Good"
+    },
+    {
+      "name": "grade_level_exempted_course",
+      "value": "Exempted Course"
+    },
+    {
+      "name": "grade_level_exemption",
+      "value": "Exempted"
+    },
+    {
+      "name": "grade_level_pass",
+      "value": "Pass"
+    },
+    {
+      "name": "grade_level_failure",
+      "value": "Fail"
+    },
+    {
+      "name": "grade_level_incomplete",
+      "value": "Incomplete"
     }
   ]
 }

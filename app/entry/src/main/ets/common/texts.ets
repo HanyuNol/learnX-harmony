@@ -19,6 +19,9 @@
 
 import { FailReason } from '../model/auth';
 import { SemesterType } from '../model/semester';
+import {
+  HomeworkCompletionType, HomeworkSubmissionType, RelativeDeadline, RelativeUnit
+} from '../model/assignment';
 
 /**
  * 文案键。取值即资源名（不含 `app.string.` 前缀）。
@@ -116,6 +119,83 @@ export class TextKeys {
   /** 通知详情：附件 */
   static readonly NOTICE_ATTACHMENT: string = 'notice_attachment';
 
+  /** 作业筛选：未完成（同时是列表项的"未提交"口径） */
+  static readonly ASSIGNMENT_FILTER_UNFINISHED: string = 'assignment_filter_unfinished';
+  /** 作业筛选：已完成 */
+  static readonly ASSIGNMENT_FILTER_FINISHED: string = 'assignment_filter_finished';
+  /** 作业页：重新加载 */
+  static readonly ASSIGNMENT_REFRESH: string = 'assignment_refresh';
+  /** 作业页：部分课程的作业未能加载 */
+  static readonly ASSIGNMENT_PARTIAL_FAILED: string = 'assignment_partial_failed';
+  /** 列表项标记：已提交 */
+  static readonly ASSIGNMENT_SUBMITTED: string = 'assignment_submitted';
+  /** 列表项标记：已评分 */
+  static readonly ASSIGNMENT_GRADED: string = 'assignment_graded';
+  /** 详情：独立完成 */
+  static readonly ASSIGNMENT_COMPLETION_INDIVIDUAL: string = 'assignment_completion_individual';
+  /** 详情：小组完成 */
+  static readonly ASSIGNMENT_COMPLETION_GROUP: string = 'assignment_completion_group';
+  /** 详情：在线提交 */
+  static readonly ASSIGNMENT_SUBMISSION_ONLINE: string = 'assignment_submission_online';
+  /** 详情：线下提交 */
+  static readonly ASSIGNMENT_SUBMISSION_OFFLINE: string = 'assignment_submission_offline';
+  /** 详情：教师附件 */
+  static readonly ASSIGNMENT_ATTACHMENT: string = 'assignment_attachment';
+  /** 详情：已提交附件 */
+  static readonly ASSIGNMENT_SUBMITTED_ATTACHMENT: string = 'assignment_submitted_attachment';
+  /** 详情：评分附件 */
+  static readonly ASSIGNMENT_GRADE_ATTACHMENT: string = 'assignment_grade_attachment';
+  /** 详情：补交截止 */
+  static readonly ASSIGNMENT_LATE_DEADLINE: string = 'assignment_late_deadline';
+  /** 详情：提交时间 */
+  static readonly ASSIGNMENT_SUBMIT_TIME: string = 'assignment_submit_time';
+  /** 详情：评分小节 */
+  static readonly ASSIGNMENT_GRADE: string = 'assignment_grade';
+  /** 详情：评分人 */
+  static readonly ASSIGNMENT_GRADER: string = 'assignment_grader';
+  /** 详情：评分时间 */
+  static readonly ASSIGNMENT_GRADE_TIME: string = 'assignment_grade_time';
+  /** 详情：正文缺失时的占位 */
+  static readonly ASSIGNMENT_NO_DESCRIPTION: string = 'assignment_no_description';
+  /** 详情：详情未能加载（预取失败） */
+  static readonly ASSIGNMENT_DETAIL_FAILED: string = 'assignment_detail_failed';
+
+  /** 相对截止：还剩 %d 分钟 */
+  static readonly ASSIGNMENT_DUE_MINUTE: string = 'assignment_due_minute';
+  /** 相对截止：还剩 %d 小时 */
+  static readonly ASSIGNMENT_DUE_HOUR: string = 'assignment_due_hour';
+  /** 相对截止：还剩 %d 天 */
+  static readonly ASSIGNMENT_DUE_DAY: string = 'assignment_due_day';
+  /** 相对截止：还剩 %d 个月 */
+  static readonly ASSIGNMENT_DUE_MONTH: string = 'assignment_due_month';
+  /** 相对截止：还剩 %d 年 */
+  static readonly ASSIGNMENT_DUE_YEAR: string = 'assignment_due_year';
+  /** 相对截止：%d 分钟前截止 */
+  static readonly ASSIGNMENT_OVERDUE_MINUTE: string = 'assignment_overdue_minute';
+  /** 相对截止：%d 小时前截止 */
+  static readonly ASSIGNMENT_OVERDUE_HOUR: string = 'assignment_overdue_hour';
+  /** 相对截止：%d 天前截止 */
+  static readonly ASSIGNMENT_OVERDUE_DAY: string = 'assignment_overdue_day';
+  /** 相对截止：%d 个月前截止 */
+  static readonly ASSIGNMENT_OVERDUE_MONTH: string = 'assignment_overdue_month';
+  /** 相对截止：%d 年前截止 */
+  static readonly ASSIGNMENT_OVERDUE_YEAR: string = 'assignment_overdue_year';
+
+  /** 评分等级：已阅 */
+  static readonly GRADE_LEVEL_CHECKED: string = 'grade_level_checked';
+  /** 评分等级：优秀 */
+  static readonly GRADE_LEVEL_DISTINCTION: string = 'grade_level_distinction';
+  /** 评分等级：免课 */
+  static readonly GRADE_LEVEL_EXEMPTED_COURSE: string = 'grade_level_exempted_course';
+  /** 评分等级：免修 */
+  static readonly GRADE_LEVEL_EXEMPTION: string = 'grade_level_exemption';
+  /** 评分等级：通过 */
+  static readonly GRADE_LEVEL_PASS: string = 'grade_level_pass';
+  /** 评分等级：不通过 */
+  static readonly GRADE_LEVEL_FAILURE: string = 'grade_level_failure';
+  /** 评分等级：缓考 */
+  static readonly GRADE_LEVEL_INCOMPLETE: string = 'grade_level_incomplete';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */
@@ -195,4 +275,86 @@ export function textKeyOfSemesterType(type: SemesterType): string {
     return TextKeys.SEMESTER_SEASON_SUMMER;
   }
   return TextKeys.SEMESTER_SEASON_UNKNOWN;
+}
+
+/**
+ * 相对截止描述 → 文案键（键里的 `%d` 由调用方用 `$r(key, value)` 填数量）。
+ *
+ * 放在这里而不是页面里，理由同 `textKeyOfSemesterType`：键集中一处才能被
+ * `scripts/check-l10n.mjs` 一个地方扫到，也让"每个单位+方向都有文案"可测。
+ */
+export function textKeyOfRelativeDeadline(relative: RelativeDeadline): string {
+  if (relative.past) {
+    if (relative.unit === RelativeUnit.MINUTE) {
+      return TextKeys.ASSIGNMENT_OVERDUE_MINUTE;
+    }
+    if (relative.unit === RelativeUnit.HOUR) {
+      return TextKeys.ASSIGNMENT_OVERDUE_HOUR;
+    }
+    if (relative.unit === RelativeUnit.DAY) {
+      return TextKeys.ASSIGNMENT_OVERDUE_DAY;
+    }
+    if (relative.unit === RelativeUnit.MONTH) {
+      return TextKeys.ASSIGNMENT_OVERDUE_MONTH;
+    }
+    return TextKeys.ASSIGNMENT_OVERDUE_YEAR;
+  }
+  if (relative.unit === RelativeUnit.MINUTE) {
+    return TextKeys.ASSIGNMENT_DUE_MINUTE;
+  }
+  if (relative.unit === RelativeUnit.HOUR) {
+    return TextKeys.ASSIGNMENT_DUE_HOUR;
+  }
+  if (relative.unit === RelativeUnit.DAY) {
+    return TextKeys.ASSIGNMENT_DUE_DAY;
+  }
+  if (relative.unit === RelativeUnit.MONTH) {
+    return TextKeys.ASSIGNMENT_DUE_MONTH;
+  }
+  return TextKeys.ASSIGNMENT_DUE_YEAR;
+}
+
+/** 完成方式 → 文案键（认不出按"独立完成"，与上游默认分支一致） */
+export function textKeyOfCompletionType(completionType: number): string {
+  if (completionType === HomeworkCompletionType.GROUP) {
+    return TextKeys.ASSIGNMENT_COMPLETION_GROUP;
+  }
+  return TextKeys.ASSIGNMENT_COMPLETION_INDIVIDUAL;
+}
+
+/** 提交方式 → 文案键（认不出按"在线提交"，与上游默认分支一致） */
+export function textKeyOfSubmissionType(submissionType: number): string {
+  if (submissionType === HomeworkSubmissionType.OFFLINE) {
+    return TextKeys.ASSIGNMENT_SUBMISSION_OFFLINE;
+  }
+  return TextKeys.ASSIGNMENT_SUBMISSION_ONLINE;
+}
+
+/**
+ * 评分等级代码 → 文案键；上游只给这几个等级配了词（`helpers/i18n.ts:21-41`），
+ * 其余（A+/B/…）返回空串，由调用方直接显示等级代码本身。
+ */
+export function textKeyOfGradeLevel(level: string): string {
+  if (level === 'checked') {
+    return TextKeys.GRADE_LEVEL_CHECKED;
+  }
+  if (level === 'distinction') {
+    return TextKeys.GRADE_LEVEL_DISTINCTION;
+  }
+  if (level === 'exempted course') {
+    return TextKeys.GRADE_LEVEL_EXEMPTED_COURSE;
+  }
+  if (level === 'exemption') {
+    return TextKeys.GRADE_LEVEL_EXEMPTION;
+  }
+  if (level === 'pass') {
+    return TextKeys.GRADE_LEVEL_PASS;
+  }
+  if (level === 'failure') {
+    return TextKeys.GRADE_LEVEL_FAILURE;
+  }
+  if (level === 'incomplete') {
+    return TextKeys.GRADE_LEVEL_INCOMPLETE;
+  }
+  return TextKeys.NONE;
 }

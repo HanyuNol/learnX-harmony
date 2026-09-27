@@ -10,7 +10,13 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import { FailReason } from '../main/ets/model/auth';
-import { TextKeys, textKeyOfFailReason } from '../main/ets/common/texts';
+import {
+  TextKeys, textKeyOfFailReason, textKeyOfRelativeDeadline,
+  textKeyOfCompletionType, textKeyOfSubmissionType, textKeyOfGradeLevel
+} from '../main/ets/common/texts';
+import {
+  HomeworkCompletionType, HomeworkSubmissionType, RelativeDeadline, RelativeUnit
+} from '../main/ets/model/assignment';
 
 /** 全部已知键（NONE 是"无需展示"的哨兵，不是资源） */
 const KNOWN_KEYS: string[] = [
@@ -55,6 +61,43 @@ const KNOWN_KEYS: string[] = [
   TextKeys.NOTICE_REFRESH,
   TextKeys.NOTICE_PARTIAL_FAILED,
   TextKeys.NOTICE_ATTACHMENT,
+  TextKeys.ASSIGNMENT_FILTER_UNFINISHED,
+  TextKeys.ASSIGNMENT_FILTER_FINISHED,
+  TextKeys.ASSIGNMENT_REFRESH,
+  TextKeys.ASSIGNMENT_PARTIAL_FAILED,
+  TextKeys.ASSIGNMENT_SUBMITTED,
+  TextKeys.ASSIGNMENT_GRADED,
+  TextKeys.ASSIGNMENT_COMPLETION_INDIVIDUAL,
+  TextKeys.ASSIGNMENT_COMPLETION_GROUP,
+  TextKeys.ASSIGNMENT_SUBMISSION_ONLINE,
+  TextKeys.ASSIGNMENT_SUBMISSION_OFFLINE,
+  TextKeys.ASSIGNMENT_ATTACHMENT,
+  TextKeys.ASSIGNMENT_SUBMITTED_ATTACHMENT,
+  TextKeys.ASSIGNMENT_GRADE_ATTACHMENT,
+  TextKeys.ASSIGNMENT_LATE_DEADLINE,
+  TextKeys.ASSIGNMENT_SUBMIT_TIME,
+  TextKeys.ASSIGNMENT_GRADE,
+  TextKeys.ASSIGNMENT_GRADER,
+  TextKeys.ASSIGNMENT_GRADE_TIME,
+  TextKeys.ASSIGNMENT_NO_DESCRIPTION,
+  TextKeys.ASSIGNMENT_DETAIL_FAILED,
+  TextKeys.ASSIGNMENT_DUE_MINUTE,
+  TextKeys.ASSIGNMENT_DUE_HOUR,
+  TextKeys.ASSIGNMENT_DUE_DAY,
+  TextKeys.ASSIGNMENT_DUE_MONTH,
+  TextKeys.ASSIGNMENT_DUE_YEAR,
+  TextKeys.ASSIGNMENT_OVERDUE_MINUTE,
+  TextKeys.ASSIGNMENT_OVERDUE_HOUR,
+  TextKeys.ASSIGNMENT_OVERDUE_DAY,
+  TextKeys.ASSIGNMENT_OVERDUE_MONTH,
+  TextKeys.ASSIGNMENT_OVERDUE_YEAR,
+  TextKeys.GRADE_LEVEL_CHECKED,
+  TextKeys.GRADE_LEVEL_DISTINCTION,
+  TextKeys.GRADE_LEVEL_EXEMPTED_COURSE,
+  TextKeys.GRADE_LEVEL_EXEMPTION,
+  TextKeys.GRADE_LEVEL_PASS,
+  TextKeys.GRADE_LEVEL_FAILURE,
+  TextKeys.GRADE_LEVEL_INCOMPLETE,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -136,7 +179,42 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(51);
+      expect(KNOWN_KEYS.length).assertEqual(88);
+    });
+
+    it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {
+      const units: RelativeUnit[] = [RelativeUnit.MINUTE, RelativeUnit.HOUR,
+        RelativeUnit.DAY, RelativeUnit.MONTH, RelativeUnit.YEAR];
+      units.forEach((unit: RelativeUnit) => {
+        // 未来与过去两个方向都必须有文案，且互不相同（"还剩"与"已截止"不能串）
+        const future: string = textKeyOfRelativeDeadline(new RelativeDeadline(false, 3, unit));
+        const past: string = textKeyOfRelativeDeadline(new RelativeDeadline(true, 3, unit));
+        expect(KNOWN_KEYS.includes(future)).assertTrue();
+        expect(KNOWN_KEYS.includes(past)).assertTrue();
+        expect(future === past).assertFalse();
+      });
+
+      expect(textKeyOfCompletionType(HomeworkCompletionType.GROUP))
+        .assertEqual(TextKeys.ASSIGNMENT_COMPLETION_GROUP);
+      expect(textKeyOfCompletionType(HomeworkCompletionType.INDIVIDUAL))
+        .assertEqual(TextKeys.ASSIGNMENT_COMPLETION_INDIVIDUAL);
+      expect(textKeyOfSubmissionType(HomeworkSubmissionType.OFFLINE))
+        .assertEqual(TextKeys.ASSIGNMENT_SUBMISSION_OFFLINE);
+      expect(textKeyOfSubmissionType(HomeworkSubmissionType.WEB_LEARNING))
+        .assertEqual(TextKeys.ASSIGNMENT_SUBMISSION_ONLINE);
+    });
+
+    it('评分等级：配了词的等级映射到文案，A+/B 一类等级代码原样显示（空键）', 0, () => {
+      expect(textKeyOfGradeLevel('checked')).assertEqual(TextKeys.GRADE_LEVEL_CHECKED);
+      expect(textKeyOfGradeLevel('distinction')).assertEqual(TextKeys.GRADE_LEVEL_DISTINCTION);
+      expect(textKeyOfGradeLevel('exempted course')).assertEqual(TextKeys.GRADE_LEVEL_EXEMPTED_COURSE);
+      expect(textKeyOfGradeLevel('exemption')).assertEqual(TextKeys.GRADE_LEVEL_EXEMPTION);
+      expect(textKeyOfGradeLevel('pass')).assertEqual(TextKeys.GRADE_LEVEL_PASS);
+      expect(textKeyOfGradeLevel('failure')).assertEqual(TextKeys.GRADE_LEVEL_FAILURE);
+      expect(textKeyOfGradeLevel('incomplete')).assertEqual(TextKeys.GRADE_LEVEL_INCOMPLETE);
+      // 无文案的等级返回空键，由调用方直接显示等级代码
+      expect(textKeyOfGradeLevel('A+')).assertEqual(TextKeys.NONE);
+      expect(textKeyOfGradeLevel('')).assertEqual(TextKeys.NONE);
     });
   });
 }

@@ -15,13 +15,15 @@
 
 import { TextKeys } from '../common/texts';
 import { FailReason } from '../model/auth';
-import { emptyView, errorView, loadingView } from '../components/StateView';
+import { errorView } from '../components/StateView';
 import { showToast } from '../components/toast';
 import { SettingsView } from './Settings';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
 import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
 import { NoticeDetailParam, NoticeDetailView } from './NoticeDetail';
+import { ASSIGNMENT_DETAIL_DESTINATION, AssignmentListTab } from './Assignments';
+import { AssignmentDetailParam, AssignmentDetailView } from './AssignmentDetail';
 import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { CourseStore } from '../viewmodel/courseStore';
@@ -77,21 +79,16 @@ export struct MainView {
   private settingsStack: NavPathStack = new NavPathStack();
 
   /**
-   * 标签首页占位。真实内容由 FR-05～FR-09、FR-16 各自填充。
+   * 标签首页占位。真实内容由 FR-08、FR-16 各自填充。
    *
-   * 本批次先让三个状态组件**各有可见入口**（FR-15 的验收项）：
-   * 通知 → 加载态；作业 → 空态；文件 → 错误态（含重试）；课程 → 保留"进入详情"，
-   * 用于验证每标签独立栈。这不是调试开关，就是各页此刻的真实内容。
+   * 文件标签这一处保留错误态演示：FR-15 的验收要求"三个状态组件各有可见入口"，
+   * 而通知与作业标签此刻已是真实列表（加载/空态由它们自己呈现），
+   * 只剩这里还空着——用"网络不可达"是因为它最需要与"密码错误"区分开（NFR-NET）。
    */
   @Builder
   tabHome(titleKey: string, stack: NavPathStack) {
     Column() {
-      if (titleKey === TextKeys.TAB_NOTICES) {
-        loadingView()
-      } else if (titleKey === TextKeys.TAB_ASSIGNMENTS) {
-        emptyView()
-      } else if (titleKey === TextKeys.TAB_FILES) {
-        // 错误态演示用"网络不可达"：这条最需要与"密码错误"区分开（NFR-NET）
+      if (titleKey === TextKeys.TAB_FILES) {
         errorView(FailReason.NETWORK_UNREACHABLE, () => {
           showToast($r('app.string.' + TextKeys.TOAST_RETRYING));
         })
@@ -153,8 +150,15 @@ export struct MainView {
   }
 
   @Builder
-  assignmentsDetail(name: string) {
-    this.detailOf(this.assignmentsStack, name)
+  assignmentsDetail(name: string, param: object) {
+    if (name === ASSIGNMENT_DETAIL_DESTINATION) {
+      NavDestination() {
+        AssignmentDetailView({ assignmentId: (param as AssignmentDetailParam).assignmentId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
+    } else {
+      this.detailOf(this.assignmentsStack, name)
+    }
   }
 
   @Builder
@@ -174,6 +178,13 @@ export struct MainView {
               name: NOTICE_DETAIL_DESTINATION,
               param: new NoticeDetailParam(noticeId)
             });
+          },
+          // 作业同理：课程详情的"作业"页签里点一条，也推在课程栈上
+          onOpenAssignment: (assignmentId: string) => {
+            this.coursesStack.pushPath({
+              name: ASSIGNMENT_DETAIL_DESTINATION,
+              param: new AssignmentDetailParam(assignmentId)
+            });
           }
         })
       }
@@ -183,6 +194,11 @@ export struct MainView {
         NoticeDetailView({ noticeId: (param as NoticeDetailParam).noticeId })
       }
       .title($r('app.string.' + TextKeys.TAB_NOTICES))
+    } else if (name === ASSIGNMENT_DETAIL_DESTINATION) {
+      NavDestination() {
+        AssignmentDetailView({ assignmentId: (param as AssignmentDetailParam).assignmentId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
     } else {
       this.detailOf(this.coursesStack, name)
     }
@@ -231,7 +247,14 @@ export struct MainView {
 
         TabContent() {
           Navigation(this.assignmentsStack) {
-            this.tabHome(TextKeys.TAB_ASSIGNMENTS, this.assignmentsStack)
+            AssignmentListTab({
+              onOpenAssignment: (assignmentId: string) => {
+                this.assignmentsStack.pushPath({
+                  name: ASSIGNMENT_DETAIL_DESTINATION,
+                  param: new AssignmentDetailParam(assignmentId)
+                });
+              }
+            })
           }
           .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
           .navDestination(this.assignmentsDetail)

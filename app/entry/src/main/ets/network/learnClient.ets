@@ -29,6 +29,7 @@ import {
   learnCourseList,
   learnNoticeList,
   learnAssignmentList,
+  learnAssignmentHtmlDetail,
   LEARN_HOMEWORK_DETAIL,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
@@ -41,8 +42,8 @@ import { encryptPassword } from './sm2';
 import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
 import { parseCourseList } from './parseCourse';
 import { parseNoticeList } from './parseNotice';
-import { parseAssignmentDescription, parseAssignmentList } from './parseAssignment';
-import { Assignment } from '../model/assignment';
+import { parseAssignmentDescription, parseAssignmentList, parseAssignmentAttachments } from './parseAssignment';
+import { Assignment, AssignmentAttachments } from '../model/assignment';
 import { Notice } from '../model/notice';
 import { Course } from '../model/course';
 
@@ -56,6 +57,21 @@ const LOGIN_RETRY_LIMIT: number = 1;
 
 /** 网络学堂域名标识，用于决定是否注入 CSRF */
 const TSINGHUA_HOST_MARKER: string = 'tsinghua.edu.cn';
+
+/**
+ * 截止时间解析不出时留一条日志（只打时间串本身，不含任何隐私）。
+ *
+ * 服务端的时间串形态没有文档（assignments spec §6 待定项），`parseDeadlineTimestamp`
+ * 是按常见形态写的；这条日志是**长期守卫**而不是临时探针——形态一变（或原先猜错），
+ * 日志里就能看见，从而"已截止/还剩几天"不会静默地全变成"时间未知"。
+ */
+function logUnparsedDeadline(items: Assignment[]): void {
+  for (const item of items) {
+    if (item.deadline.length > 0 && item.deadlineTime <= 0) {
+      Logger.warn(TAG, `截止时间无法解析 id=${item.id} 原串=「${item.deadline}」`);
+    }
+  }
+}
 
 /**
  * 二次认证页面的标记。
@@ -673,10 +689,7 @@ export class LearnClient {
     }
     const items: Assignment[] =
       parseAssignmentList(result.body, courseId, courseName, courseTeacherName, submitted, graded);
-    // [临时探针 · 核对 deadline 原串形态后删除] 只打第一条的形态（日期串不含隐私）
-    if (items.length > 0) {
-      Logger.info(TAG, `[探针] deadline 原串=「${items[0].deadline}」解析=${items[0].deadlineTime}`);
-    }
+    logUnparsedDeadline(items);
     return items;
   }
 
@@ -689,6 +702,20 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取作业详情');
     }
     return parseAssignmentDescription(result.body);
+  }
+
+  /**
+   * 作业详情页 HTML 里的四类附件（GET `viewCj?wlkcid=<课程>&xszyid=<学生作业 id>`）。
+   *
+   * 与正文分开的原因：正文在上面的 JSON 端点里，附件只在这个 HTML 页里
+   * （上游 `index.ts:1090-1091` 也是两个请求一起发，JSON 的正文**覆盖** HTML 的那份）。
+   */
+  async fetchAssignmentAttachments(courseId: string, homeworkId: string): Promise<AssignmentAttachments> {
+    const result: HttpResult = await this.getWithAuth(learnAssignmentHtmlDetail(courseId, homeworkId));
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取作业附件');
+    }
+    return parseAssignmentAttachments(result.body);
   }
 
   /** 服务端认定的当前学期 id */

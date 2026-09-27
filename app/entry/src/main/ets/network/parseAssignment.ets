@@ -9,7 +9,7 @@
  * - **`submitted` / `graded` 由调用方按"这批来自哪个端点"注入**，响应里没有这两个字段。
  */
 
-import { Assignment } from '../model/assignment';
+import { Assignment, AssignmentAttachments, gradeLevelNameOf } from '../model/assignment';
 import { parseFailed } from '../common/errors';
 import { decodeHtmlEntities } from './parseCourse';
 import { Attachment } from '../model/attachment';
@@ -19,6 +19,21 @@ const YES: string = '是';
 
 function str(field: Object | undefined): string {
   return typeof field === 'string' ? field : '';
+}
+
+/**
+ * 取数字字段。服务端这两种写法都出现过：JSON 数字，或字符串形式的数字。
+ * 取不到返回 `fallback`（**不猜**，由模型层按"未知"处理）。
+ */
+function num(field: Object | undefined, fallback: number): number {
+  if (typeof field === 'number') {
+    return field;
+  }
+  if (typeof field === 'string' && field.trim().length > 0) {
+    const parsed: number = Number(field);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+  return fallback;
 }
 
 /**
@@ -78,6 +93,8 @@ export function parseAssignmentList(body: string, courseId: string, courseName: 
     }
     const h: Record<string, Object> = entry as Record<string, Object>;
     const deadline: string = str(h['jzsj']);
+    // `cj` 是数字：正数是分数，负数经 `GRADE_LEVEL_MAP` 映射成等级（上游 index.ts:1075）
+    const gradeCode: number = num(h['cj'], 0);
     items.push(new Assignment(
       str(h['xszyid']),
       str(h['zyid']),
@@ -92,13 +109,16 @@ export function parseAssignmentList(body: string, courseId: string, courseName: 
       submitted,
       graded,
       str(h['sfbj']) === YES,
+      num(h['zywcfs'], 0),
+      num(h['zytjfs'], 0),
       str(h['scsj']),
-      str(h['cj']),
-      str(h['cj']),
+      // 有分数显示分数、有等级显示等级：两列都留着，由展示层挑（对齐上游）
+      gradeCode >= 0 ? `${gradeCode}` : '',
+      gradeLevelNameOf(gradeCode),
       str(h['jsm']),
       str(h['pynr']),
       str(h['pysj']),
-      [],
+      AssignmentAttachments.empty(),
       false
     ));
   }
@@ -184,17 +204,18 @@ function stripInnerTags(fragment: string): string {
 
 /**
  * 解析作业详情页 HTML 里的附件（**按上游 `parseHomeworkAtUrl` 的结构移植**，
- * `thu-learn-lib/src/index.ts:1190-1251`）。
+ * `thu-learn-lib/src/index.ts:1190,1225-1251`）。
  *
- * 结构：`div.list.fujian.clearfix` 在页面里出现多次，**按顺序**对应
- * 教师附件 / 答案附件 / 已提交附件 / 评分附件；每块里第一个 `<a href=...>` 就是该附件，
- * 显示名是链接文本，`fileId` 从 href 的查询参数取，下载地址是 `LEARN_PREFIX + href`
- * （若 href 带 `downloadUrl` 参数则以它为准——上游那两行注释写着 "so dirty here"）。
+ * 结构：`div.list.fujian.clearfix` 在页面里出现多次，**按位置**对应
+ * 教师附件(0) / 答案附件(1) / 已提交附件(2) / 评分附件(3)——上游也是按下标取的，
+ * 故这里同样按位置落槽；某类没有附件时该槽位为 `null`，**不让后面的类别前移串位**。
+ * 每块里第一个 `<a href=...>` 就是该附件，显示名是链接文本，`fileId` 从 href 的查询参数取，
+ * 下载地址是 `LEARN_PREFIX + href`（若 href 带 `downloadUrl` 参数则以它为准——上游那句 "so dirty here"）。
  *
  * 本项目禁止引入 HTML 解析库（架构不变量 §2），故这里只做"找块 + 取第一个链接"的
- * 最小白名单解析，不做通用 DOM。**块里没有链接的类别直接跳过**（不是错误）。
+ * 最小白名单解析，不做通用 DOM。
  */
-export function parseAssignmentAttachments(html: string): Attachment[] {
+export function parseAssignmentAttachments(html: string): AssignmentAttachments {
   const blocks: string[] = [];
   let searchFrom: number = 0;
   while (true) {
@@ -207,17 +228,25 @@ export function parseAssignmentAttachments(html: string): Attachment[] {
     searchFrom = marker + ATTACHMENT_BLOCK_MARKER.length;
   }
 
-  const attachments: Attachment[] = [];
-  for (const block of blocks) {
-    const link: string[] = firstLinkOf(block);
-    if (link.length < 2 || link[1].length === 0) {
-      continue;
-    }
-    const href: string = link[1];
-    const fileId: string = queryParamOf(href, 'fileId');
-    const explicit: string = queryParamOf(href, 'downloadUrl');
-    const downloadUrl: string = explicit.length > 0 ? `${LEARN_PREFIX}${explicit}` : `${LEARN_PREFIX}${href}`;
-    attachments.push(new Attachment(fileId, link[0], downloadUrl));
+  return new AssignmentAttachments(
+    attachmentOfBlock(blocks, 0),
+    attachmentOfBlock(blocks, 1),
+    attachmentOfBlock(blocks, 2),
+    attachmentOfBlock(blocks, 3));
+}
+
+/** 取第 `index` 个附件块里的第一个链接；块不存在或没链接（该类别为空）返回 null */
+function attachmentOfBlock(blocks: string[], index: number): Attachment | null {
+  if (index >= blocks.length) {
+    return null;
   }
-  return attachments;
+  const link: string[] = firstLinkOf(blocks[index]);
+  if (link.length < 2 || link[1].length === 0) {
+    return null;
+  }
+  const href: string = link[1];
+  const fileId: string = queryParamOf(href, 'fileId');
+  const explicit: string = queryParamOf(href, 'downloadUrl');
+  const downloadUrl: string = explicit.length > 0 ? `${LEARN_PREFIX}${explicit}` : `${LEARN_PREFIX}${href}`;
+  return new Attachment(fileId, link[0], downloadUrl);
 }

@@ -7,7 +7,7 @@
  */
 
 import { Course } from '../model/course';
-import { Assignment, AssignmentFilter, filterAssignments } from '../model/assignment';
+import { Assignment, AssignmentFilter, filterAssignments, sortAssignments } from '../model/assignment';
 import { AssignmentBatch, AssignmentRepository } from '../repository/assignmentRepository';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
@@ -94,12 +94,16 @@ export class AssignmentStore {
       this.totalCourses, this.errorReason, this.errorTextKey);
   }
 
-  /** 某视图要展示的作业：按课程范围过滤（课程详情页签传 courseId），再按未完成/已完成筛选 */
+  /**
+   * 某视图要展示的作业：按课程范围过滤（课程详情页签传 courseId），再按未完成/已完成筛选，
+   * 最后**按当前时间重排**——批次是按取数那一刻的 `now` 排的，展示时再排一次，
+   * 排序才与"现在还剩多久"一致（列表在页面上可能已停留很久）。
+   */
   visibleFor(courseId: string, filter: AssignmentFilter, now: number): Assignment[] {
     const scoped: Assignment[] = courseId.length === 0
       ? this.items
       : this.items.filter((item: Assignment) => item.courseId === courseId);
-    return filterAssignments(scoped, filter);
+    return sortAssignments(filterAssignments(scoped, filter), now);
   }
 
   /** 按 id 找一条（详情页用）；找不到返回 null */
@@ -110,6 +114,24 @@ export class AssignmentStore {
       }
     }
     return null;
+  }
+
+  /**
+   * 重取某一条的详情（详情页"详情未能加载 → 重试"用）。
+   *
+   * 只补一条而不是整表重拉：整表重拉会把列表滚回去、也白花几十个请求，
+   * 而用户要的只是这一条。成功后就地替换该条并通知。
+   */
+  async reloadDetailOf(id: string): Promise<void> {
+    const item: Assignment | null = this.assignmentOf(id);
+    if (item === null) {
+      return;
+    }
+    const filled: Assignment = await AssignmentRepository.loadDetail(item);
+    const replaced: Assignment[] = this.items.map((entry: Assignment) =>
+      entry.id === id ? filled : entry);
+    this.items = replaced;
+    this.notify();
   }
 
   async ensureLoadedFor(semesterId: string, courses: Course[]): Promise<void> {

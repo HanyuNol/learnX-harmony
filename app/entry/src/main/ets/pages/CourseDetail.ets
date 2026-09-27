@@ -11,6 +11,7 @@
 import { CourseStore } from '../viewmodel/courseStore';
 import { TextKeys } from '../common/texts';
 import { NoticeListTab } from './Notices';
+import { AssignmentListTab } from './Assignments';
 import { emptyView } from '../components/StateView';
 
 /** 课程详情的目的地名与参数载体（`Main` 的 navDestination 用它分派） */
@@ -37,6 +38,11 @@ export struct CourseDetailView {
    * 这样返回时是回到课程详情，而不是跳到通知标签。
    */
   onOpenNotice?: (noticeId: string) => void;
+  /**
+   * 打开作业详情。同样由 `Main` 提供、同样推在课程栈上。
+   * **必须传下去**——列表行的点击在回调为空时是静默无效的（本项目踩过的坑）。
+   */
+  onOpenAssignment?: (assignmentId: string) => void;
 
   @State private activeTab: number = 0;
 
@@ -63,7 +69,12 @@ export struct CourseDetailView {
         .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
 
         TabContent() {
-          this.contentPlaceholder(TextKeys.TAB_ASSIGNMENTS)
+          // 与作业标签共用同一套列表，只是按当前课程过滤；
+          // onOpenAssignment 必须传下去——列表行的点击在回调为空时是**静默无效**的
+          AssignmentListTab({
+            courseId: this.courseId,
+            onOpenAssignment: this.onOpenAssignment
+          })
         }
         .tabBar($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
 

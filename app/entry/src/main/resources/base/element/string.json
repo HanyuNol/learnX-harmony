@@ -215,6 +215,154 @@
     {
       "name": "notice_attachment",
       "value": "附件"
+    },
+    {
+      "name": "assignment_filter_unfinished",
+      "value": "未完成"
+    },
+    {
+      "name": "assignment_filter_finished",
+      "value": "已完成"
+    },
+    {
+      "name": "assignment_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "assignment_partial_failed",
+      "value": "部分课程的作业未能加载"
+    },
+    {
+      "name": "assignment_submitted",
+      "value": "已提交"
+    },
+    {
+      "name": "assignment_graded",
+      "value": "已评分"
+    },
+    {
+      "name": "assignment_completion_individual",
+      "value": "独立完成"
+    },
+    {
+      "name": "assignment_completion_group",
+      "value": "小组完成"
+    },
+    {
+      "name": "assignment_submission_online",
+      "value": "在线提交"
+    },
+    {
+      "name": "assignment_submission_offline",
+      "value": "线下提交"
+    },
+    {
+      "name": "assignment_attachment",
+      "value": "附件"
+    },
+    {
+      "name": "assignment_submitted_attachment",
+      "value": "已提交附件"
+    },
+    {
+      "name": "assignment_grade_attachment",
+      "value": "评分附件"
+    },
+    {
+      "name": "assignment_late_deadline",
+      "value": "补交截止"
+    },
+    {
+      "name": "assignment_submit_time",
+      "value": "提交时间"
+    },
+    {
+      "name": "assignment_grade",
+      "value": "评分"
+    },
+    {
+      "name": "assignment_grader",
+      "value": "评分人"
+    },
+    {
+      "name": "assignment_grade_time",
+      "value": "评分时间"
+    },
+    {
+      "name": "assignment_no_description",
+      "value": "无作业描述"
+    },
+    {
+      "name": "assignment_detail_failed",
+      "value": "详情未能加载"
+    },
+    {
+      "name": "assignment_due_minute",
+      "value": "还剩 %d 分钟"
+    },
+    {
+      "name": "assignment_due_hour",
+      "value": "还剩 %d 小时"
+    },
+    {
+      "name": "assignment_due_day",
+      "value": "还剩 %d 天"
+    },
+    {
+      "name": "assignment_due_month",
+      "value": "还剩 %d 个月"
+    },
+    {
+      "name": "assignment_due_year",
+      "value": "还剩 %d 年"
+    },
+    {
+      "name": "assignment_overdue_minute",
+      "value": "%d 分钟前截止"
+    },
+    {
+      "name": "assignment_overdue_hour",
+      "value": "%d 小时前截止"
+    },
+    {
+      "name": "assignment_overdue_day",
+      "value": "%d 天前截止"
+    },
+    {
+      "name": "assignment_overdue_month",
+      "value": "%d 个月前截止"
+    },
+    {
+      "name": "assignment_overdue_year",
+      "value": "%d 年前截止"
+    },
+    {
+      "name": "grade_level_checked",
+      "value": "已阅"
+    },
+    {
+      "name": "grade_level_distinction",
+      "value": "优秀"
+    },
+    {
+      "name": "grade_level_exempted_course",
+      "value": "免课"
+    },
+    {
+      "name": "grade_level_exemption",
+      "value": "免修"
+    },
+    {
+      "name": "grade_level_pass",
+      "value": "通过"
+    },
+    {
+      "name": "grade_level_failure",
+      "value": "不通过"
+    },
+    {
+      "name": "grade_level_incomplete",
+      "value": "缓考"
     }
   ]
 }
