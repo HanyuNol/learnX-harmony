@@ -201,8 +201,18 @@ export class LearnClient {
         return;
       }
 
-      const header: Record<string, Object> = response.header as Record<string, Object>;
-      const raw: Object = header['set-cookie'];
+      // 官方文档：`header` "当前返回的是 JSON 格式字符串，需开发者自行解析"——
+      // 它不是对象，直接取 header['set-cookie'] 恒为 undefined（这正是此前的失败原因）
+      const rawHeader: string = response.header as string;
+      if (typeof rawHeader !== 'string' || rawHeader.length === 0) {
+        return;
+      }
+      const parsed: Record<string, Object> = JSON.parse(rawHeader) as Record<string, Object>;
+      // 头部名大小写不保证，两种写法都试
+      let raw: Object = parsed['set-cookie'];
+      if (raw === undefined) {
+        raw = parsed['Set-Cookie'];
+      }
       if (typeof raw === 'string') {
         this.jar.store(url, raw);
       } else if (Array.isArray(raw)) {
