@@ -14,7 +14,7 @@ import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
 import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile } from '../native/fileAdapter';
-import { readUseDocumentDir } from '../storage/preferenceStore';
+import { readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { Logger } from '../common/logger';
 import { common } from '@kit.AbilityKit';
 
@@ -113,7 +113,7 @@ export class FileRepository {
     const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
     const directory: string = `${root}/${FileRepository.relativeDirOf(file)}`;
     ensureDir(directory);
-    const path: string = `${directory}/${downloadFileName(file.courseName, file.title, file.fileType)}`;
+    const path: string = `${directory}/${downloadFileName(file.courseName, file.title, file.fileType, readOmitCourseName(context))}`;
 
     if (!forceRefresh && fileExists(path)) {
       Logger.info(TAG, `文件已在本地，直接复用 id=${file.id}`);
@@ -135,38 +135,38 @@ export class FileRepository {
     return path;
   }
 
-  /** 沙箱里的文件路径（按**偏好目录**算，不下载；详情页判断"已下载"用 `isDownloaded`） */
+  /** 沙箱里的文件路径（按**当前偏好**算，不下载；判定"已下载"用 `isDownloaded`） */
   static pathOf(file: LearnFile, context: common.Context): string {
-    return FileRepository.pathIn(filesRoot(context, readUseDocumentDir(context)), file);
+    return FileRepository.pathIn(filesRoot(context, readUseDocumentDir(context)), file,
+      readOmitCourseName(context));
   }
 
   /**
    * 该文件是否已经在沙箱里（"已下载"状态）。
    *
-   * **两个目录都看**：用户切换过目标目录后旧文件仍在原处（downloads spec §3.3 第 5 条）。
+   * **两个目录 × 两种命名都看**：用户可能切换过目标目录（FR-10）或切换过"省略课程名前缀"
+   * （FR-16），旧文件仍在原处；只看当前偏好会让详情页显示"未下载"而文件其实还在。
    */
   static isDownloaded(file: LearnFile, context: common.Context): boolean {
-    for (const root of filesRoots(context)) {
-      if (fileExists(FileRepository.pathIn(root, file))) {
-        return true;
-      }
-    }
-    return false;
+    return FileRepository.downloadedPathOf(file, context).length > 0;
   }
 
-  /** 已下载时的绝对路径（任一目录命中即可）；都没命中返回空串 */
+  /** 已下载时的绝对路径（任一目录 + 任一种命名命中即可）；都没命中返回空串 */
   static downloadedPathOf(file: LearnFile, context: common.Context): string {
     for (const root of filesRoots(context)) {
-      const path: string = FileRepository.pathIn(root, file);
-      if (fileExists(path)) {
-        return path;
+      for (const omit of [false, true]) {
+        const path: string = FileRepository.pathIn(root, file, omit);
+        if (fileExists(path)) {
+          return path;
+        }
       }
     }
     return '';
   }
 
-  private static pathIn(root: string, file: LearnFile): string {
-    return `${root}/${FileRepository.relativeDirOf(file)}/${downloadFileName(file.courseName, file.title, file.fileType)}`;
+  private static pathIn(root: string, file: LearnFile, omitCourseName: boolean): string {
+    return `${root}/${FileRepository.relativeDirOf(file)}`
+      + `/${downloadFileName(file.courseName, file.title, file.fileType, omitCourseName)}`;
   }
 
   /** 该文件对应的 MIME（交给系统查看器用） */

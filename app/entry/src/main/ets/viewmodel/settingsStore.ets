@@ -12,7 +12,7 @@
 
 import { common } from '@kit.AbilityKit';
 import { ThemeMode } from '../common/theme';
-import { readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir } from '../storage/preferenceStore';
+import { readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir, readOmitCourseName, writeOmitCourseName } from '../storage/preferenceStore';
 import { applyThemeMode } from '../native/themeAdapter';
 import { Logger } from '../common/logger';
 
@@ -60,6 +60,20 @@ export function changeUseDocumentDir(context: common.Context, useDocumentDir: bo
   const persisted: boolean = writeUseDocumentDir(context, useDocumentDir);
   if (!persisted) {
     Logger.warn(TAG, `下载目录偏好未能持久化 useDocumentDir=${useDocumentDir}`);
+  }
+  return persisted;
+}
+
+/** 读取"下载文件名是否省略课程名前缀"（FR-16 的显示项） */
+export function loadOmitCourseName(context: common.Context): boolean {
+  return readOmitCourseName(context);
+}
+
+/** 设置"下载文件名是否省略课程名前缀"。返回是否持久化成功 */
+export function changeOmitCourseName(context: common.Context, omitCourseName: boolean): boolean {
+  const persisted: boolean = writeOmitCourseName(context, omitCourseName);
+  if (!persisted) {
+    Logger.warn(TAG, `文件名偏好未能持久化 omitCourseName=${omitCourseName}`);
   }
   return persisted;
 }

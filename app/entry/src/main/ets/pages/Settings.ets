@@ -10,7 +10,7 @@
 
 import { common } from '@kit.AbilityKit';
 import { AuthStore } from '../viewmodel/authStore';
-import { changeThemeMode, changeUseDocumentDir, loadThemeMode, loadUseDocumentDir } from '../viewmodel/settingsStore';
+import { changeThemeMode, changeUseDocumentDir, changeOmitCourseName, loadThemeMode, loadUseDocumentDir, loadOmitCourseName } from '../viewmodel/settingsStore';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -40,11 +40,15 @@ function textKeyOfDownloadDir(useDocumentDir: boolean): string {
 export struct SettingsView {
   /** 打开学期切换页。由持有设置栈的 `Main` 提供——页面不自己造路由栈 */
   onOpenSemesters?: () => void;
+  /** 打开"关于与帮助"。同上 */
+  onOpenAbout?: () => void;
 
   /** 当前主题模式。仅本页关心，故用页内状态 */
   @State private themeMode: ThemeMode = ThemeMode.FOLLOW_SYSTEM;
   /** 当前下载目录选择（`false` = 缓存目录） */
   @State private useDocumentDir: boolean = false;
+  /** 下载文件名是否省略课程名前缀 */
+  @State private omitCourseName: boolean = false;
 
   private store: AuthStore = AuthStore.getInstance();
 
@@ -56,6 +60,16 @@ export struct SettingsView {
   aboutToAppear(): void {
     this.themeMode = loadThemeMode(this.appContext());
     this.useDocumentDir = loadUseDocumentDir(this.appContext());
+    this.omitCourseName = loadOmitCourseName(this.appContext());
+  }
+
+  private selectOmitCourseName(omitCourseName: boolean): void {
+    this.omitCourseName = omitCourseName;
+    if (!changeOmitCourseName(this.appContext(), omitCourseName)) {
+      // 写不进去就退回真实值，不留"界面与存储不一致"
+      this.omitCourseName = loadOmitCourseName(this.appContext());
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+    }
   }
 
   private select(mode: ThemeMode): void {
@@ -130,6 +144,28 @@ export struct SettingsView {
         .backgroundColor($r('app.color.bg_card'))
       }, (option: boolean) => option ? 'files' : 'cache')
 
+      // 显示项：下载文件名是否省略课程名前缀（FR-16）
+      Text($r('app.string.' + TextKeys.SETTINGS_DISPLAY_TITLE))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, top: 16, bottom: 8 })
+
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_OMIT_COURSE_NAME))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Toggle({ type: ToggleType.Switch, isOn: this.omitCourseName })
+          .onChange((isOn: boolean) => {
+            this.selectOmitCourseName(isOn);
+          })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+
       // 学期切换入口（FR-05 的用户入口；上游也放在设置页）
       Row() {
         Text($r('app.string.' + TextKeys.SETTINGS_SEMESTER))
@@ -146,6 +182,27 @@ export struct SettingsView {
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
         const open: (() => void) | undefined = this.onOpenSemesters;
+        if (open !== undefined) {
+          open();
+        }
+      })
+
+      // 关于与帮助（FR-16）
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_ABOUT))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        const open: (() => void) | undefined = this.onOpenAbout;
         if (open !== undefined) {
           open();
         }

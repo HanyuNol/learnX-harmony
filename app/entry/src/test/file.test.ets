@@ -130,10 +130,13 @@ export default function fileTest() {
         expect(sanitizePathSegment('   ')).assertEqual('file');
       });
 
-      it('下载文件名 = 课程名-标题.类型', 0, () => {
-        expect(downloadFileName('数据结构', '第1章', 'pdf')).assertEqual('数据结构-第1章.pdf');
+      it('下载文件名的两种命名（是否省略课程名前缀）', 0, () => {
+        expect(downloadFileName('数据结构', '第1章', 'pdf', false)).assertEqual('数据结构-第1章.pdf');
+        // 省略课程名前缀（FR-16 的显示项）
+        expect(downloadFileName('数据结构', '第1章', 'pdf', true)).assertEqual('第1章.pdf');
         // 类型为空时不加后缀
-        expect(downloadFileName('课', '题', '')).assertEqual('课-题');
+        expect(downloadFileName('课', '题', '', false)).assertEqual('课-题');
+        expect(downloadFileName('课', '题', '', true)).assertEqual('题');
       });
     });
 

@@ -455,6 +455,50 @@
     {
       "name": "filter_all",
       "value": "全部"
+    },
+    {
+      "name": "settings_display_title",
+      "value": "显示项"
+    },
+    {
+      "name": "settings_omit_course_name",
+      "value": "下载文件名省略课程名前缀"
+    },
+    {
+      "name": "settings_about",
+      "value": "关于与帮助"
+    },
+    {
+      "name": "about_version",
+      "value": "版本"
+    },
+    {
+      "name": "about_bundle",
+      "value": "包名"
+    },
+    {
+      "name": "about_attribution_title",
+      "value": "来源与许可"
+    },
+    {
+      "name": "about_attribution_body",
+      "value": "本应用是清华大学网络学堂客户端 learnX（robertying/learnX）的鸿蒙原生重写版本，沿用其 MIT 许可。感谢原作者与贡献者。"
+    },
+    {
+      "name": "help_title",
+      "value": "帮助"
+    },
+    {
+      "name": "help_network",
+      "value": "需连接校园网或校方 VPN 后使用。"
+    },
+    {
+      "name": "help_login",
+      "value": "登录在打开的网页中完成（含验证码与二次认证），应用不会保存您的密码明文。"
+    },
+    {
+      "name": "help_file",
+      "value": "文件下载到应用内，点“打开”交给系统查看器；下载目录与文件名样式可在设置中切换。"
     }
   ]
 }

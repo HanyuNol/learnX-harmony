@@ -15,6 +15,7 @@
 
 import { TextKeys } from '../common/texts';
 import { SettingsView } from './Settings';
+import { AboutView, ABOUT_DESTINATION } from './About';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
 import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
@@ -192,6 +193,11 @@ export struct MainView {
         SemesterSelectionView()
       }
       .title($r('app.string.' + TextKeys.SETTINGS_SEMESTER))
+    } else if (name === ABOUT_DESTINATION) {
+      NavDestination() {
+        AboutView()
+      }
+      .title($r('app.string.' + TextKeys.SETTINGS_ABOUT))
     } else {
       this.detailOf(this.settingsStack, name)
     }
@@ -279,6 +285,9 @@ export struct MainView {
             SettingsView({
               onOpenSemesters: () => {
                 this.settingsStack.pushPath({ name: SEMESTER_DESTINATION });
+              },
+              onOpenAbout: () => {
+                this.settingsStack.pushPath({ name: ABOUT_DESTINATION });
               }
             })
           }

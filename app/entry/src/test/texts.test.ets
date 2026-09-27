@@ -121,6 +121,17 @@ const KNOWN_KEYS: string[] = [
   TextKeys.SETTINGS_DOWNLOAD_DIR_FILES,
   TextKeys.SETTINGS_SAVE_FAILED,
   TextKeys.FILTER_ALL,
+  TextKeys.SETTINGS_DISPLAY_TITLE,
+  TextKeys.SETTINGS_OMIT_COURSE_NAME,
+  TextKeys.SETTINGS_ABOUT,
+  TextKeys.ABOUT_VERSION,
+  TextKeys.ABOUT_BUNDLE,
+  TextKeys.ABOUT_ATTRIBUTION_TITLE,
+  TextKeys.ABOUT_ATTRIBUTION_BODY,
+  TextKeys.HELP_TITLE,
+  TextKeys.HELP_NETWORK,
+  TextKeys.HELP_LOGIN,
+  TextKeys.HELP_FILE,
   TextKeys.SSO_TITLE,
   TextKeys.SSO_CANCEL,
   TextKeys.SSO_ESTABLISHING,
@@ -202,7 +213,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(111);
+      expect(KNOWN_KEYS.length).assertEqual(122);
     });
 
     it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {

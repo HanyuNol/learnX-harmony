@@ -28,6 +28,9 @@ const KEY_CURRENT_SEMESTER: string = 'current_semester';
 /** 下载目标目录的键名。缺省/`false` = 缓存目录，`true` = 应用文件目录（FR-10） */
 const KEY_USE_DOCUMENT_DIR: string = 'use_document_dir';
 
+/** 下载文件名是否省略课程名前缀的键名。缺省/`false` = 带课程名前缀（FR-16） */
+const KEY_OMIT_COURSE_NAME: string = 'omit_course_name';
+
 function openStore(context: common.Context): preferences.Preferences {
   return preferences.getPreferencesSync(context, { name: STORE_NAME });
 }
@@ -122,6 +125,34 @@ export function writeUseDocumentDir(context: common.Context, useDocumentDir: boo
     return true;
   } catch (err) {
     Logger.warn(TAG, `写入下载目录偏好失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取"下载文件名是否省略课程名前缀"。
+ *
+ * 默认 **false**（带课程名前缀）——与上游默认值一致，也是 FR-08 交付时的行为。
+ */
+export function readOmitCourseName(context: common.Context): boolean {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_OMIT_COURSE_NAME, false);
+    return typeof raw === 'boolean' ? raw : false;
+  } catch (err) {
+    Logger.warn(TAG, `读取文件名偏好失败，退让为带课程名前缀 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 写入"下载文件名是否省略课程名前缀"。返回是否成功（语义同 writeThemeMode） */
+export function writeOmitCourseName(context: common.Context, omitCourseName: boolean): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_OMIT_COURSE_NAME, omitCourseName);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入文件名偏好失败 code=${(err as BusinessError).code}`);
     return false;
   }
 }

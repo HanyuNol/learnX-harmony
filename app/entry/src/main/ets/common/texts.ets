@@ -245,6 +245,29 @@ export class TextKeys {
   /** 通用筛选：全部（FR-12 的通用筛选条，各维度共用） */
   static readonly FILTER_ALL: string = 'filter_all';
 
+  /** 设置页：显示项小节标题 */
+  static readonly SETTINGS_DISPLAY_TITLE: string = 'settings_display_title';
+  /** 显示项：下载文件名省略课程名前缀 */
+  static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';
+  /** 设置页入口：关于与帮助 */
+  static readonly SETTINGS_ABOUT: string = 'settings_about';
+  /** 关于：版本 */
+  static readonly ABOUT_VERSION: string = 'about_version';
+  /** 关于：包名 */
+  static readonly ABOUT_BUNDLE: string = 'about_bundle';
+  /** 关于：来源与许可小节标题 */
+  static readonly ABOUT_ATTRIBUTION_TITLE: string = 'about_attribution_title';
+  /** 关于：来源与许可正文（ADR-0002 要求的归属） */
+  static readonly ABOUT_ATTRIBUTION_BODY: string = 'about_attribution_body';
+  /** 帮助小节标题 */
+  static readonly HELP_TITLE: string = 'help_title';
+  /** 帮助：网络前提 */
+  static readonly HELP_NETWORK: string = 'help_network';
+  /** 帮助：登录方式 */
+  static readonly HELP_LOGIN: string = 'help_login';
+  /** 帮助：文件下载与打开 */
+  static readonly HELP_FILE: string = 'help_file';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */

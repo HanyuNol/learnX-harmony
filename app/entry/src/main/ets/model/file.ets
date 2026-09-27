@@ -119,18 +119,33 @@ export function sanitizePathSegment(raw: string): string {
 }
 
 /**
- * 下载文件名：`<课程名>-<标题>.<类型>`（对齐上游 `helpers/fs.ts:55-60`）。
+ * 下载目标文件名（对齐上游 `helpers/fs.ts:55-62`）。
  *
+ * `omitCourseName` 为真时只留标题，否则前缀课程名——这是设置页的"显示项"（FR-16）。
  * 各段都先经 `sanitizePathSegment`；类型为空时**不加后缀**——判空要看**原串**：
  * `sanitizePathSegment('')` 会给出占位符 `file`，用它当扩展名会造出 `.file` 这种假后缀。
  */
-export function downloadFileName(courseName: string, title: string, fileType: string): string {
-  const course: string = sanitizePathSegment(courseName);
+export function downloadFileName(courseName: string, title: string, fileType: string,
+                                 omitCourseName: boolean): string {
   const name: string = sanitizePathSegment(title);
+  const base: string = omitCourseName ? name : `${sanitizePathSegment(courseName)}-${name}`;
   if (fileType.trim().length === 0) {
-    return `${course}-${name}`;
+    return base;
   }
-  return `${course}-${name}.${sanitizePathSegment(fileType)}`;
+  return `${base}.${sanitizePathSegment(fileType)}`;
+}
+
+/**
+ * 同一条文件**可能**的文件名（两种命名各一个）。
+ *
+ * 为什么要两个：用户切换"省略课程名前缀"之后，之前下载的文件仍是按旧命名存在盘上的。
+ * 判定"已下载"时若只按当前偏好算名字，用户会看到文件"不见了"（settings spec §3.3 第 3 条）。
+ */
+export function downloadFileNameCandidates(courseName: string, title: string, fileType: string): string[] {
+  return [
+    downloadFileName(courseName, title, fileType, false),
+    downloadFileName(courseName, title, fileType, true)
+  ];
 }
 
 /**

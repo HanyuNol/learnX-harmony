@@ -455,6 +455,50 @@
     {
       "name": "filter_all",
       "value": "All"
+    },
+    {
+      "name": "settings_display_title",
+      "value": "Display"
+    },
+    {
+      "name": "settings_omit_course_name",
+      "value": "Omit course name in downloaded file names"
+    },
+    {
+      "name": "settings_about",
+      "value": "About & help"
+    },
+    {
+      "name": "about_version",
+      "value": "Version"
+    },
+    {
+      "name": "about_bundle",
+      "value": "Bundle ID"
+    },
+    {
+      "name": "about_attribution_title",
+      "value": "Origin & license"
+    },
+    {
+      "name": "about_attribution_body",
+      "value": "This app is a native HarmonyOS rewrite of learnX (robertying/learnX), a client for Tsinghua's Web Learning platform, and keeps its MIT license. Thanks to the original author and contributors."
+    },
+    {
+      "name": "help_title",
+      "value": "Help"
+    },
+    {
+      "name": "help_network",
+      "value": "Requires the campus network or the university VPN."
+    },
+    {
+      "name": "help_login",
+      "value": "Sign-in is completed in a web page (captcha and two-factor included). Your password is never stored in plain text."
+    },
+    {
+      "name": "help_file",
+      "value": "Files are downloaded inside the app; tap Open to hand them to the system viewer. Folder and file-name style are configurable in Settings."
     }
   ]
 }
