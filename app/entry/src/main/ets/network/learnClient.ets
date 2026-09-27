@@ -28,6 +28,8 @@ import {
   LEARN_SEMESTER_LIST,
   learnCourseList,
   learnNoticeList,
+  learnAssignmentList,
+  LEARN_HOMEWORK_DETAIL,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
 import { Logger } from '../common/logger';
@@ -39,6 +41,8 @@ import { encryptPassword } from './sm2';
 import { parseCurrentSemesterId, parseSemesterIdList } from './parseSemester';
 import { parseCourseList } from './parseCourse';
 import { parseNoticeList } from './parseNotice';
+import { parseAssignmentDescription, parseAssignmentList } from './parseAssignment';
+import { Assignment } from '../model/assignment';
 import { Notice } from '../model/notice';
 import { Course } from '../model/course';
 
@@ -642,6 +646,49 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取通知列表');
     }
     return parseNoticeList(result.body, courseId, courseName);
+  }
+
+  /**
+   * 某课程的作业：**三个端点**（未提交/已提交/已评分）分别请求后合并。
+   *
+   * 完成状态由端点决定（见 `model/assignment.ets` 的 STATUS_* 常量与 spec §3.1）。
+   */
+  async fetchAssignmentsOfCourse(courseId: string, courseName: string, courseTeacherName: string): Promise<Assignment[]> {
+    const unsubmitted: Assignment[] =
+      await this.fetchAssignmentBatch(courseId, courseName, courseTeacherName, 0, false, false);
+    const submitted: Assignment[] =
+      await this.fetchAssignmentBatch(courseId, courseName, courseTeacherName, 1, true, false);
+    const graded: Assignment[] =
+      await this.fetchAssignmentBatch(courseId, courseName, courseTeacherName, 2, true, true);
+    return unsubmitted.concat(submitted).concat(graded);
+  }
+
+  private async fetchAssignmentBatch(courseId: string, courseName: string, courseTeacherName: string,
+                                     kind: number, submitted: boolean, graded: boolean): Promise<Assignment[]> {
+    const fields: Map<string, string> = new Map();
+    fields.set('aoData', JSON.stringify([{ name: 'wlkcid', value: courseId }]));
+    const result: HttpResult = await this.postMultipart(learnAssignmentList(kind), fields);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取作业列表');
+    }
+    const items: Assignment[] =
+      parseAssignmentList(result.body, courseId, courseName, courseTeacherName, submitted, graded);
+    // [临时探针 · 核对 deadline 原串形态后删除] 只打第一条的形态（日期串不含隐私）
+    if (items.length > 0) {
+      Logger.info(TAG, `[探针] deadline 原串=「${items[0].deadline}」解析=${items[0].deadlineTime}`);
+    }
+    return items;
+  }
+
+  /** 作业详情正文（POST `id=<作业本体 id>`，取 json.msg） */
+  async fetchAssignmentDescription(baseId: string): Promise<string> {
+    const fields: Map<string, string> = new Map();
+    fields.set('id', baseId);
+    const result: HttpResult = await this.postMultipart(LEARN_HOMEWORK_DETAIL, fields);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '获取作业详情');
+    }
+    return parseAssignmentDescription(result.body);
   }
 
   /** 服务端认定的当前学期 id */

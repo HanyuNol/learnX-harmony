@@ -101,6 +101,15 @@ export class Assignment {
     this.detailLoaded = detailLoaded;
   }
 
+  /** 取到详情后的副本（保留其余字段不变） */
+  withDetail(description: string, attachmentNames: string[]): Assignment {
+    return new Assignment(this.id, this.baseId, this.courseId, this.courseName, this.courseTeacherName,
+      this.title, description, this.deadline, this.deadlineTime, this.lateDeadline,
+      this.submitted, this.graded, this.isLateSubmission, this.submitTime,
+      this.grade, this.gradeLevel, this.graderName, this.gradeContent, this.gradeTime,
+      attachmentNames, true);
+  }
+
   /** 列表摘要：正文压成一行（复用通知那套文本工具，同层复用） */
   summary(): string {
     return summarize(this.description);

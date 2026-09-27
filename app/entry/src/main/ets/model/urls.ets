@@ -99,6 +99,28 @@ export function learnNoticeDetailUrl(courseId: string, noticeId: string): string
     `?wlkcid=${encodeURIComponent(courseId)}&id=${encodeURIComponent(noticeId)}`;
 }
 
+/**
+ * 作业列表。**按课程取**，且分**三个端点**：未提交 / 已提交 / 已评分。
+ *
+ * 路径照抄上游 `thu-learn-lib@4.0.0` 的 `urls.ts:91-117`（学生形态）。
+ * 关键：**完成状态来自"请求了哪个端点"**，响应里没有 `submitted/graded` 字段——
+ * 三个端点分别对应（false,false）/（true,false）/（true,true）。
+ */
+export function learnAssignmentList(kind: number): string {
+  const tail: string = kind === 0 ? 'zyListWj' : (kind === 1 ? 'zyListYjwg' : 'zyListYpg');
+  return `${LEARN_PREFIX}/b/wlxt/kczy/zy/student/${tail}`;
+}
+
+/** 作业详情（JSON）：POST `id=<作业本体 id>`，取 `json.msg` 作正文 */
+export const LEARN_HOMEWORK_DETAIL: string =
+  `${LEARN_PREFIX}/b/wlxt/kczy/zy/student/detail`;
+
+/** 作业详情页（HTML）：附件在这里（`/f/...` 形态，与上面两个 `/b/...` 不同） */
+export function learnAssignmentHtmlDetail(courseId: string, homeworkId: string): string {
+  return `${LEARN_PREFIX}/f/wlxt/kczy/zy/student/viewCj` +
+    `?wlkcid=${encodeURIComponent(courseId)}&xszyid=${encodeURIComponent(homeworkId)}`;
+}
+
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 
