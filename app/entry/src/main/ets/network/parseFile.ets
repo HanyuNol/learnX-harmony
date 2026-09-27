@@ -11,7 +11,7 @@
 
 import { LearnFile } from '../model/file';
 import { parseFailed } from '../common/errors';
-import { parseServerTime } from '../common/time';
+import { ServerTime, serverTimeOf } from '../common/time';
 import { decodeHtmlEntities } from './parseCourse';
 
 function str(field: Object | undefined): string {
@@ -81,7 +81,9 @@ export function parseFileList(body: string, courseId: string, courseName: string
       continue;
     }
     const f: Record<string, Object> = entry as Record<string, Object>;
-    const uploadTime: string = str(f['scsj']);
+    // 时间字段与作业一样**成对**出现（`scsj` 可能是 epoch 毫秒、`scsjStr` 是可读串）：
+    // 用同一套规则读，避免"某一端点是数字就静默丢时间"这类缺陷在文件维度重演
+    const uploadTime: ServerTime = serverTimeOf(f['scsjStr'], f['scsj']);
     const categoryId: string = str(f['kjflid']);
     const categoryName: string | undefined = categoryNames.get(categoryId);
     items.push(new LearnFile(
@@ -94,8 +96,8 @@ export function parseFileList(body: string, courseId: string, courseName: string
       decodeHtmlEntities(str(f['ms'])),
       str(f['fileSize']),
       num(f['wjdx'], 0),
-      uploadTime,
-      parseServerTime(uploadTime),
+      uploadTime.raw,
+      uploadTime.ms,
       str(f['wjlx']),
       categoryName === undefined ? '' : categoryName,
       num(f['sfqd'], 0) === 1,

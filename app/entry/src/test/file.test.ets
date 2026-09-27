@@ -196,6 +196,14 @@ export default function fileTest() {
         expect(mimeOfExtension('')).assertEqual('application/octet-stream');
       });
 
+      it('上传时间成对出现时：时间戳取 epoch 数字、显示串取 *Str', 0, () => {
+        const body: string = '{"result":"success","object":[{"kjxxid":"k9","wjid":"w9","bt":"x",'
+          + '"scsj":1790128415000,"scsjStr":"2026-09-23 09:53","fileSize":"1MB","wjdx":1048576}]}';
+        const items: LearnFile[] = parseFileList(body, 'c1', '甲', '师', new Map());
+        expect(items[0].uploadTimeMs).assertEqual(1790128415000);
+        expect(items[0].uploadTime).assertEqual('2026-09-23 09:53');
+      });
+
       it('服务端时间串解析：常见形态可解，认不出退 0', 0, () => {
         expect(parseServerTime('2025-05-01 10:00') > 0).assertTrue();
         expect(parseServerTime('2025/05/01 10:00') > 0).assertTrue();
