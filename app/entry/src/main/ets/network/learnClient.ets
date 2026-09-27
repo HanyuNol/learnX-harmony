@@ -106,6 +106,16 @@ export class LearnClient {
 
   /** 会话级请求实例。全程复用同一个，避免连接层状态反复重建 */
   private csrfToken: string = '';
+  /**
+   * 进行中的自动重登。
+   *
+   * 并发的两个请求可能同时发现会话失效；若各自 `login()`，而 `login` 第一步就是
+   * **清进程级会话 Cookie + 清 CSRF**，后来的那次会把前一次刚建立的会话清掉
+   * （SM2 密钥对与会话绑定，于是双双失败），症状正是"丢会话被归成密码错误"——
+   * 与 R-03 修掉的那类相同，只是根因换成了重登互相踩（代码审查 N-01）。
+   * 共享同一个 Promise，保证并发下**只登一次**。
+   */
+  private reloginInFlight: Promise<void> | null = null;
   private credentials: Credentials | null = null;
 
   private constructor() {
@@ -558,8 +568,7 @@ export class LearnClient {
       throw authFailed('会话已失效，且本地无凭据可自动重登');
     }
 
-    Logger.info(TAG, '会话失效，尝试自动重登');
-    await this.login(credentials);
+    await this.reloginOnce(credentials);
 
     const second: HttpResult = await this.get(this.addCsrf(url));
     if (this.isExpired(second)) {
@@ -604,6 +613,26 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取当前学期');
     }
     return parseCurrentSemesterId(result.body);
+  }
+
+  /** 自动重登：并发下共享同一次登录（见 `reloginInFlight` 的说明） */
+  private async reloginOnce(credentials: Credentials): Promise<void> {
+    if (this.reloginInFlight === null) {
+      Logger.info(TAG, '会话失效，尝试自动重登');
+      this.reloginInFlight = this.performRelogin(credentials);
+    } else {
+      Logger.info(TAG, '已有重登在进行中，等它完成');
+    }
+    await this.reloginInFlight;
+  }
+
+  private async performRelogin(credentials: Credentials): Promise<void> {
+    try {
+      await this.login(credentials);
+    } finally {
+      // 无论成败都要清掉，否则失败之后的重登会被永久挡在门外
+      this.reloginInFlight = null;
+    }
   }
 
   /** 读取用户信息（姓名与院系）；取不到不视为失败 */
