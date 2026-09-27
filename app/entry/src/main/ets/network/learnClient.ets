@@ -67,7 +67,44 @@ export class LearnClient {
 
   private constructor() {
     this.request = http.createHttp();
+    this.request.on('headersReceive', this.headerCallback);
   }
+
+  /** 当前请求的 URL。`headersReceive` 回调不带 URL，故在组装请求头时记下 */
+  private pendingUrl: string = '';
+
+  /**
+   * 响应头事件回调——**取 Set-Cookie 的第三条通道**。
+   *
+   * 前两条（`HttpResponse.cookies` 字段、`response.header` 的 set-cookie）在 API 24 上
+   * 都取不到会话 Cookie，服务端因此丢会话、解不开 SM2 密文。官方文档称 `headersReceive`
+   * 自 API 8 起替代旧的 `headerReceive`，是独立于 `response.header` 的事件通道。
+   * 此处先打印其实际内容（截断），以便确认字段名与结构。
+   */
+  private headerCallback: (header: Object) => void = (header: Object) => {
+    try {
+      const text: string = JSON.stringify(header);
+      Logger.info(TAG, `headersReceive len=${text.length} head=${text.substring(0, 300)}`);
+
+      const parsed: Record<string, Object> = JSON.parse(text) as Record<string, Object>;
+      let raw: Object = parsed['set-cookie'];
+      if (raw === undefined) {
+        raw = parsed['Set-Cookie'];
+      }
+      if (typeof raw === 'string') {
+        this.jar.store(this.pendingUrl, raw);
+      } else if (Array.isArray(raw)) {
+        const items: Array<string> = raw as Array<string>;
+        for (const item of items) {
+          if (typeof item === 'string') {
+            this.jar.store(this.pendingUrl, item);
+          }
+        }
+      }
+    } catch (err) {
+      Logger.warn(TAG, 'headersReceive 处理失败，本次请求继续');
+    }
+  };
 
   static getInstance(): LearnClient {
     if (LearnClient.instance === null) {
@@ -102,6 +139,8 @@ export class LearnClient {
 
   /** 组装请求头，并按主机注入已持有的 Cookie */
   private buildHeaders(url: string, accept: string, contentType: string): Record<string, string> {
+    // 供 headersReceive 回调取 Cookie 时定位主机
+    this.pendingUrl = url;
     const headers: Record<string, string> = {};
     headers['Accept'] = accept;
     if (contentType.length > 0) {
