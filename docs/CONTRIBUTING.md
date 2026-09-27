@@ -87,6 +87,8 @@
 - **回滚**优先 `git revert`，不重写已 push 历史（`sdd-rollback-change` 技能）。
 
 版本号唯一来源是根 `VERSION` 文件，构建把它注入应用包版本（`app/AppScope/app.json5` 的 `versionName`），恒一致。
+`versionCode` 按 `major×1000000 + minor×1000 + patch` 由同一版本号推出（如 0.5.0 → 5000、1.0.0 → 1000000），
+保证随版本单调递增——HarmonyOS 要求升级包的 `versionCode` 必须大于已装版本。
 
 ### 8.1 提交历史治理（摘要）
 
