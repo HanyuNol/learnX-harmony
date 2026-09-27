@@ -180,6 +180,7 @@ pages → viewmodel → repository → network / storage / native
 |---|---|---|
 | Set-Cookie 归属依赖单个可变字段 | `LearnClient` 用 `pendingUrl`（每次组装请求头时覆写）判断响应头的 Cookie 属于哪个主机。并发请求下会把 Cookie 写到错误主机 → 会话丢失，而现象会被归成"密码错误"。当前认证流程是顺序的，不可触发 | **FR-06 起引入"按维度独立同步"（§5.3）之前**。修法：每请求 `createHttp()`+`destroy()`，或把 URL 与请求句柄关联 |
 | 高风险区缺测试、且当前不可离线验证 | 凭据写入/清除成对、会话状态机、Store 订阅计数归零（`testing-and-quality.md` §2 第 1/2/5 项）无任何单测——相关模块 import 平台 Kit（Asset Store、`@ohos.net.http`），宿主侧导入即失败，不满足 §1.1"纯逻辑与平台调用分离" | 下次改动认证/存储状态机时**一并**把可测部分拆出来（不得只改不补测试） |
+| 「记住密码」的语义与现行安全规则冲突 | `SECURITY.md` §2 要求"登出必须清除学号与密码"，而用户目标语义是"勾选记住密码后登出仍保留"（PRD FR-31） | **所有 P1 功能完成后**（用户 2026-09-27 指定最后做）。实现时同批改 SECURITY §2 措辞 + 写 ADR |
 | 注入脚本抬升页面存储配额读数的**必要性**未验证 | 见 [ADR-0010](adr/0010-injection-raises-storage-quota-reading.md)：脚本注释的理由与 `specs/auth-login.md` §11.2 的实测记载相反，两边都不能当结论 | 下一次**真实账号**登录时做 ADR-0010 的对照实验（临时移除该 patch → 看登记结果与是否仍要验证码） |
 
 
