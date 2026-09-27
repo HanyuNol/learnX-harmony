@@ -54,8 +54,11 @@ struct Index {
     Column() {
       if (this.status === LoginStatus.LOGGED_IN) {
         this.LoggedInPlaceholder()
-      } else if (this.status === LoginStatus.SSO_IN_PROGRESS) {
-        // WebView 主导的登录页（ADR-0008）：用户在这里完成认证，包括输入验证码
+      } else if (this.status === LoginStatus.SSO_IN_PROGRESS || this.status === LoginStatus.LOGGING_IN) {
+        // WebView 主导的登录页（ADR-0008）：用户在这里完成认证，包括输入验证码。
+        // `LOGGING_IN`（认证完成后建立会话的那几秒）**也用它**：该视图在此期间显示
+        // "正在建立登录会话…"。早先只渲染 SSO_IN_PROGRESS，于是用户刚认证完，
+        // 界面会突然回落到登录表单，那段"建立中"遮罩成了死代码（代码审查 R-04）。
         SsoLoginView()
       } else {
         LoginView()
