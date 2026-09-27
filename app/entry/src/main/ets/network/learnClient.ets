@@ -105,17 +105,30 @@ export class LearnClient {
   private static instance: LearnClient | null = null;
 
   /** 会话级请求实例。全程复用同一个，避免连接层状态反复重建 */
-  private request: http.HttpRequest;
   private csrfToken: string = '';
   private credentials: Credentials | null = null;
 
   private constructor() {
-    this.request = http.createHttp();
-    this.request.on('headersReceive', this.headerCallback);
   }
 
-  /** 当前请求的 URL。`headersReceive` 回调不带 URL，故在组装请求头时记下 */
-  private pendingUrl: string = '';
+  /**
+   * 建一个**只服务这一次请求**的实例，并把响应头监听绑到该请求自己的 URL 上。
+   *
+   * 为什么不再共用一个实例：`headersReceive` 的事件不带 URL，共用一个实例时只能用
+   * "最后写入的 URL"去猜 Cookie 属于哪个主机——并发请求下必然猜错，把会话 Cookie
+   * 写到错误主机，症状会被下游归成"密码错误"（代码审查 R-03）。
+   * 每请求一个实例后，事件与请求一一对应，归属不再需要猜。
+   *
+   * 代价是放弃实例级的连接复用（原实现为此共用一个实例）。这是刻意的取舍：
+   * 归属正确优先，且本项目没有"同主机高频请求"的场景。
+   */
+  private static createRequest(url: string, onHeader: (url: string, header: Object) => void): http.HttpRequest {
+    const request: http.HttpRequest = http.createHttp();
+    request.on('headersReceive', (header: Object) => {
+      onHeader(url, header);
+    });
+    return request;
+  }
 
   /**
    * 响应头事件回调——**取 Set-Cookie 的第三条通道**。
@@ -124,7 +137,7 @@ export class LearnClient {
    * 都取不到会话 Cookie，服务端因此丢会话、解不开 SM2 密文。官方文档称 `headersReceive`
    * 自 API 8 起替代旧的 `headerReceive`，是独立于 `response.header` 的事件通道。
    */
-  private headerCallback: (header: Object) => void = (header: Object) => {
+  private static handleResponseHeader(url: string, header: Object): void {
     try {
       // 回调入参是响应头对象（官方示例即把它当对象处理），但类型签名只给到 `Object`；
       // 收窄成表类型才能按键名取值——ArkTS 禁动态属性访问。
@@ -135,12 +148,12 @@ export class LearnClient {
         raw = parsed['Set-Cookie'];
       }
       if (typeof raw === 'string') {
-        WebCookieStore.storeFromResponse(this.pendingUrl, raw);
+        WebCookieStore.storeFromResponse(url, raw);
       } else if (Array.isArray(raw)) {
         const items: Array<string> = raw as Array<string>;
         for (const item of items) {
           if (typeof item === 'string') {
-            WebCookieStore.storeFromResponse(this.pendingUrl, item);
+            WebCookieStore.storeFromResponse(url, item);
           }
         }
       }
@@ -183,8 +196,6 @@ export class LearnClient {
 
   /** 组装请求头，并按主机注入已持有的 Cookie */
   private buildHeaders(url: string, accept: string, contentType: string): Record<string, string> {
-    // 供 headersReceive 回调取 Cookie 时定位主机
-    this.pendingUrl = url;
     const headers: Record<string, string> = {};
     headers['Accept'] = accept;
     if (contentType.length > 0) {
@@ -199,15 +210,18 @@ export class LearnClient {
 
   /** 发起一次 GET，返回响应体与状态码 */
   private async get(url: string): Promise<HttpResult> {
+    const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await this.request.request(url, {
+      const response: http.HttpResponse = await request.request(url, {
         method: http.RequestMethod.GET,
         header: this.buildHeaders(url, 'text/html,application/json', ''),
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
+      request.destroy();
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
+      request.destroy();
       throw normalize(err, `GET ${this.maskUrl(url)}`);
     }
   }
@@ -220,16 +234,19 @@ export class LearnClient {
     });
     const body: string = pairs.join('&');
 
+    const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await this.request.request(url, {
+      const response: http.HttpResponse = await request.request(url, {
         method: http.RequestMethod.POST,
         header: this.buildHeaders(url, 'text/html', 'application/x-www-form-urlencoded'),
         extraData: body,
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
+      request.destroy();
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
+      request.destroy();
       throw normalize(err, `POST ${this.maskUrl(url)}`);
     }
   }
@@ -251,16 +268,19 @@ export class LearnClient {
     });
     body += `--${boundary}--\r\n`;
 
+    const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
     try {
-      const response: http.HttpResponse = await this.request.request(url, {
+      const response: http.HttpResponse = await request.request(url, {
         method: http.RequestMethod.POST,
         header: this.buildHeaders(url, 'text/html', `multipart/form-data; boundary=${boundary}`),
         extraData: body,
         connectTimeout: TIMEOUT_MS,
         readTimeout: TIMEOUT_MS
       });
+      request.destroy();
       return new HttpResult(asText(response.result), response.responseCode as number);
     } catch (err) {
+      request.destroy();
       throw normalize(err, `POST(multipart) ${this.maskUrl(url)}`);
     }
   }
