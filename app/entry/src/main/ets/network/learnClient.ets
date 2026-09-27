@@ -36,6 +36,15 @@ const TSINGHUA_HOST_MARKER: string = 'tsinghua.edu.cn';
 /** 会话失效的响应体标记 */
 const SESSION_EXPIRED_BODY_MARKER: string = 'login_timeout';
 
+/**
+ * 二次认证页面的标记。
+ *
+ * 实测：账号开启二次认证时，登录校验的响应是标题为「二次认证」的页面（约 1661 字节），
+ * 而非带漫游工单的成功页。这类失败**必须与"密码错误"分开呈现**，
+ * 否则会把用户与排障都引向错误方向（见 NFR-NET 的错误四分类要求）。
+ */
+const SECOND_AUTH_MARKER: string = '二次认证';
+
 /** 一次请求的原始结果 */
 export class HttpResult {
   readonly body: string;
@@ -345,6 +354,12 @@ export class LearnClient {
       // 这两种原因在用户看来都是"登录不上"，此前无法从日志分辨
       const excerpt: string = checkResult.body.substring(0, 120).replace(/\s+/g, ' ');
       Logger.warn(TAG, `登录校验响应未含工单 len=${checkResult.body.length} head=${excerpt}`);
+
+      // 账号开启二次认证时，服务端返回"二次认证"页而非工单。
+      // 这**不是**密码错误——此前一律报"密码错误"，会把用户和排障都带偏。
+      if (checkResult.body.includes(SECOND_AUTH_MARKER)) {
+        throw apiChanged('该账号需要二次认证（短信/OTP），当前版本尚未支持该流程');
+      }
       throw authFailed('未取得漫游工单，通常是学号或密码错误');
     }
 
