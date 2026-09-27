@@ -40,7 +40,6 @@ function signatureOf(semesterId: string, courses: Course[]): string {
 export class NoticeState {
   readonly fetching: boolean;
   readonly items: Notice[];
-  readonly filter: NoticeFilter;
   readonly failedCourses: number;
   readonly totalCourses: number;
   readonly errorReason: FailReason | null;
@@ -53,12 +52,11 @@ export class NoticeState {
    */
   readonly readVersion: number;
 
-  constructor(fetching: boolean, items: Notice[], filter: NoticeFilter, failedCourses: number,
+  constructor(fetching: boolean, items: Notice[], failedCourses: number,
               totalCourses: number, errorReason: FailReason | null, errorTextKey: string,
               readVersion: number) {
     this.fetching = fetching;
     this.items = items;
-    this.filter = filter;
     this.failedCourses = failedCourses;
     this.totalCourses = totalCourses;
     this.errorReason = errorReason;
@@ -82,7 +80,6 @@ export class NoticeStore {
   private listeners: NoticeStateListener[] = [];
   private fetching: boolean = false;
   private items: Notice[] = [];
-  private filter: NoticeFilter = NoticeFilter.ALL;
   private failedCourses: number = 0;
   private totalCourses: number = 0;
   private errorReason: FailReason | null = null;
@@ -117,7 +114,7 @@ export class NoticeStore {
   }
 
   snapshot(): NoticeState {
-    return new NoticeState(this.fetching, this.items, this.filter, this.failedCourses,
+    return new NoticeState(this.fetching, this.items, this.failedCourses,
       this.totalCourses, this.errorReason, this.errorTextKey, this.readVersion);
   }
 
@@ -128,21 +125,13 @@ export class NoticeStore {
    * **课程范围在展示层过滤**：store 只有一份全学期列表，两个视图共享它；
    * 若各自按范围去取数，就会互相把对方的列表换掉（曾实测踩到）。
    */
-  visibleFor(courseId: string): Notice[] {
-    return filterNotices(filterByCourse(this.items, courseId), this.filter, this.readOverrides);
+  visibleFor(courseId: string, filter: NoticeFilter): Notice[] {
+    return filterNotices(filterByCourse(this.items, courseId), filter, this.readOverrides);
   }
 
   /** 是否已读：服务端字段 + 本地覆盖（刚打开过详情的那些） */
   isRead(notice: Notice): boolean {
     return notice.hasRead || this.readOverrides.includes(notice.id);
-  }
-
-  setFilter(filter: NoticeFilter): void {
-    if (this.filter === filter) {
-      return;
-    }
-    this.filter = filter;
-    this.notify();
   }
 
   /** 按 id 找通知（详情页用）。找不到返回 null */
@@ -182,6 +171,10 @@ export class NoticeStore {
 
   /**
    * 让通知对齐"当前学期 + 当前课程集"。
+   *
+   * **筛选不在这里**：`filter` 是**页面本地**状态（`visibleFor` 由调用方传入）。
+   * 放进 store 会让两个视图（通知标签、课程详情页签）共用同一个筛选，互相串——
+   * 实测用户报的"未读里出现全部、要刷新才分辨得出"就是它。
    *
    * **取数范围恒为整个学期**（`courses` 传当前学期的全部课程）：课程详情页签同样触发这一次
    * 取数、再按 courseId 过滤展示——范围只有一个，两个视图才不会互相覆盖。

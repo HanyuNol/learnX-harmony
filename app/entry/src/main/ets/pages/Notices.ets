@@ -32,6 +32,7 @@ export struct NoticeListTab {
 
   @State private fetching: boolean = false;
   @State private items: Notice[] = [];
+  /** 筛选是**本视图自己的**状态：两个视图共用一个会让筛选互相串（见 store 注释） */
   @State private filter: NoticeFilter = NoticeFilter.ALL;
   @State private failedCourses: number = 0;
   @State private totalCourses: number = 0;
@@ -46,7 +47,6 @@ export struct NoticeListTab {
   private listener: NoticeStateListener = (state: NoticeState) => {
     this.fetching = state.fetching;
     this.items = state.items;
-    this.filter = state.filter;
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
@@ -143,7 +143,7 @@ export struct NoticeListTab {
 
   /** 本视图要展示的列表：按本组件的课程范围 + 筛选 + 本地已读覆盖 */
   private visible(): Notice[] {
-    return this.store.visibleFor(this.courseId);
+    return this.store.visibleFor(this.courseId, this.filter);
   }
 
   @Builder
@@ -153,7 +153,7 @@ export struct NoticeListTab {
       .backgroundColor(this.filter === value ? $r('app.color.accent') : $r('app.color.bg_card'))
       .fontColor(this.filter === value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
       .onClick(() => {
-        this.store.setFilter(value);
+        this.filter = value;
       })
   }
 
