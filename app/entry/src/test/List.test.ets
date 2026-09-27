@@ -14,6 +14,7 @@ import loggerTest from './logger.test';
 import themeTest from './theme.test';
 import textsTest from './texts.test';
 import logoutTest from './logout.test';
+import semesterTest from './semester.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -25,4 +26,5 @@ export default function testsuite() {
   themeTest();
   textsTest();
   logoutTest();
+  semesterTest();
 }

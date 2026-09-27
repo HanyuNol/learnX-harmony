@@ -159,6 +159,22 @@
     {
       "name": "theme_apply_failed",
       "value": "The theme did not take effect. Please try again."
+    },
+    {
+      "name": "semester_season_fall",
+      "value": "Fall"
+    },
+    {
+      "name": "semester_season_spring",
+      "value": "Spring"
+    },
+    {
+      "name": "semester_season_summer",
+      "value": "Summer"
+    },
+    {
+      "name": "semester_season_unknown",
+      "value": "Semester"
     }
   ]
 }

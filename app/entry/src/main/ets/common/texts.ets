@@ -18,6 +18,7 @@
  */
 
 import { FailReason } from '../model/auth';
+import { SemesterType } from '../model/semester';
 
 /**
  * 文案键。取值即资源名（不含 `app.string.` 前缀）。
@@ -86,6 +87,15 @@ export class TextKeys {
   /** 主题未能生效（写入成功但应用失败也归此，R-09） */
   static readonly THEME_APPLY_FAILED: string = 'theme_apply_failed';
 
+  /** 学期季节：秋季 */
+  static readonly SEMESTER_SEASON_FALL: string = 'semester_season_fall';
+  /** 学期季节：春季 */
+  static readonly SEMESTER_SEASON_SPRING: string = 'semester_season_spring';
+  /** 学期季节：夏季 */
+  static readonly SEMESTER_SEASON_SUMMER: string = 'semester_season_summer';
+  /** 学期季节：识别不出（id 形态异常）——保留原串可显示，不崩 */
+  static readonly SEMESTER_SEASON_UNKNOWN: string = 'semester_season_unknown';
+
   /** SSO 页顶部标题 */
   static readonly SSO_TITLE: string = 'sso_title';
   /** 「取消」按钮 */
@@ -139,4 +149,23 @@ export function textKeyOfFailReason(reason: FailReason, hintKey: string = ''): s
     return TextKeys.NONE;
   }
   return TextKeys.LOGIN_FAILED;
+}
+
+/**
+ * 学期季节类型 → 文案键。
+ *
+ * 放在这里而不是 `model/semester.ets`：键是 UI 层概念，全部集中在本文件，
+ * 才能被 `scripts/check-l10n.mjs` 一个地方扫到（`model` 保持与文案无关）。
+ */
+export function textKeyOfSemesterType(type: SemesterType): string {
+  if (type === SemesterType.FALL) {
+    return TextKeys.SEMESTER_SEASON_FALL;
+  }
+  if (type === SemesterType.SPRING) {
+    return TextKeys.SEMESTER_SEASON_SPRING;
+  }
+  if (type === SemesterType.SUMMER) {
+    return TextKeys.SEMESTER_SEASON_SUMMER;
+  }
+  return TextKeys.SEMESTER_SEASON_UNKNOWN;
 }

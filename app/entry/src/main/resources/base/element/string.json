@@ -159,6 +159,22 @@
     {
       "name": "theme_apply_failed",
       "value": "主题未能生效，请重试"
+    },
+    {
+      "name": "semester_season_fall",
+      "value": "秋季"
+    },
+    {
+      "name": "semester_season_spring",
+      "value": "春季"
+    },
+    {
+      "name": "semester_season_summer",
+      "value": "夏季"
+    },
+    {
+      "name": "semester_season_unknown",
+      "value": "学期"
     }
   ]
 }
