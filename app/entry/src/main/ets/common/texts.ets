@@ -266,6 +266,8 @@ export class TextKeys {
   static readonly FILE_OPEN_FAILED: string = 'file_open_failed';
   /** 下载或打开失败 */
   static readonly FILE_DOWNLOAD_FAILED: string = 'file_download_failed';
+  /** 该类型无法应用内预览，需用其他应用打开（Office 文档一类） */
+  static readonly FILE_NEEDS_OTHER_APP: string = 'file_needs_other_app';
   /** 下载进度：`下载中 %d%%`（图形之外必须有文字才可验收） */
   static readonly FILE_DOWNLOAD_PROGRESS: string = 'file_download_progress';
   /** 详情：重新下载 */

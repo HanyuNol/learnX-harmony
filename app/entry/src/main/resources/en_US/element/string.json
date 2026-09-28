@@ -623,6 +623,10 @@
     {
       "name": "profile_custom_dir_hint",
       "value": "Files in a custom folder cannot be previewed in the app; open them with another app"
+    },
+    {
+      "name": "file_needs_other_app",
+      "value": "This type needs another app (Office documents cannot be shown in-app)"
     }
   ]
 }

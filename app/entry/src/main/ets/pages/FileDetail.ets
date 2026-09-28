@@ -220,6 +220,14 @@ export struct FileDetailView {
         .width('100%')
         .padding({ top: 12 })
 
+        // 说清为什么没有"预览"按钮：Office 文档在应用内渲染不出来，需用其他应用打开
+        if (!canPreviewInApp(file.fileType)) {
+          Text($r('app.string.' + TextKeys.FILE_NEEDS_OTHER_APP))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .width('100%')
+        }
+
         // 应用内预览（仅在"系统查看器不可用"时出现）
         if (this.previewUri.length > 0) {
           Web({ src: this.previewUri, controller: this.webController })

@@ -623,6 +623,10 @@
     {
       "name": "profile_custom_dir_hint",
       "value": "自定义目录里的文件不支持应用内预览，请用其他应用打开"
+    },
+    {
+      "name": "file_needs_other_app",
+      "value": "该类型需用其他应用打开（应用内看不了 Office 文档）"
     }
   ]
 }
