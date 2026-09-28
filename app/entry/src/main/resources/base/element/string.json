@@ -601,32 +601,52 @@
       "value": "应用内（文件目录）"
     },
     {
-      "name": "profile_dir_custom",
+      "name": "settings_download_dir_custom",
       "value": "自定义目录"
     },
     {
-      "name": "profile_pick_folder",
+      "name": "settings_pick_folder",
       "value": "选择目录"
     },
     {
-      "name": "profile_clear_folder",
+      "name": "settings_clear_folder",
       "value": "清除"
     },
     {
-      "name": "profile_no_folder",
+      "name": "settings_no_folder",
       "value": "尚未选择目录"
     },
     {
-      "name": "profile_pick_folder_failed",
+      "name": "settings_pick_folder_failed",
       "value": "目录选择未完成或未获授权"
     },
     {
-      "name": "profile_custom_dir_hint",
+      "name": "settings_custom_dir_hint",
       "value": "自定义目录里的文件不支持应用内预览，请用其他应用打开"
     },
     {
       "name": "file_needs_other_app",
       "value": "该类型需用其他应用打开（应用内看不了 Office 文档）"
+    },
+    {
+      "name": "file_filter_unread",
+      "value": "未读"
+    },
+    {
+      "name": "file_filter_read",
+      "value": "已读"
+    },
+    {
+      "name": "assignment_attachment_view",
+      "value": "查看"
+    },
+    {
+      "name": "assignment_attachment_download",
+      "value": "下载"
+    },
+    {
+      "name": "list_refreshing",
+      "value": "刷新中…"
     }
   ]
 }

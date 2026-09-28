@@ -56,8 +56,10 @@ export struct AssignmentDetailView {
    * 应用内预览是"打开附件"唯一可用的路径（附件同样要能看）。
    */
   @State private previewUri: string = '';
-  /** 正在下载的附件 id（用于按钮禁用与"下载中"文案） */
+  /** 正在处理的附件 id（用于按钮禁用与"下载中…"文案） */
   @State private busyAttachment: string = '';
+  /** 本次会话里已下载成功的附件 id（用于行内"已下载"标记；重启后由文件系统判定） */
+  @State private downloadedIds: string[] = [];
   private webController: webview.WebviewController = new webview.WebviewController();
 
   private store: AssignmentStore = AssignmentStore.getInstance();
@@ -243,33 +245,51 @@ export struct AssignmentDetailView {
    */
   @Builder
   attachmentRow(labelKey: string, attachment: Attachment, assignment: Assignment) {
-    Row({ space: 8 }) {
-      Text($r('app.string.' + labelKey))
-        .fontSize(14)
-        .fontColor($r('app.color.text_secondary'))
-      Text(attachment.name)
-        .fontSize(14)
-        .fontColor($r('app.color.accent'))
-        .layoutWeight(1)
-      if (this.busyAttachment === attachment.fileId) {
-        Text($r('app.string.' + TextKeys.FILE_DOWNLOADING))
-          .fontSize(12)
+    Column({ space: 4 }) {
+      Row({ space: 8 }) {
+        Text($r('app.string.' + labelKey))
+          .fontSize(14)
           .fontColor($r('app.color.text_secondary'))
-      } else {
-        Text($r('app.string.' + TextKeys.ASSIGNMENT_ATTACHMENT_OPEN))
-          .fontSize(12)
-          .fontColor($r('app.color.text_secondary'))
+        Text(attachment.name)
+          .fontSize(14)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        if (this.busyAttachment === attachment.fileId) {
+          Text($r('app.string.' + TextKeys.FILE_DOWNLOADING))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        } else if (this.downloadedIds.includes(attachment.fileId)) {
+          Text($r('app.string.' + TextKeys.FILE_DOWNLOADED))
+            .fontSize(12)
+            .fontColor($r('app.color.accent'))
+        }
       }
+      .width('100%')
+
+      // **查看与下载分成两个动作**（用户反馈：附件此前只能"点此查看"、不能下载）。
+      // 查看＝下载后立即打开（可预览的页内预览，其余交系统应用）；下载＝只落盘。
+      Row({ space: 12 }) {
+        Button($r('app.string.' + TextKeys.ASSIGNMENT_ATTACHMENT_VIEW))
+          .fontSize(14)
+          .enabled(this.busyAttachment.length === 0)
+          .onClick(() => {
+            this.viewAttachment(attachment, assignment);
+          })
+        Button($r('app.string.' + TextKeys.ASSIGNMENT_ATTACHMENT_DOWNLOAD))
+          .fontSize(14)
+          .enabled(this.busyAttachment.length === 0)
+          .onClick(() => {
+            this.downloadAttachment(attachment, assignment);
+          })
+      }
+      .width('100%')
     }
     .width('100%')
     .padding({ top: 4, bottom: 4 })
-    .onClick(() => {
-      this.openAttachment(attachment, assignment);
-    })
   }
 
-  /** 点附件：下载（已下过则复用）→ 可预览就页内预览，否则交给系统应用 */
-  private openAttachment(attachment: Attachment, assignment: Assignment): void {
+  /** 只下载附件（不打开）：落盘后行内显示"已下载" */
+  private downloadAttachment(attachment: Attachment, assignment: Assignment): void {
     if (this.busyAttachment.length > 0) {
       return;
     }
@@ -281,6 +301,31 @@ export struct AssignmentDetailView {
     this.busyAttachment = attachment.fileId;
     store.downloadAttachment(file, assignment.id, context, false).then(() => {
       this.busyAttachment = '';
+      if (!this.downloadedIds.includes(attachment.fileId)) {
+        this.downloadedIds = this.downloadedIds.concat([attachment.fileId]);
+      }
+    }).catch(() => {
+      this.busyAttachment = '';
+      showToast($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED));
+    });
+  }
+
+  /** 查看附件：下载（已下过则复用）→ 可预览就页内预览，否则交给系统应用 */
+  private viewAttachment(attachment: Attachment, assignment: Assignment): void {
+    if (this.busyAttachment.length > 0) {
+      return;
+    }
+    const store: FileStore = FileStore.getInstance();
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const file: LearnFile = attachmentFileOf(attachment, assignment.courseId,
+      assignment.courseName, assignment.courseTeacherName);
+
+    this.busyAttachment = attachment.fileId;
+    store.downloadAttachment(file, assignment.id, context, false).then(() => {
+      this.busyAttachment = '';
+      if (!this.downloadedIds.includes(attachment.fileId)) {
+        this.downloadedIds = this.downloadedIds.concat([attachment.fileId]);
+      }
       if (canPreviewInApp(file.fileType)) {
         const uri: string = store.previewUriOfAttachment(file, assignment.id, context);
         if (uri.length > 0) {

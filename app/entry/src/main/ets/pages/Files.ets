@@ -12,13 +12,13 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, categoryNamesOf, formatUploadDate } from '../model/file';
+import { FileReadFilter, LearnFile, formatUploadDate } from '../model/file';
 import { FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
-import { FILTER_ALL, FilterChoice, allChoice, filterBar } from '../components/FilterBar';
+import { FilterChoice, filterBar } from '../components/FilterBar';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 /** 文件详情在文件栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
@@ -36,10 +36,11 @@ export struct FileListTab {
   @State private failedCourses: number = 0;
   @State private totalCourses: number = 0;
   @State private errorReason: FailReason | null = null;
-  /** 分类筛选是**本视图自己的**状态（'全部' 时为 `FILTER_ALL`，见 list-filter-sort spec §3.3） */
-  @State private category: string = FILTER_ALL;
-  /** 本范围内实际出现过的分类名（@State：筛选条的显隐与选项都由它决定） */
-  @State private categories: string[] = [];
+  /**
+   * 已读/未读筛选是**本视图自己的**状态（见 list-filter-sort spec §3.3）。
+   * 默认"全部"：文件不像作业有"该做的/做完的"之分，默认全看更符合预期。
+   */
+  @State private readFilter: FileReadFilter = FileReadFilter.ALL;
 
   private store: FileStore = FileStore.getInstance();
   private courseStore: CourseStore = CourseStore.getInstance();
@@ -51,13 +52,6 @@ export struct FileListTab {
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
-    // 分类名也放进 **@State**：筛选条的显示与否取决于它，而决定 `if` 分支要不要重算的
-    // 是**条件里读到的状态变量**——条件若只读 store（非状态），数据到达后分支不会重算，
-    // 筛选条就会一直不出现（2026-09-28 真机实测，见 OPERATIONS.md §7）
-    const scoped: LearnFile[] = this.courseId.length === 0
-      ? state.items
-      : state.items.filter((item: LearnFile) => item.courseId === this.courseId);
-    this.categories = categoryNamesOf(scoped);
   };
 
   private coursesListener: CourseStateListener = () => {
@@ -92,15 +86,24 @@ export struct FileListTab {
 
   build() {
     Column() {
-      // 分类筛选（FR-12）：选项来自**实际出现过的**分类，故随数据变化
-      if (this.choices().length > 1) {
-        filterBar(this.choices(), this.category, (value: string) => {
-          this.category = value;
-        })
-      }
+      // 已读/未读筛选：固定在顶部（不依赖数据，故不必等加载完才出现）
+      filterBar({
+        choices: this.choices(),
+        selected: this.readFilter,
+        onSelect: (value: string) => {
+          this.readFilter = value === FileReadFilter.UNREAD ? FileReadFilter.UNREAD
+            : (value === FileReadFilter.READ ? FileReadFilter.READ : FileReadFilter.ALL);
+        }
+      })
 
       Row({ space: 8 }) {
         Blank()
+        // 让"点了刷新"有可见反馈：在途时给一行文字（数据没变时界面本来就看不出差别）
+        if (this.fetching) {
+          Text($r('app.string.' + TextKeys.LIST_REFRESHING))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
         Button($r('app.string.' + TextKeys.FILE_REFRESH))
           .fontSize(14)
           .onClick(() => {
@@ -145,16 +148,16 @@ export struct FileListTab {
   }
 
   private visible(): LearnFile[] {
-    return this.store.visibleFor(this.courseId, this.category);
+    return this.store.visibleFor(this.courseId, this.readFilter);
   }
 
-  /** 筛选条的选项："全部" + 本范围内的分类名（无分类时不显示筛选条） */
+  /** 筛选条：全部 / 未读 / 已读（未读＝服务端的"新文件"标记，与上游一致） */
   private choices(): FilterChoice[] {
-    const options: FilterChoice[] = [allChoice()];
-    for (const name of this.categories) {
-      options.push(FilterChoice.ofText(name, name));
-    }
-    return options;
+    return [
+      FilterChoice.ofKey(FileReadFilter.ALL, TextKeys.FILTER_ALL),
+      FilterChoice.ofKey(FileReadFilter.UNREAD, TextKeys.FILE_FILTER_UNREAD),
+      FilterChoice.ofKey(FileReadFilter.READ, TextKeys.FILE_FILTER_READ)
+    ];
   }
 
   @Builder

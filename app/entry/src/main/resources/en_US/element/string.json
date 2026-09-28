@@ -601,32 +601,52 @@
       "value": "In app (files)"
     },
     {
-      "name": "profile_dir_custom",
+      "name": "settings_download_dir_custom",
       "value": "Custom folder"
     },
     {
-      "name": "profile_pick_folder",
+      "name": "settings_pick_folder",
       "value": "Choose folder"
     },
     {
-      "name": "profile_clear_folder",
+      "name": "settings_clear_folder",
       "value": "Clear"
     },
     {
-      "name": "profile_no_folder",
+      "name": "settings_no_folder",
       "value": "No folder chosen"
     },
     {
-      "name": "profile_pick_folder_failed",
+      "name": "settings_pick_folder_failed",
       "value": "Folder selection failed or was not authorized"
     },
     {
-      "name": "profile_custom_dir_hint",
+      "name": "settings_custom_dir_hint",
       "value": "Files in a custom folder cannot be previewed in the app; open them with another app"
     },
     {
       "name": "file_needs_other_app",
       "value": "This type needs another app (Office documents cannot be shown in-app)"
+    },
+    {
+      "name": "file_filter_unread",
+      "value": "Unread"
+    },
+    {
+      "name": "file_filter_read",
+      "value": "Read"
+    },
+    {
+      "name": "assignment_attachment_view",
+      "value": "View"
+    },
+    {
+      "name": "assignment_attachment_download",
+      "value": "Download"
+    },
+    {
+      "name": "list_refreshing",
+      "value": "Refreshing…"
     }
   ]
 }

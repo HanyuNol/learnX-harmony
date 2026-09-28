@@ -10,7 +10,11 @@
 
 import { common } from '@kit.AbilityKit';
 import { AuthStore } from '../viewmodel/authStore';
-import { changeThemeMode, changeUseDocumentDir, changeOmitCourseName, loadThemeMode, loadUseDocumentDir, loadOmitCourseName } from '../viewmodel/settingsStore';
+import {
+  changeCustomDownloadDir, changeOmitCourseName, changeThemeMode, changeUseDocumentDir,
+  loadCustomDownloadDir, loadOmitCourseName, loadThemeMode, loadUseDocumentDir
+} from '../viewmodel/settingsStore';
+import { pickFolder } from '../native/filePickerAdapter';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -51,6 +55,8 @@ export struct SettingsView {
   @State private useDocumentDir: boolean = false;
   /** 下载文件名是否省略课程名前缀 */
   @State private omitCourseName: boolean = false;
+  /** 自定义下载目录 URI（空串＝未设置）。设置后下载**平铺**落进该目录 */
+  @State private customDir: string = '';
 
   private store: AuthStore = AuthStore.getInstance();
 
@@ -63,6 +69,36 @@ export struct SettingsView {
     this.themeMode = loadThemeMode(this.appContext());
     this.useDocumentDir = loadUseDocumentDir(this.appContext());
     this.omitCourseName = loadOmitCourseName(this.appContext());
+    this.customDir = loadCustomDownloadDir(this.appContext());
+  }
+
+  /** 自定义目录只显示末段：完整 URI 又长又难读 */
+  private shortDir(): string {
+    if (this.customDir.length === 0) {
+      return '';
+    }
+    const cut: number = this.customDir.lastIndexOf('/');
+    return cut >= 0 ? decodeURIComponent(this.customDir.substring(cut + 1)) : this.customDir;
+  }
+
+  private chooseFolder(): void {
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    pickFolder(context).then((uri: string | null) => {
+      if (uri === null) {
+        return;
+      }
+      this.applyCustomDir(uri);
+    }).catch(() => {
+      showToast($r('app.string.' + TextKeys.SETTINGS_PICK_FOLDER_FAILED));
+    });
+  }
+
+  private applyCustomDir(uri: string): void {
+    this.customDir = uri;
+    if (!changeCustomDownloadDir(this.appContext(), uri)) {
+      this.customDir = loadCustomDownloadDir(this.appContext());
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+    }
   }
 
   private selectOmitCourseName(omitCourseName: boolean): void {
@@ -145,6 +181,52 @@ export struct SettingsView {
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }, (option: boolean) => option ? 'files' : 'cache')
+
+      // 自定义目录：用户可选一个外部目录，下载直接落到那儿（授权已持久化）
+      Row({ space: 12 }) {
+        Column({ space: 2 }) {
+          Text($r('app.string.' + TextKeys.SETTINGS_DOWNLOAD_DIR_CUSTOM))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .width('100%')
+          // 未设置时这里留空，下面的提示行会说明"尚未选择目录"
+          Text(this.shortDir())
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+            .width('100%')
+        }
+        .layoutWeight(1)
+
+        Button($r('app.string.' + TextKeys.SETTINGS_PICK_FOLDER))
+          .fontSize(14)
+          .onClick(() => {
+            this.chooseFolder();
+          })
+        if (this.customDir.length > 0) {
+          Button($r('app.string.' + TextKeys.SETTINGS_CLEAR_FOLDER))
+            .fontSize(14)
+            .onClick(() => {
+              this.applyCustomDir('');
+            })
+        }
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+      .backgroundColor($r('app.color.bg_card'))
+
+      if (this.customDir.length === 0) {
+        Text($r('app.string.' + TextKeys.SETTINGS_NO_FOLDER))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
+      } else {
+        Text($r('app.string.' + TextKeys.SETTINGS_CUSTOM_DIR_HINT))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
+      }
 
       // 显示项：下载文件名是否省略课程名前缀（FR-16）
       Text($r('app.string.' + TextKeys.SETTINGS_DISPLAY_TITLE))

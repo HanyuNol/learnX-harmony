@@ -268,6 +268,14 @@ export class TextKeys {
   static readonly FILE_DOWNLOAD_FAILED: string = 'file_download_failed';
   /** 该类型无法应用内预览，需用其他应用打开（Office 文档一类） */
   static readonly FILE_NEEDS_OTHER_APP: string = 'file_needs_other_app';
+  /** 文件筛选：未读（服务端 isNew） */
+  static readonly FILE_FILTER_UNREAD: string = 'file_filter_unread';
+  /** 文件筛选：已读 */
+  static readonly FILE_FILTER_READ: string = 'file_filter_read';
+  /** 作业附件行：查看 */
+  static readonly ASSIGNMENT_ATTACHMENT_VIEW: string = 'assignment_attachment_view';
+  /** 作业附件行：下载 */
+  static readonly ASSIGNMENT_ATTACHMENT_DOWNLOAD: string = 'assignment_attachment_download';
   /** 下载进度：`下载中 %d%%`（图形之外必须有文字才可验收） */
   static readonly FILE_DOWNLOAD_PROGRESS: string = 'file_download_progress';
   /** 详情：重新下载 */
@@ -284,6 +292,8 @@ export class TextKeys {
 
   /** 通用筛选：全部（FR-12 的通用筛选条，各维度共用） */
   static readonly FILTER_ALL: string = 'filter_all';
+  /** 通用：刷新中…（放在刷新按钮旁，让"点了刷新"有可见反馈） */
+  static readonly LIST_REFRESHING: string = 'list_refreshing';
 
   /** 设置页：显示项小节标题 */
   static readonly SETTINGS_DISPLAY_TITLE: string = 'settings_display_title';
@@ -302,17 +312,17 @@ export class TextKeys {
   /** 个人信息页：下载位置选项——应用内（文件目录） */
   static readonly PROFILE_DIR_APP_FILES: string = 'profile_dir_app_files';
   /** 个人信息页：下载位置选项——自定义目录 */
-  static readonly PROFILE_DIR_CUSTOM: string = 'profile_dir_custom';
+  static readonly SETTINGS_DOWNLOAD_DIR_CUSTOM: string = 'settings_download_dir_custom';
   /** 个人信息页：选择自定义目录 */
-  static readonly PROFILE_PICK_FOLDER: string = 'profile_pick_folder';
+  static readonly SETTINGS_PICK_FOLDER: string = 'settings_pick_folder';
   /** 个人信息页：清除自定义目录 */
-  static readonly PROFILE_CLEAR_FOLDER: string = 'profile_clear_folder';
+  static readonly SETTINGS_CLEAR_FOLDER: string = 'settings_clear_folder';
   /** 个人信息页：尚未选择目录 */
-  static readonly PROFILE_NO_FOLDER: string = 'profile_no_folder';
+  static readonly SETTINGS_NO_FOLDER: string = 'settings_no_folder';
   /** 个人信息页：目录选择失败 */
-  static readonly PROFILE_PICK_FOLDER_FAILED: string = 'profile_pick_folder_failed';
+  static readonly SETTINGS_PICK_FOLDER_FAILED: string = 'settings_pick_folder_failed';
   /** 个人信息页：自定义目录下文件的应用内预览不可用，说明 */
-  static readonly PROFILE_CUSTOM_DIR_HINT: string = 'profile_custom_dir_hint';
+  static readonly SETTINGS_CUSTOM_DIR_HINT: string = 'settings_custom_dir_hint';
   /** 关于：版本 */
   static readonly ABOUT_VERSION: string = 'about_version';
   /** 关于：包名 */

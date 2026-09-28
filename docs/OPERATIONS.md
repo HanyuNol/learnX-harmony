@@ -277,7 +277,21 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 > 判别口径：**build（含 `if` 条件、`ForEach` 数据源）里读到的状态才驱动刷新**。
 > 只从 store 取数、不经 `@State` 中转的渲染路径，数据变了也不会自己更新。
 
-### 7.7 用 ArkWeb 打开沙箱里的文件：两个条件缺一不可
+### 7.7 全局 `@Builder` 的多参数是**按值传递**，值变了界面不会刷新
+
+2026-09-28 真机实测：把筛选条做成全局 `@Builder function filterBar(choices, selected, onSelect)`
+并在页面里 `filterBar(this.choices(), this.filter, ...)`，**点筛选没有任何反应**——
+按钮高亮不变、列表也不变（同一个组件在文件标签页与课程详情页签里都失灵）。
+
+原因是 ArkUI 的规则：全局 `@Builder` 的**多个参数按值传递**，参数值变化**不会**驱动该
+`@Builder` 内的 UI 刷新；只有"**单个对象参数**（按引用传递）"才会随状态变化刷新。
+
+修法（已落地）：`filterBar(options: FilterBarOptions)`——把 `choices`/`selected`/`onSelect`
+合成一个对象传入，调用处写 `filterBar({ choices: ..., selected: ..., onSelect: ... })`。
+
+**判别口径**：凡"状态变了但那一块不更新"，先看它是不是经全局 `@Builder` 的多参数渲染的。
+
+### 7.8 用 ArkWeb 打开沙箱里的文件：两个条件缺一不可
 
 要在应用内预览下载好的文件（PDF、图片、文本…），Web 组件必须同时满足：
 
@@ -294,7 +308,7 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 两处的实现都在 `native/fileAdapter.previewUrlOf` 与 `pages/FileDetail` 的 Web 属性上，
 别在别处另拼 URL。
 
-### 7.8 文案键一致性检查（改文案后必跑）
+### 7.9 文案键一致性检查（改文案后必跑）
 
 ```bash
 node scripts/check-l10n.mjs

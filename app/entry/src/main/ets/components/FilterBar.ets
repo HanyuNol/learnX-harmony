@@ -11,6 +11,10 @@
  * 做成全局 `@Builder` 而不是自定义组件：这是**纯展示**、无自身状态，项目 lint 的
  * `avoid-overusing-custom-component-check` 明确要求这种场景用 `@Builder`（与 StateView 一致）。
  *
+ * **参数必须是单个对象**（`FilterBarOptions`）：全局 `@Builder` 的多参数是**按值传递**，
+ * 值变了不会刷新 UI——2026-09-28 真机实测，多参数写法下"点筛选没有反应"
+ * （高亮不变、列表也不变）。改成单对象（按引用传递）后状态变化才会驱动刷新。
+ *
  * 选中状态由调用方持有（筛选必须留在页面本地，见 list-filter-sort spec §3.3 第 1 条）。
  */
 
@@ -48,32 +52,41 @@ export function allChoice(): FilterChoice {
 }
 
 /**
+ * 筛选条的入参。**必须整体作为一个对象传入**（见文件头说明：多参数按值传递不刷新）。
+ */
+export interface FilterBarOptions {
+  choices: FilterChoice[];
+  selected: string;
+  onSelect: (value: string) => void;
+}
+
+/**
  * 渲染筛选条。
  *
  * `onSelect` 为空时点击**静默无效**——调用方必须传（本项目踩过"可选回调漏传"的坑）。
  */
 @Builder
-export function filterBar(choices: FilterChoice[], selected: string, onSelect: (value: string) => void) {
+export function filterBar(options: FilterBarOptions) {
   Scroll() {
     Row({ space: 8 }) {
-      ForEach(choices, (choice: FilterChoice) => {
+      ForEach(options.choices, (choice: FilterChoice) => {
         // 标签是资源还是字符串必须**分开两支**渲染：`$r` 传变量要求拼全名，
         // 且 Resource 与 string 不能混在同一个 Text 的参数位置（见 common/texts.ets 的说明）
         if (choice.labelKey.length > 0) {
           Button($r('app.string.' + choice.labelKey))
             .fontSize(14)
-            .backgroundColor(selected === choice.value ? $r('app.color.accent') : $r('app.color.bg_card'))
-            .fontColor(selected === choice.value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
+            .backgroundColor(options.selected === choice.value ? $r('app.color.accent') : $r('app.color.bg_card'))
+            .fontColor(options.selected === choice.value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
             .onClick(() => {
-              onSelect(choice.value);
+              options.onSelect(choice.value);
             })
         } else {
           Button(choice.labelText)
             .fontSize(14)
-            .backgroundColor(selected === choice.value ? $r('app.color.accent') : $r('app.color.bg_card'))
-            .fontColor(selected === choice.value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
+            .backgroundColor(options.selected === choice.value ? $r('app.color.accent') : $r('app.color.bg_card'))
+            .fontColor(options.selected === choice.value ? $r('app.color.bg_card') : $r('app.color.text_primary'))
             .onClick(() => {
-              onSelect(choice.value);
+              options.onSelect(choice.value);
             })
         }
       }, (choice: FilterChoice) => choice.value)

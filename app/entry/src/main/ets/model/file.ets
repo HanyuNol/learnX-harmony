@@ -150,32 +150,27 @@ export function downloadFileNameCandidates(courseName: string, title: string, fi
 }
 
 /**
- * 可见范围内**实际出现过**的分类名（去重、去空、按名称排序）。
+ * 文件列表的筛选：全部 / 未读 / 已读。
  *
- * 只列出现过的分类：列一个必然为空的分组是假动作（选了什么都没有）。
- * 按名称排序是为了**顺序稳定**——否则筛选条的顺序会随数据加载顺序变化。
+ * 为什么不是"按分类筛"（2026-09-28 用户反馈后改）：分类名在聚合列表里看不出属于哪门课，
+ * 反而让人不知道选什么；而"哪个分组"这件事在**课程详情页**里本来就是分组呈现的，
+ * 不需要在聚合页再筛一遍。**未读**＝服务端的 `isNew`（与上游 `useFilteredData` 一致）——
+ * 服务端不提供"这个文件我读过没有"，`isNew` 是唯一的未读信号。
  */
-export function categoryNamesOf(items: LearnFile[]): string[] {
-  const seen: string[] = [];
-  for (const item of items) {
-    if (item.categoryName.length > 0 && !seen.includes(item.categoryName)) {
-      seen.push(item.categoryName);
-    }
-  }
-  return seen.sort((left: string, right: string): number => {
-    if (left === right) {
-      return 0;
-    }
-    return left > right ? 1 : -1;
-  });
+export enum FileReadFilter {
+  ALL = 'all',
+  UNREAD = 'unread',
+  READ = 'read'
 }
 
-/** 按分类过滤。`categoryName` 为空串表示"全部"，不过滤（FR-12） */
-export function filterByCategory(items: LearnFile[], categoryName: string): LearnFile[] {
-  if (categoryName.length === 0) {
-    return items;
+export function filterByRead(items: LearnFile[], filter: FileReadFilter): LearnFile[] {
+  if (filter === FileReadFilter.UNREAD) {
+    return items.filter((item: LearnFile) => item.isNew);
   }
-  return items.filter((item: LearnFile) => item.categoryName === categoryName);
+  if (filter === FileReadFilter.READ) {
+    return items.filter((item: LearnFile) => !item.isNew);
+  }
+  return items;
 }
 
 /**

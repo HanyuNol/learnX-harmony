@@ -7,8 +7,8 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  LearnFile, PROGRESS_UNKNOWN, attachmentFileOf, canPreviewInApp, categoryNamesOf, downloadFileName,
-  extensionOf, filterByCategory, percentOf, sanitizePathSegment, sortFiles, titleOfFileName
+  FileReadFilter, LearnFile, PROGRESS_UNKNOWN, attachmentFileOf, canPreviewInApp, downloadFileName,
+  extensionOf, filterByRead, percentOf, sanitizePathSegment, sortFiles, titleOfFileName
 } from '../main/ets/model/file';
 import { Attachment } from '../main/ets/model/attachment';
 import { mimeOfExtension } from '../main/ets/common/mime';
@@ -23,10 +23,10 @@ function file(id: string, uploadMs: number): LearnFile {
     '1.2MB', 1258291, '2025-05-01 10:00', uploadMs, 'pdf', '课件', false, false);
 }
 
-/** 指定分类的文件（分类筛选用例用） */
-function withCategory(id: string, categoryName: string): LearnFile {
+/** 指定 isNew 的文件（已读/未读筛选用例用） */
+function newFile(id: string, isNew: boolean): LearnFile {
   return new LearnFile(id, `f-${id}`, 'c1', '课程甲', '张老师', `文件${id}`, '',
-    '1MB', 1048576, '2025-05-01 10:00', 1, 'pdf', categoryName, false, false);
+    '1MB', 1048576, '2025-05-01 10:00', 1, 'pdf', '课件', false, isNew);
 }
 
 function throws(fn: () => void): boolean {
@@ -165,24 +165,14 @@ export default function fileTest() {
       });
     });
 
-    describe('分类筛选（FR-12）', () => {
+    describe('已读/未读筛选', () => {
 
-      it('分类名去重、去空、按名称排序（顺序稳定）', 0, () => {
-        const items: LearnFile[] = [
-          withCategory('a', '课件'), withCategory('b', ''), withCategory('c', '参考资料'),
-          withCategory('d', '课件'), withCategory('e', '作业')];
-        expect(categoryNamesOf(items).length).assertEqual(3);
-        // 中文按码位排序：作业 < 参考 < 课件
-        expect(categoryNamesOf(items)[0]).assertEqual('作业');
-        expect(categoryNamesOf(items)[2]).assertEqual('课件');
-      });
-
-      it('按分类过滤：空串表示全部', 0, () => {
-        const items: LearnFile[] = [
-          withCategory('a', '课件'), withCategory('b', '参考资料'), withCategory('c', '课件')];
-        expect(filterByCategory(items, '').length).assertEqual(3);
-        expect(filterByCategory(items, '课件').length).assertEqual(2);
-        expect(filterByCategory(items, '不存在的分类').length).assertEqual(0);
+      it('未读＝服务端的"新文件"标记；已读是其余（与上游 useFilteredData 同口径）', 0, () => {
+        const items: LearnFile[] = [newFile('a', true), newFile('b', false), newFile('c', true)];
+        expect(filterByRead(items, FileReadFilter.ALL).length).assertEqual(3);
+        expect(filterByRead(items, FileReadFilter.UNREAD).length).assertEqual(2);
+        expect(filterByRead(items, FileReadFilter.READ).length).assertEqual(1);
+        expect(filterByRead(items, FileReadFilter.READ)[0].id).assertEqual('b');
       });
     });
 

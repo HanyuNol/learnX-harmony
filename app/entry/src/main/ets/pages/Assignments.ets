@@ -93,12 +93,22 @@ export struct AssignmentListTab {
   build() {
     Column() {
       Row({ space: 8 }) {
-        filterBar(this.choices(), this.filter, (value: string) => {
-          // 取值就是 `AssignmentFilter` 的字面量，故可直接放回（筛选状态留在本页）
-          this.filter = value === AssignmentFilter.FINISHED
-            ? AssignmentFilter.FINISHED : AssignmentFilter.UNFINISHED;
+        filterBar({
+          choices: this.choices(),
+          selected: this.filter,
+          onSelect: (value: string) => {
+            // 取值就是 `AssignmentFilter` 的字面量，故可直接放回（筛选状态留在本页）
+            this.filter = value === AssignmentFilter.FINISHED
+              ? AssignmentFilter.FINISHED : AssignmentFilter.UNFINISHED;
+          }
         })
         Blank()
+        // 让"点了刷新"有可见反馈：在途时给一行文字（数据没变时界面本来就看不出差别）
+        if (this.fetching) {
+          Text($r('app.string.' + TextKeys.LIST_REFRESHING))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
         Button($r('app.string.' + TextKeys.ASSIGNMENT_REFRESH))
           .fontSize(14)
           .onClick(() => {

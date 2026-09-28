@@ -135,6 +135,14 @@ const KNOWN_KEYS: string[] = [
   TextKeys.FILE_PREVIEW,
   TextKeys.FILE_DOWNLOAD_FAILED,
   TextKeys.FILE_NEEDS_OTHER_APP,
+  TextKeys.ASSIGNMENT_ATTACHMENT_DOWNLOAD,
+
+  TextKeys.ASSIGNMENT_ATTACHMENT_VIEW,
+
+  TextKeys.FILE_FILTER_READ,
+
+  TextKeys.FILE_FILTER_UNREAD,
+
   TextKeys.FILE_DOWNLOAD_PROGRESS,
   TextKeys.FILE_REDOWNLOAD,
   TextKeys.SETTINGS_DOWNLOAD_DIR_TITLE,
@@ -142,6 +150,7 @@ const KNOWN_KEYS: string[] = [
   TextKeys.SETTINGS_DOWNLOAD_DIR_FILES,
   TextKeys.SETTINGS_SAVE_FAILED,
   TextKeys.FILTER_ALL,
+  TextKeys.LIST_REFRESHING,
   TextKeys.SETTINGS_DISPLAY_TITLE,
   TextKeys.SETTINGS_OMIT_COURSE_NAME,
   TextKeys.SETTINGS_ABOUT,
@@ -150,12 +159,12 @@ const KNOWN_KEYS: string[] = [
   TextKeys.PROFILE_DOWNLOAD_TITLE,
   TextKeys.PROFILE_DIR_APP_CACHE,
   TextKeys.PROFILE_DIR_APP_FILES,
-  TextKeys.PROFILE_DIR_CUSTOM,
-  TextKeys.PROFILE_PICK_FOLDER,
-  TextKeys.PROFILE_CLEAR_FOLDER,
-  TextKeys.PROFILE_NO_FOLDER,
-  TextKeys.PROFILE_PICK_FOLDER_FAILED,
-  TextKeys.PROFILE_CUSTOM_DIR_HINT,
+  TextKeys.SETTINGS_DOWNLOAD_DIR_CUSTOM,
+  TextKeys.SETTINGS_PICK_FOLDER,
+  TextKeys.SETTINGS_CLEAR_FOLDER,
+  TextKeys.SETTINGS_NO_FOLDER,
+  TextKeys.SETTINGS_PICK_FOLDER_FAILED,
+  TextKeys.SETTINGS_CUSTOM_DIR_HINT,
 
   TextKeys.ABOUT_VERSION,
   TextKeys.ABOUT_BUNDLE,
@@ -247,7 +256,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(154);
+      expect(KNOWN_KEYS.length).assertEqual(159);
     });
 
     it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {
