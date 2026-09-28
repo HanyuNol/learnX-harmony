@@ -264,6 +264,45 @@ export class FileStore {
     return FileRepository.previewUriOf(file, context);
   }
 
+  /**
+   * 下载一个**作业附件**（复用下载状态机；键仍用 fileId，附件 id 与课件 id 不会撞）。
+   */
+  async downloadAttachment(file: LearnFile, homeworkId: string, context: common.Context,
+                           forceRefresh: boolean): Promise<void> {
+    if (this.downloadStateOf(file.id) === DownloadState.DOWNLOADING) {
+      return;
+    }
+    this.setDownloadState(file.id, DownloadState.DOWNLOADING);
+    try {
+      await FileRepository.downloadAttachment(file, homeworkId, context, forceRefresh);
+      this.setDownloadState(file.id, DownloadState.READY);
+    } catch (err) {
+      this.setDownloadState(file.id, DownloadState.FAILED);
+      Logger.warn(TAG, `附件下载失败 id=${file.id}`);
+      throw new Error('附件下载失败');
+    }
+  }
+
+  /** 附件已下载时的 `file://` URI（用于应用内预览） */
+  previewUriOfAttachment(file: LearnFile, homeworkId: string, context: common.Context): string {
+    const path: string = FileRepository.downloadedAttachmentPathOf(file, homeworkId, context);
+    return path.length > 0 ? FileRepository.previewUrlOfPath(path) : '';
+  }
+
+  /** 附件是否已在沙箱 */
+  isAttachmentDownloaded(file: LearnFile, homeworkId: string, context: common.Context): boolean {
+    if (this.downloadStateOf(file.id) === DownloadState.READY) {
+      return true;
+    }
+    return FileRepository.isAttachmentDownloaded(file, homeworkId, context);
+  }
+
+  /** 把附件交给系统应用打开（设备上有能处理该类型的应用时才有用） */
+  async openAttachment(file: LearnFile, homeworkId: string, context: common.UIAbilityContext): Promise<void> {
+    const path: string = await FileRepository.downloadAttachment(file, homeworkId, context, false);
+    await FileRepository.openPath(path, FileRepository.mimeOf(file), context);
+  }
+
   /** 该文件是否已在沙箱（详情页显示"已下载"） */
   isDownloaded(file: LearnFile, context: common.Context): boolean {
     if (this.downloadStateOf(file.id) === DownloadState.READY) {

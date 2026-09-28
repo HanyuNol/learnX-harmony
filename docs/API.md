@@ -143,6 +143,9 @@
     `pysj→gradeTime`
   - **`submitted`/`graded` 不是响应字段**：由"这批来自哪个端点"写死注入
     （Wj→false/false、Yjwg→true/false、Ypg→true/true）。去响应里找这两个字段会永远读到 false
+- **作业附件下载**（与课件文件**不同**的端点，`urls.ts:132-133`）：
+  `GET …/b/wlxt/kczy/zy/student/downloadFile/<课程 id>/<附件 id>`；课件文件才是
+  `…/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=<fileId>`。两者都要会话与 CSRF
 - **作业详情**：**两个请求各取一半**（上游亦然）
   - 正文：`POST …/b/wlxt/kczy/zy/student/detail`，表单体 `id=<baseId>`，判定 `result==='success'`，取 `msg`
   - 附件：`GET …/f/wlxt/kczy/zy/student/viewCj?wlkcid=&xszyid=`（**HTML 详情页**），

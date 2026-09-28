@@ -7,11 +7,13 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, categoryNamesOf, downloadFileName, filterByCategory,
-  percentOf, sanitizePathSegment, sortFiles
+  LearnFile, PROGRESS_UNKNOWN, attachmentFileOf, canPreviewInApp, categoryNamesOf, downloadFileName,
+  extensionOf, filterByCategory, percentOf, sanitizePathSegment, sortFiles, titleOfFileName
 } from '../main/ets/model/file';
+import { Attachment } from '../main/ets/model/attachment';
 import { mimeOfExtension } from '../main/ets/common/mime';
 import { parseFileCategoryList, parseFileList } from '../main/ets/network/parseFile';
+import { FileRepository } from '../main/ets/repository/fileRepository';
 import { parseServerTime } from '../main/ets/common/time';
 
 const DAY: number = 24 * 60 * 60 * 1000;
@@ -181,6 +183,30 @@ export default function fileTest() {
         expect(filterByCategory(items, '').length).assertEqual(3);
         expect(filterByCategory(items, '课件').length).assertEqual(2);
         expect(filterByCategory(items, '不存在的分类').length).assertEqual(0);
+      });
+    });
+
+    describe('作业附件复用文件管线', () => {
+
+      it('扩展名与标题从文件名分离（大小写不敏感、无扩展名不误切）', 0, () => {
+        expect(extensionOf('作业要求.PDF')).assertEqual('pdf');
+        expect(extensionOf('a.b.docx')).assertEqual('docx');
+        expect(extensionOf('无扩展名')).assertEqual('');
+        expect(extensionOf('末尾点.')).assertEqual('');
+        expect(titleOfFileName('作业要求.pdf')).assertEqual('作业要求');
+        expect(titleOfFileName('无扩展名')).assertEqual('无扩展名');
+      });
+
+      it('附件包装成可下载对象：id/类型/课程名都要落到下载与预览要用的字段上', 0, () => {
+        const att: Attachment = new Attachment('f-9', '第1章讲义.pdf', 'https://x/y');
+        const file: LearnFile = attachmentFileOf(att, 'c1', '课程甲', '张老师');
+        expect(file.fileId).assertEqual('f-9');
+        expect(file.fileType).assertEqual('pdf');
+        expect(file.title).assertEqual('第1章讲义');
+        expect(file.courseName).assertEqual('课程甲');
+        expect(file.courseId).assertEqual('c1');
+        // 附件目录自带分层：与同名课件不会互相覆盖
+        expect(FileRepository.attachmentDirOf('f-9', 'h-1', '课程甲').startsWith('附件/')).assertTrue();
       });
     });
 

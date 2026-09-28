@@ -145,6 +145,8 @@ export class TextKeys {
   static readonly ASSIGNMENT_SUBMITTED_ATTACHMENT: string = 'assignment_submitted_attachment';
   /** 详情：评分附件 */
   static readonly ASSIGNMENT_GRADE_ATTACHMENT: string = 'assignment_grade_attachment';
+  /** 详情：附件行的动作提示（点击下载并打开） */
+  static readonly ASSIGNMENT_ATTACHMENT_OPEN: string = 'assignment_attachment_open';
   /** 详情：补交截止 */
   static readonly ASSIGNMENT_LATE_DEADLINE: string = 'assignment_late_deadline';
   /** 详情：提交时间 */

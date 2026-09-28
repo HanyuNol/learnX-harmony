@@ -72,6 +72,7 @@ const KNOWN_KEYS: string[] = [
   TextKeys.ASSIGNMENT_SUBMISSION_ONLINE,
   TextKeys.ASSIGNMENT_SUBMISSION_OFFLINE,
   TextKeys.ASSIGNMENT_ATTACHMENT,
+  TextKeys.ASSIGNMENT_ATTACHMENT_OPEN,
   TextKeys.ASSIGNMENT_SUBMITTED_ATTACHMENT,
   TextKeys.ASSIGNMENT_GRADE_ATTACHMENT,
   TextKeys.ASSIGNMENT_LATE_DEADLINE,
@@ -216,7 +217,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(125);
+      expect(KNOWN_KEYS.length).assertEqual(126);
     });
 
     it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {

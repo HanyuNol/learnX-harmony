@@ -511,6 +511,10 @@
     {
       "name": "file_preview",
       "value": "Preview"
+    },
+    {
+      "name": "assignment_attachment_open",
+      "value": "Tap to open"
     }
   ]
 }

@@ -20,6 +20,11 @@ import { AssignmentState, AssignmentStateListener, AssignmentStore } from '../vi
 import { TextKeys, textKeyOfRelativeDeadline, textKeyOfCompletionType, textKeyOfSubmissionType, textKeyOfGradeLevel } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';
+import { common } from '@kit.AbilityKit';
+import { webview } from '@kit.ArkWeb';
+import { LearnFile, attachmentFileOf, canPreviewInApp } from '../model/file';
+import { FileStore } from '../viewmodel/fileStore';
+import { Logger } from '../common/logger';
 
 /** 详情目的地的参数载体 */
 export class AssignmentDetailParam {
@@ -42,6 +47,15 @@ export struct AssignmentDetailView {
    * 见 OPERATIONS.md §7）。
    */
   @State private assignment: Assignment | null = null;
+  /**
+   * 点开的附件其应用内预览 URL（空串＝不显示预览区）。
+   * 与文件详情同一套：本机没有能处理该类型的应用时（`startAbility` 报 16000019），
+   * 应用内预览是"打开附件"唯一可用的路径（附件同样要能看）。
+   */
+  @State private previewUri: string = '';
+  /** 正在下载的附件 id（用于按钮禁用与"下载中"文案） */
+  @State private busyAttachment: string = '';
+  private webController: webview.WebviewController = new webview.WebviewController();
 
   private store: AssignmentStore = AssignmentStore.getInstance();
 
@@ -150,7 +164,7 @@ export struct AssignmentDetailView {
             .width('100%')
         }
 
-        this.teacherAttachment(assignment.attachments)
+        this.teacherAttachment(assignment)
 
         if (assignment.submitted) {
           this.submittedBlock(assignment)
@@ -158,6 +172,19 @@ export struct AssignmentDetailView {
 
         if (assignment.graded) {
           this.gradeBlock(assignment)
+        }
+
+        // 附件/文件的应用内预览（仅在"点开了可预览的附件"时出现）
+        if (this.previewUri.length > 0) {
+          Web({ src: this.previewUri, controller: this.webController })
+            .width('100%')
+            .height(720)
+            // `fileAccess` 必须显式打开（API 12 起默认关闭），否则本地文件被拒，
+            // 见 OPERATIONS §7.7
+            .fileAccess(true)
+            .onErrorReceive((event: OnErrorReceiveEvent) => {
+              Logger.warn('assignmentPreview', `预览加载出错 code=${event.error.getErrorCode()}`);
+            })
         }
       }
       .width('100%')
@@ -185,18 +212,72 @@ export struct AssignmentDetailView {
   }
 
   @Builder
-  teacherAttachment(attachments: AssignmentAttachments) {
-    if (attachments.teacher !== null) {
-      Row({ space: 8 }) {
-        Text($r('app.string.' + TextKeys.ASSIGNMENT_ATTACHMENT))
-          .fontSize(14)
-          .fontColor($r('app.color.text_secondary'))
-        Text((attachments.teacher as Attachment).name)
-          .fontSize(14)
-          .fontColor($r('app.color.text_primary'))
-      }
-      .width('100%')
+  teacherAttachment(assignment: Assignment) {
+    if (assignment.attachments.teacher !== null) {
+      this.attachmentRow(TextKeys.ASSIGNMENT_ATTACHMENT,
+        assignment.attachments.teacher as Attachment, assignment)
     }
+  }
+
+  /**
+   * 一行附件：显示名称，**点击即下载并打开**（可预览的类型在页内预览，
+   * 不可预览的交给系统应用）。附件此前只显示名字、点不动——那是个缺口。
+   */
+  @Builder
+  attachmentRow(labelKey: string, attachment: Attachment, assignment: Assignment) {
+    Row({ space: 8 }) {
+      Text($r('app.string.' + labelKey))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+      Text(attachment.name)
+        .fontSize(14)
+        .fontColor($r('app.color.accent'))
+        .layoutWeight(1)
+      if (this.busyAttachment === attachment.fileId) {
+        Text($r('app.string.' + TextKeys.FILE_DOWNLOADING))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+      } else {
+        Text($r('app.string.' + TextKeys.ASSIGNMENT_ATTACHMENT_OPEN))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+      }
+    }
+    .width('100%')
+    .padding({ top: 4, bottom: 4 })
+    .onClick(() => {
+      this.openAttachment(attachment, assignment);
+    })
+  }
+
+  /** 点附件：下载（已下过则复用）→ 可预览就页内预览，否则交给系统应用 */
+  private openAttachment(attachment: Attachment, assignment: Assignment): void {
+    if (this.busyAttachment.length > 0) {
+      return;
+    }
+    const store: FileStore = FileStore.getInstance();
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const file: LearnFile = attachmentFileOf(attachment, assignment.courseId,
+      assignment.courseName, assignment.courseTeacherName);
+
+    this.busyAttachment = attachment.fileId;
+    store.downloadAttachment(file, assignment.id, context, false).then(() => {
+      this.busyAttachment = '';
+      if (canPreviewInApp(file.fileType)) {
+        const uri: string = store.previewUriOfAttachment(file, assignment.id, context);
+        if (uri.length > 0) {
+          this.previewUri = uri;
+          return;
+        }
+      }
+      // 浏览器渲染不出来的类型（Office 文档等）：交给系统应用，失败如实提示
+      store.openAttachment(file, assignment.id, context).catch(() => {
+        showToast($r('app.string.' + TextKeys.FILE_OPEN_FAILED));
+      });
+    }).catch(() => {
+      this.busyAttachment = '';
+      showToast($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED));
+    });
   }
 
   @Builder
@@ -220,15 +301,8 @@ export struct AssignmentDetailView {
       .width('100%')
 
       if (assignment.attachments.submitted !== null) {
-        Row({ space: 8 }) {
-          Text($r('app.string.' + TextKeys.ASSIGNMENT_SUBMITTED_ATTACHMENT))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-          Text((assignment.attachments.submitted as Attachment).name)
-            .fontSize(14)
-            .fontColor($r('app.color.text_primary'))
-        }
-        .width('100%')
+        this.attachmentRow(TextKeys.ASSIGNMENT_SUBMITTED_ATTACHMENT,
+          assignment.attachments.submitted as Attachment, assignment)
       }
     }
     .width('100%')
@@ -278,15 +352,8 @@ export struct AssignmentDetailView {
       }
 
       if (assignment.attachments.grade !== null) {
-        Row({ space: 8 }) {
-          Text($r('app.string.' + TextKeys.ASSIGNMENT_GRADE_ATTACHMENT))
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-          Text((assignment.attachments.grade as Attachment).name)
-            .fontSize(14)
-            .fontColor($r('app.color.text_primary'))
-        }
-        .width('100%')
+        this.attachmentRow(TextKeys.ASSIGNMENT_GRADE_ATTACHMENT,
+          assignment.attachments.grade as Attachment, assignment)
       }
     }
     .width('100%')

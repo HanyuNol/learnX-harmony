@@ -33,6 +33,7 @@ import {
   learnFileList,
   learnFileCategoryList,
   learnFileDownload,
+  learnAssignmentAttachmentDownload,
   LEARN_HOMEWORK_DETAIL,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
@@ -769,7 +770,24 @@ export class LearnClient {
    * 只是响应体是二进制，无法像文本那样查 `login_timeout` 标记，故以状态码为准。
    */
   async downloadFileBytes(fileId: string, onProgress?: (received: number, total: number) => void): Promise<ArrayBuffer> {
-    const url: string = learnFileDownload(fileId);
+    return this.downloadBytesVia(learnFileDownload(fileId), onProgress);
+  }
+
+  /**
+   * 下载**作业附件**的字节。
+   *
+   * 端点与课件文件**不同**（作业附件是 `…/kczy/zy/student/downloadFile/<课程>/<附件 id>`，
+   * 见 `learnAssignmentAttachmentDownload`），其余流程（会话注入、403 重登、字节返回）
+   * 与 `downloadFileBytes` 完全一致，故共用 `downloadBytesVia`。
+   */
+  async downloadAssignmentAttachmentBytes(courseId: string, attachmentId: string,
+                                          onProgress?: (received: number, total: number) => void): Promise<ArrayBuffer> {
+    return this.downloadBytesVia(learnAssignmentAttachmentDownload(courseId, attachmentId), onProgress);
+  }
+
+  /** 下载字节的通用流程：取一次 → 遇 403 自动重登一次 → 再取，非 200 归类报错 */
+  private async downloadBytesVia(url: string,
+                                 onProgress?: (received: number, total: number) => void): Promise<ArrayBuffer> {
     const first: ByteResult = await this.getBytes(url, onProgress);
     let status: number = first.status;
     let data: ArrayBuffer = first.data;

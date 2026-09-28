@@ -9,6 +9,7 @@
  */
 
 import { summarize, formatPublishDate } from './notice';
+import { Attachment } from './attachment';
 
 /** 上传日期 → `YYYY-MM-DD`（与通知同一口径、同一实现，故复用） */
 export function formatUploadDate(timestamp: number): string {
@@ -223,4 +224,32 @@ const PREVIEWABLE: string[] = [
 export function canPreviewInApp(fileType: string): boolean {
   const normalized: string = fileType.trim().toLowerCase().replace(/^\./, '');
   return PREVIEWABLE.includes(normalized);
+}
+
+/** 取文件名的扩展名（小写、不含点）；没有扩展名返回空串 */
+export function extensionOf(name: string): string {
+  const dot: number = name.lastIndexOf('.');
+  if (dot < 0 || dot === name.length - 1) {
+    return '';
+  }
+  return name.substring(dot + 1).trim().toLowerCase();
+}
+
+/** 取文件名去掉扩展名的部分（用作标题） */
+export function titleOfFileName(name: string): string {
+  const dot: number = name.lastIndexOf('.');
+  return dot > 0 ? name.substring(0, dot) : name;
+}
+
+/**
+ * 把**作业附件**包装成一个 `LearnFile`，以便复用"文件"那一整套能力
+ * （落盘目录与命名、已下载判定、应用内预览、交给系统应用打开）。
+ *
+ * 附件的正文/大小/上传时间在接口里没有，故留空——它们只用于列表展示，
+ * 而附件只需要"存下来 + 打开"这两件事。
+ */
+export function attachmentFileOf(attachment: Attachment, courseId: string, courseName: string,
+                                 courseTeacherName: string): LearnFile {
+  return new LearnFile(attachment.fileId, attachment.fileId, courseId, courseName, courseTeacherName,
+    titleOfFileName(attachment.name), '', '', 0, '', 0, extensionOf(attachment.name), '附件', false, false);
 }

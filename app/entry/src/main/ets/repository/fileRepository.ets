@@ -22,6 +22,9 @@ import { common } from '@kit.AbilityKit';
 
 const TAG: string = 'fileRepository';
 
+/** `downloadVia` 的取字节来源标识（只影响日志与目录，不影响逻辑） */
+const ATTACHMENT_KIND: string = '作业附件';
+
 /** 同时在飞的课程数上限（沿用通知那套工程判断） */
 const FANOUT_LIMIT: number = 4;
 
@@ -112,8 +115,34 @@ export class FileRepository {
    */
   static async download(file: LearnFile, context: common.Context, forceRefresh: boolean,
                         onProgress?: (received: number, total: number) => void): Promise<string> {
+    return FileRepository.downloadVia(file, context, forceRefresh, onProgress, '文件',
+      FileRepository.relativeDirOf(file));
+  }
+
+  /**
+   * 下载一个**作业附件**（教师附件 / 已提交附件 / 评分附件）。
+   *
+   * 与课件文件走**同一套**落盘、命名、缓存与校验逻辑，只有两处不同：
+   * 取字节的端点不同（作业附件用的是 `…/kczy/zy/student/downloadFile/<课程>/<附件 id>`），
+   * 目标目录多一层，避免与同名课件互相覆盖。
+   */
+  static async downloadAttachment(file: LearnFile, homeworkId: string, context: common.Context,
+                                  forceRefresh: boolean,
+                                  onProgress?: (received: number, total: number) => void): Promise<string> {
+    return FileRepository.downloadVia(file, context, forceRefresh, onProgress, ATTACHMENT_KIND,
+      FileRepository.attachmentDirOf(file.fileId, homeworkId, file.courseName));
+  }
+
+  /**
+   * 下载的**通用核心**：落盘 → 复用判定 → 取字节 → 校验 → 写入。
+   *
+   * `kind` 只用于日志与目录分层（`附件/` 前缀），取字节由调用方给定的来源决定。
+   */
+  private static async downloadVia(file: LearnFile, context: common.Context, forceRefresh: boolean,
+                                   onProgress: ((received: number, total: number) => void) | undefined,
+                                   kind: string, relativeDir: string): Promise<string> {
     const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
-    const directory: string = `${root}/${FileRepository.relativeDirOf(file)}`;
+    const directory: string = `${root}/${relativeDir}`;
     ensureDir(directory);
     const path: string = `${directory}/${downloadFileName(file.courseName, file.title, file.fileType, readOmitCourseName(context))}`;
 
@@ -124,11 +153,13 @@ export class FileRepository {
 
     let data: ArrayBuffer;
     try {
-      data = await LearnClient.getInstance().downloadFileBytes(file.fileId, onProgress);
+      data = kind === ATTACHMENT_KIND
+        ? await LearnClient.getInstance().downloadAssignmentAttachmentBytes(file.courseId, file.fileId, onProgress)
+        : await LearnClient.getInstance().downloadFileBytes(file.fileId, onProgress);
     } catch (err) {
       // 带上失败原因：只说"下载失败"没法定位是会话、网络还是服务端语义问题
-      Logger.warn(TAG, `下载失败 id=${file.id} fileId=${file.fileId} ${describeError(err)}`);
-      throw normalize(err, '下载文件');
+      Logger.warn(TAG, `${kind}下载失败 id=${file.id} fileId=${file.fileId} ${describeError(err)}`);
+      throw normalize(err, `${kind}下载`);
     }
     if (data.byteLength <= 0) {
       removeFile(path);
@@ -140,14 +171,14 @@ export class FileRepository {
     }
 
     writeBytes(path, data);
-    Logger.info(TAG, `文件已下载 id=${file.id} 字节=${data.byteLength} 路径长度=${path.length}`);
+    Logger.info(TAG, `${kind}已下载 id=${file.id} 字节=${data.byteLength} 路径长度=${path.length}`);
     return path;
   }
 
   /** 沙箱里的文件路径（按**当前偏好**算，不下载；判定"已下载"用 `isDownloaded`） */
   static pathOf(file: LearnFile, context: common.Context): string {
-    return FileRepository.pathIn(filesRoot(context, readUseDocumentDir(context)), file,
-      readOmitCourseName(context));
+    return FileRepository.pathIn(filesRoot(context, readUseDocumentDir(context)),
+      FileRepository.relativeDirOf(file), file, readOmitCourseName(context));
   }
 
   /**
@@ -162,9 +193,31 @@ export class FileRepository {
 
   /** 已下载时的绝对路径（任一目录 + 任一种命名命中即可）；都没命中返回空串 */
   static downloadedPathOf(file: LearnFile, context: common.Context): string {
+    return FileRepository.findExisting(file, context, FileRepository.relativeDirOf(file));
+  }
+
+  /** 作业附件是否已在该作业的附件目录下 */
+  static isAttachmentDownloaded(file: LearnFile, homeworkId: string, context: common.Context): boolean {
+    return FileRepository.downloadedAttachmentPathOf(file, homeworkId, context).length > 0;
+  }
+
+  /** 已下载附件的绝对路径 */
+  static downloadedAttachmentPathOf(file: LearnFile, homeworkId: string,
+                                    context: common.Context): string {
+    return FileRepository.findExisting(file, context,
+      FileRepository.attachmentDirOf(file.fileId, homeworkId, file.courseName));
+  }
+
+  /**
+   * 在"两个根目录 × 两种命名"里找已存在的文件。
+   *
+   * 为什么都要看：用户可能切换过目标目录（FR-10）或"省略课程名前缀"（FR-16），
+   * 旧文件仍在原处；只看当前偏好会让界面显示"未下载"而文件其实还在。
+   */
+  private static findExisting(file: LearnFile, context: common.Context, relativeDir: string): string {
     for (const root of filesRoots(context)) {
       for (const omit of [false, true]) {
-        const path: string = FileRepository.pathIn(root, file, omit);
+        const path: string = FileRepository.pathIn(root, relativeDir, file, omit);
         if (fileExists(path)) {
           return path;
         }
@@ -183,8 +236,24 @@ export class FileRepository {
     return path.length > 0 ? previewUrlOf(path) : '';
   }
 
-  private static pathIn(root: string, file: LearnFile, omitCourseName: boolean): string {
-    return `${root}/${FileRepository.relativeDirOf(file)}`
+  /** 把沙箱路径变成应用内预览 URL（供附件走同一条预览路径） */
+  static previewUrlOfPath(path: string): string {
+    return previewUrlOf(path);
+  }
+
+  /** 把沙箱路径交给系统应用打开（错误由调用方归类；失败明细在这里记） */
+  static async openPath(path: string, mime: string, context: common.UIAbilityContext): Promise<void> {
+    try {
+      await openFile(context, path, mime);
+    } catch (err) {
+      Logger.warn(TAG, `打开文件失败 路径长度=${path.length} ${describeError(err)}`);
+      throw normalize(err, '打开文件');
+    }
+  }
+
+  private static pathIn(root: string, relativeDir: string, file: LearnFile,
+                        omitCourseName: boolean): string {
+    return `${root}/${relativeDir}`
       + `/${downloadFileName(file.courseName, file.title, file.fileType, omitCourseName)}`;
   }
 
@@ -217,6 +286,16 @@ export class FileRepository {
   /** 相对目录：`<课程名>/<文件 id>`（清洗过，不得越级） */
   static relativeDirOf(file: LearnFile): string {
     return `${sanitizePathSegment(file.courseName)}/${sanitizePathSegment(file.fileId)}`;
+  }
+
+  /**
+   * 作业附件的相对目录：`附件/<课程名>/<作业 id>/<附件 id>`。
+   *
+   * 比课件多一层：同一门课里，附件与课件可能**同名**（都叫「作业要求.pdf」），
+   * 不加分隔会互相覆盖。
+   */
+  static attachmentDirOf(attachmentId: string, homeworkId: string, courseName: string): string {
+    return `附件/${sanitizePathSegment(courseName)}/${sanitizePathSegment(homeworkId)}/${sanitizePathSegment(attachmentId)}`;
   }
 
   /**

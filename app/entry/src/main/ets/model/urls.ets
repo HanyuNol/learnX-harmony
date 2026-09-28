@@ -152,6 +152,19 @@ export function learnFileDownload(fileId: string): string {
     `?sfgk=0&wjid=${encodeURIComponent(fileId)}`;
 }
 
+/**
+ * 作业附件的下载端点。**注意与课件文件的下载端点不同**：
+ * 课件走 `…/kj/wlkc_kjxxb/student/downloadFile?wjid=`，作业附件走
+ * `…/kczy/zy/student/downloadFile/<课程 id>/<附件 id>`（上游 `urls.ts:132-133`）。
+ */
+export function learnAssignmentAttachmentDownload(courseId: string, attachmentId: string): string {
+  return `${LEARN_PREFIX}/b/wlxt/kczy/zy/student/downloadFile/`
+    + `${encodeURIComponent(courseId)}/${encodeURIComponent(attachmentId)}`;
+}
+
+/** 作业提交（POST，multipart：`xszyid` / `zynr` / `fileupload` / `isDeleted`） */
+export const LEARN_HOMEWORK_SUBMIT: string = `${LEARN_PREFIX}/b/wlxt/kczy/zy/student/tjzy`;
+
 /** 登出 */
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 // 曾有一个 ID_SESSION_COOKIE 常量，但会话 Cookie 的判定一直走
