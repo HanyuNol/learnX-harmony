@@ -703,6 +703,38 @@
     {
       "name": "search_title",
       "value": "搜索"
+    },
+    {
+      "name": "settings_reminder_title",
+      "value": "提醒"
+    },
+    {
+      "name": "settings_reminder_enabled",
+      "value": "作业截止提醒"
+    },
+    {
+      "name": "settings_reminder_offset",
+      "value": "提前多久提醒（分钟）"
+    },
+    {
+      "name": "settings_reminder_no_if_complete",
+      "value": "已完成的作业不提醒"
+    },
+    {
+      "name": "settings_reminder_hint",
+      "value": "提醒的是当前学期的作业；作业数据刷新时会自动对齐"
+    },
+    {
+      "name": "settings_reminder_offset_invalid",
+      "value": "请输入 0 到 %d 之间的整数分钟"
+    },
+    {
+      "name": "settings_reminder_notification_off",
+      "value": "系统通知已关闭，提醒不会弹出。请在系统设置里开启本应用的通知"
+    },
+    {
+      "name": "settings_reminder_failed",
+      "value": "提醒未能登记到系统，请稍后重试"
     }
   ]
 }

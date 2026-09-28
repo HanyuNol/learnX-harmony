@@ -14,6 +14,11 @@
       {
         // 访问网络学堂与统一身份认证所需；normal 级别，无需用户授权弹窗
         "name": "ohos.permission.INTERNET"
+      },
+      {
+        // 登记作业截止前的本地通知提醒（FR-18）；normal 级别且为系统授权（system_grant），
+        // 不弹授权框。系统通知总开关是否开着另查（native/reminderAdapter.notificationsEnabled）
+        "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
       }
     ],
     "abilities": [

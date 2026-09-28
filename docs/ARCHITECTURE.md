@@ -33,7 +33,7 @@ app/entry/src/main/ets/
 ├── repository/       数据获取与缓存编排（对应上游 data/actions + data/source）
 ├── network/          HTTP 客户端、会话 Cookie、CSRF、SM2、页面抓取、SSO 表单逻辑、错误归类
 ├── storage/          凭据、偏好、列表缓存、文件管理
-├── native/           系统 Kit 适配层（设备信息、应用资源；日历/通知/分享/PDF/生物识别/文件选择后续补）
+├── native/           系统 Kit 适配层（设备信息、应用资源、文件与目录、提醒；日历/分享/PDF/生物识别后续补）
 ├── model/            领域模型与类型定义（对应上游 data/types + thu-learn-lib 类型）
 ├── i18n/             中英文文案资源
 └── common/           无副作用工具（日期、HTML 清洗、日志、格式化）
@@ -170,6 +170,21 @@ pages → viewmodel → repository → network / storage / native
 ### 5.5 系统能力编排
 
 日历同步、通知提醒、后台同步均为"尽力而为"：任一系统能力被拒绝授权时，主流程（浏览数据）不受影响，仅在设置页提示。
+
+**作业截止提醒（FR-18）**：不用"应用内定时器 + 发通知"，而是登记到系统的**通知代理**
+（`@ohos.reminderAgentManager`）——提醒是系统侧的持久登记，**应用没在运行也照弹**，
+而自建定时器只在应用活着时有效（本应用不常驻后台）。为此申明 `PUBLISH_AGENT_REMINDER`
+（normal 级、系统授权，无弹窗）。
+
+对齐是**无状态的自愈**：作业键（`课程 id:作业 id`）写在系统提醒的 `groupId` 上，
+每次对齐"读回现有提醒（`getAllValidReminders`）→ 算差量 → 撤多的、补少的"，
+既不落本地映射表（上游用 `syncedReminderAssignments`，表一旦丢/错就永远对不上），
+也能自动修掉重复与"截止时间被改"的旧登记。触发点是**作业数据落地**（加载成功、改动设置），
+不是用户手动点同步；系统通知总开关关着时只提示、不影响主流程。
+
+> 分层的落点：纯逻辑（筛选 / 提醒时刻 / 标题正文 / 差量对齐）在 `model/reminder.ets`（可穷举测试），
+> 系统调用在 `native/reminderAdapter.ets`（不含业务判断），两者之间的编排在
+> `viewmodel/reminderSync.ets`。详见 `docs/specs/reminders.md`。
 
 ### 5.6 已知缺口（2026-09-27 代码审查，带修复触发点）
 

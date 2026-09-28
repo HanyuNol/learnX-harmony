@@ -325,6 +325,22 @@ export class TextKeys {
 
   /** 设置页：显示项小节标题 */
   static readonly SETTINGS_DISPLAY_TITLE: string = 'settings_display_title';
+  /** 设置页：提醒小节标题（FR-18） */
+  static readonly SETTINGS_REMINDER_TITLE: string = 'settings_reminder_title';
+  /** 提醒：作业截止提醒开关 */
+  static readonly SETTINGS_REMINDER_ENABLED: string = 'settings_reminder_enabled';
+  /** 提醒：提前多久提醒（分钟） */
+  static readonly SETTINGS_REMINDER_OFFSET: string = 'settings_reminder_offset';
+  /** 提醒：已完成的作业不提醒 */
+  static readonly SETTINGS_REMINDER_NO_IF_COMPLETE: string = 'settings_reminder_no_if_complete';
+  /** 提醒：说明对齐范围与时机 */
+  static readonly SETTINGS_REMINDER_HINT: string = 'settings_reminder_hint';
+  /** 提醒：提前量输入非法（`%d` 为上限分钟数） */
+  static readonly SETTINGS_REMINDER_OFFSET_INVALID: string = 'settings_reminder_offset_invalid';
+  /** 提醒：系统通知已关闭，弹不出来 */
+  static readonly SETTINGS_REMINDER_NOTIFICATION_OFF: string = 'settings_reminder_notification_off';
+  /** 提醒：登记到系统失败 */
+  static readonly SETTINGS_REMINDER_FAILED: string = 'settings_reminder_failed';
   /** 显示项：下载文件名省略课程名前缀 */
   static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';
   /** 设置页入口：关于与帮助 */

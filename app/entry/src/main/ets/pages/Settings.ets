@@ -10,10 +10,18 @@
 
 import { common } from '@kit.AbilityKit';
 import { AuthStore } from '../viewmodel/authStore';
+import { AssignmentStore } from '../viewmodel/assignmentStore';
 import {
-  changeCustomDownloadDir, changeOmitCourseName, changeThemeMode, changeUseDocumentDir,
-  loadCustomDownloadDir, loadOmitCourseName, loadThemeMode, loadUseDocumentDir
+  assignmentReminderOffsetMax, changeAssignmentReminder, changeAssignmentReminderNoIfComplete,
+  changeAssignmentReminderOffset, changeCustomDownloadDir, changeOmitCourseName, changeThemeMode,
+  changeUseDocumentDir, loadAssignmentReminder, loadAssignmentReminderNoIfComplete,
+  loadAssignmentReminderOffset, loadCustomDownloadDir, loadOmitCourseName, loadThemeMode,
+  loadUseDocumentDir, parseAssignmentReminderOffset
 } from '../viewmodel/settingsStore';
+import { ReminderSyncResult, reminderNotificationsEnabled, syncAssignmentReminders }
+  from '../viewmodel/reminderSync';
+import { SemesterStore } from '../viewmodel/semesterStore';
+import { CourseStore } from '../viewmodel/courseStore';
 import { pickFolder } from '../native/filePickerAdapter';
 import { supportsFolderSelection } from '../native/deviceAdapter';
 import { ThemeMode } from '../common/theme';
@@ -62,8 +70,25 @@ export struct SettingsView {
   @State private customDir: string = '';
   /** 本设备是否支持选择文件夹（二合一支持；手机不支持，界面要如实说明） */
   @State private folderSelectionSupported: boolean = false;
+  /** 是否登记作业截止提醒（FR-18） */
+  @State private reminderEnabled: boolean = false;
+  /** 提醒提前量（分钟）的**已持久化值** */
+  @State private reminderOffsetMinutes: number = 0;
+  /** 提前量输入框里的文本（可能尚未通过校验） */
+  @State private reminderOffsetText: string = '';
+  /** 已完成的作业不提醒 */
+  @State private reminderNoIfComplete: boolean = false;
+  /** 系统通知总开关是否开着（关着时提醒登记了也弹不出来） */
+  @State private reminderNotificationOn: boolean = true;
+  /** 正在对齐系统提醒（含为对齐而补拉作业数据） */
+  @State private reminderAligning: boolean = false;
 
   private store: AuthStore = AuthStore.getInstance();
+  /** 对齐提醒要用到"当前已知的作业"；没有数据时要先把作业拉起来（见 `alignReminders`） */
+  private assignmentStore: AssignmentStore = AssignmentStore.getInstance();
+  /** 同上：作业取数需要"当前学期 + 课程集"这两个前提（与作业页的取数口径一致） */
+  private semesterStore: SemesterStore = SemesterStore.getInstance();
+  private courseStore: CourseStore = CourseStore.getInstance();
 
   /** 偏好读写一律走应用级上下文；原因见 `native/contextAdapter.ets` */
   private appContext(): common.ApplicationContext {
@@ -76,6 +101,11 @@ export struct SettingsView {
     this.omitCourseName = loadOmitCourseName(this.appContext());
     this.customDir = loadCustomDownloadDir(this.appContext());
     this.folderSelectionSupported = supportsFolderSelection();
+    this.reminderEnabled = loadAssignmentReminder(this.appContext());
+    this.reminderOffsetMinutes = loadAssignmentReminderOffset(this.appContext());
+    this.reminderOffsetText = `${this.reminderOffsetMinutes}`;
+    this.reminderNoIfComplete = loadAssignmentReminderNoIfComplete(this.appContext());
+    this.reminderNotificationOn = reminderNotificationsEnabled();
   }
 
   /** 自定义目录只显示末段：完整 URI 又长又难读 */
@@ -132,6 +162,95 @@ export struct SettingsView {
       this.useDocumentDir = loadUseDocumentDir(this.appContext());
       showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
     }
+  }
+
+  /**
+   * 开/关作业截止提醒（FR-18）。
+   *
+   * 改动后**立刻对齐一次**：开启＝把当前作业登记上（没有数据就先把作业拉起来，见 `alignReminders`），
+   * 关闭＝把此前登记的撤干净。不留"关了还在弹"的幽灵提醒。
+   */
+  private selectReminderEnabled(enabled: boolean): void {
+    const before: boolean = this.reminderEnabled;
+    this.reminderEnabled = enabled;
+    if (!changeAssignmentReminder(this.appContext(), enabled)) {
+      this.reminderEnabled = before;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    this.alignReminders();
+  }
+
+  private selectReminderNoIfComplete(enabled: boolean): void {
+    this.reminderNoIfComplete = enabled;
+    if (!changeAssignmentReminderNoIfComplete(this.appContext(), enabled)) {
+      this.reminderNoIfComplete = !enabled;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    if (this.reminderEnabled) {
+      this.alignReminders();
+    }
+  }
+
+  /**
+   * 提交提前量输入。
+   *
+   * 非法输入**不改存储、退回真实值**并提示——静默丢掉用户的输入、或把它当数字存下去，
+   * 都会让"设置里写的"和"实际生效的"对不上（与 `fileOmitCourseName` 那条同一考虑）。
+   * 输入与已存值相同则不写、也不触发对齐（省一次系统调用）。
+   */
+  private applyReminderOffset(): void {
+    const parsed: number | null = parseAssignmentReminderOffset(this.reminderOffsetText);
+    if (parsed === null) {
+      showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_OFFSET_INVALID,
+        assignmentReminderOffsetMax()));
+      this.reminderOffsetText = `${this.reminderOffsetMinutes}`;
+      return;
+    }
+    if (parsed === this.reminderOffsetMinutes) {
+      // 顺手归一化显示（用户可能输了前导空格），但不重复写
+      this.reminderOffsetText = `${parsed}`;
+      return;
+    }
+    if (!changeAssignmentReminderOffset(this.appContext(), parsed)) {
+      this.reminderOffsetText = `${this.reminderOffsetMinutes}`;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    this.reminderOffsetMinutes = parsed;
+    this.reminderOffsetText = `${parsed}`;
+    if (this.reminderEnabled) {
+      this.alignReminders();
+    }
+  }
+
+  /**
+   * 把当前设置与当前作业对齐到系统提醒。
+   *
+   * 先 `ensureLoadedFor` 再对齐的原因：提醒是"作业数据的函数"，用户刚打开提醒开关时
+   * 作业可能一条都还没加载（作业是进"作业"标签才拉的）。不补这一步，用户打开开关却
+   * 一个提醒也没登记，而且**界面上看不出任何异常**——要等他恰好去作业页看一眼才生效，
+   * 那正是这个功能要避免的"被落下"。已有数据时这一句是空操作（store 内有签名比对）。
+   */
+  private alignReminders(): void {
+    const context: common.ApplicationContext = this.appContext();
+    this.reminderAligning = true;
+    this.assignmentStore.ensureLoadedFor(this.semesterStore.snapshot().current,
+      this.courseStore.snapshot().items)
+      .then(() => syncAssignmentReminders(context, this.assignmentStore.snapshot().items))
+      .then((result: ReminderSyncResult) => {
+        this.reminderAligning = false;
+        // 登记可能因"系统通知被关掉"而失败，顺带刷新这一提示行
+        this.reminderNotificationOn = reminderNotificationsEnabled();
+        if (result.failed) {
+          showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED));
+        }
+      })
+      .catch(() => {
+        this.reminderAligning = false;
+        showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED));
+      });
   }
 
   build() {
@@ -310,6 +429,92 @@ export struct SettingsView {
       .height(56)
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
+
+      // 提醒（FR-18）：作业截止前由系统弹出本地通知
+      Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_TITLE))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, top: 16, bottom: 8 })
+
+      Row({ space: 8 }) {
+        Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_ENABLED))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        // 对齐要读系统现有提醒、必要时还要先拉作业数据，给一个可见的进行中反馈
+        if (this.reminderAligning) {
+          Text($r('app.string.' + TextKeys.LIST_REFRESHING))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        Toggle({ type: ToggleType.Switch, isOn: this.reminderEnabled })
+          .onChange((isOn: boolean) => {
+            this.selectReminderEnabled(isOn);
+          })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+
+      // 两项参数只在开关打开时出现（不给当前无效果的设置行——scope-discipline §3）
+      if (this.reminderEnabled) {
+        Row({ space: 8 }) {
+          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_OFFSET))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          TextInput({ text: this.reminderOffsetText })
+            .type(InputType.Number)
+            .fontSize(16)
+            .width(96)
+            .textAlign(TextAlign.End)
+            .onChange((value: string) => {
+              this.reminderOffsetText = value;
+            })
+            .onSubmit(() => {
+              this.applyReminderOffset();
+            })
+            .onBlur(() => {
+              this.applyReminderOffset();
+            })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .backgroundColor($r('app.color.bg_card'))
+
+        Row() {
+          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_NO_IF_COMPLETE))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          Toggle({ type: ToggleType.Switch, isOn: this.reminderNoIfComplete })
+            .onChange((isOn: boolean) => {
+              this.selectReminderNoIfComplete(isOn);
+            })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .backgroundColor($r('app.color.bg_card'))
+
+        Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_HINT))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
+
+        // 系统通知被关掉时**如实说**：提醒登记得上，但弹不出来，用户不该以为"设置好了"
+        if (!this.reminderNotificationOn) {
+          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_NOTIFICATION_OFF))
+            .fontSize(12)
+            .fontColor($r('app.color.danger'))
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 4 })
+        }
+      }
 
       // 学期切换入口（FR-05 的用户入口；上游也放在设置页）
       Row() {

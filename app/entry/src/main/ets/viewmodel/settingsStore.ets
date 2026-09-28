@@ -14,9 +14,12 @@ import { common } from '@kit.AbilityKit';
 import { ThemeMode } from '../common/theme';
 import {
   readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir, readOmitCourseName,
-  writeOmitCourseName, readCustomDownloadDir, writeCustomDownloadDir
+  writeOmitCourseName, readCustomDownloadDir, writeCustomDownloadDir, readAssignmentReminder,
+  writeAssignmentReminder, readAssignmentReminderOffset, writeAssignmentReminderOffset,
+  readAssignmentReminderNoIfComplete, writeAssignmentReminderNoIfComplete
 } from '../storage/preferenceStore';
 import { applyThemeMode } from '../native/themeAdapter';
+import { OFFSET_MINUTES_MAX, parseOffsetMinutes } from '../model/reminder';
 import { Logger } from '../common/logger';
 
 const TAG: string = 'settingsStore';
@@ -91,6 +94,66 @@ export function changeCustomDownloadDir(context: common.Context, uri: string): b
   const persisted: boolean = writeCustomDownloadDir(context, uri);
   if (!persisted) {
     Logger.warn(TAG, '自定义下载目录未能持久化');
+  }
+  return persisted;
+}
+
+/** 读取"是否登记作业截止提醒"（FR-18） */
+export function loadAssignmentReminder(context: common.Context): boolean {
+  return readAssignmentReminder(context);
+}
+
+/**
+ * 开关作业截止提醒。返回是否持久化成功。
+ *
+ * 只落偏好，**不在这里对齐系统提醒**：对齐是"读偏好 → 比现状 → 落到系统"的一整套编排
+ * （`viewmodel/reminderSync`），由设置页在改动后调用。这一层只管"用户选了什么"。
+ */
+export function changeAssignmentReminder(context: common.Context, enabled: boolean): boolean {
+  const persisted: boolean = writeAssignmentReminder(context, enabled);
+  if (!persisted) {
+    Logger.warn(TAG, `提醒开关未能持久化 enabled=${enabled}`);
+  }
+  return persisted;
+}
+
+/** 读取提醒提前量（分钟） */
+export function loadAssignmentReminderOffset(context: common.Context): number {
+  return readAssignmentReminderOffset(context);
+}
+
+/**
+ * 解析用户输入的提前量文本。返回分钟数；**`null` 表示这串不被接受**
+ * （空串 / 非整数 / 负数 / 超过上限），页面据此提示并退回旧值（`model` 不持有文案）。
+ */
+export function parseAssignmentReminderOffset(text: string): number | null {
+  return parseOffsetMinutes(text);
+}
+
+/** 提前量的合法上界（分钟），供页面在提示里说明取值范围 */
+export function assignmentReminderOffsetMax(): number {
+  return OFFSET_MINUTES_MAX;
+}
+
+/** 写入提醒提前量（分钟）。返回是否持久化成功 */
+export function changeAssignmentReminderOffset(context: common.Context, minutes: number): boolean {
+  const persisted: boolean = writeAssignmentReminderOffset(context, minutes);
+  if (!persisted) {
+    Logger.warn(TAG, `提醒提前量未能持久化 minutes=${minutes}`);
+  }
+  return persisted;
+}
+
+/** 读取"已完成的作业是否不提醒" */
+export function loadAssignmentReminderNoIfComplete(context: common.Context): boolean {
+  return readAssignmentReminderNoIfComplete(context);
+}
+
+/** 设置"已完成的作业是否不提醒"。返回是否持久化成功 */
+export function changeAssignmentReminderNoIfComplete(context: common.Context, enabled: boolean): boolean {
+  const persisted: boolean = writeAssignmentReminderNoIfComplete(context, enabled);
+  if (!persisted) {
+    Logger.warn(TAG, `"已完成不提醒"未能持久化 enabled=${enabled}`);
   }
   return persisted;
 }

@@ -703,6 +703,38 @@
     {
       "name": "search_title",
       "value": "Search"
+    },
+    {
+      "name": "settings_reminder_title",
+      "value": "Reminders"
+    },
+    {
+      "name": "settings_reminder_enabled",
+      "value": "Remind me before assignment deadlines"
+    },
+    {
+      "name": "settings_reminder_offset",
+      "value": "Remind me this many minutes in advance"
+    },
+    {
+      "name": "settings_reminder_no_if_complete",
+      "value": "No reminder for completed assignments"
+    },
+    {
+      "name": "settings_reminder_hint",
+      "value": "Reminders follow the current semester's assignments and are realigned whenever the data refreshes"
+    },
+    {
+      "name": "settings_reminder_offset_invalid",
+      "value": "Enter a whole number of minutes between 0 and %d"
+    },
+    {
+      "name": "settings_reminder_notification_off",
+      "value": "System notifications are off, so reminders will not pop up. Turn on notifications for this app in system settings"
+    },
+    {
+      "name": "settings_reminder_failed",
+      "value": "Reminders could not be registered with the system, please try again later"
     }
   ]
 }

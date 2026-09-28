@@ -12,6 +12,7 @@ import { preferences } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DEFAULT_THEME_MODE, ThemeMode, parseThemeMode } from '../common/theme';
+import { DEFAULT_OFFSET_MINUTES, parseOffsetMinutes } from '../model/reminder';
 import { Logger } from '../common/logger';
 
 const TAG: string = 'preferenceStore';
@@ -33,6 +34,15 @@ const KEY_OMIT_COURSE_NAME: string = 'omit_course_name';
 
 /** 自定义下载目录（用户选定的外部目录 URI）；空串 = 未设置（用应用内目录） */
 const KEY_CUSTOM_DIR: string = 'custom_download_dir';
+
+/** 是否登记"作业截止前提醒"（FR-18）。缺省/`false` = 不登记 */
+const KEY_ASSIGNMENT_REMINDER: string = 'assignment_reminder';
+
+/** 提醒提前量（分钟，FR-18）。缺省 = `DEFAULT_OFFSET_MINUTES`（1440 = 24 小时） */
+const KEY_ASSIGNMENT_REMINDER_OFFSET: string = 'assignment_reminder_offset';
+
+/** 已完成的作业是否不提醒（FR-18）。缺省/`false` = 照提醒 */
+const KEY_ASSIGNMENT_REMINDER_NO_IF_COMPLETE: string = 'assignment_reminder_no_if_complete';
 
 /**
  * 打开偏好存储。
@@ -197,6 +207,94 @@ export function writeCustomDownloadDir(context: common.Context, uri: string): bo
     return true;
   } catch (err) {
     Logger.warn(TAG, `写入自定义下载目录失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取"是否登记作业截止提醒"（FR-18）。
+ *
+ * 默认 **false**（不登记）——与上游 `alarms` 全部默认 `false` 一致：
+ * 提醒会弹系统通知，不该在用户没同意前就替他打开。非布尔值同样退让为默认值。
+ */
+export function readAssignmentReminder(context: common.Context): boolean {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_ASSIGNMENT_REMINDER, false);
+    return typeof raw === 'boolean' ? raw : false;
+  } catch (err) {
+    Logger.warn(TAG, `读取提醒开关失败，退让为不登记 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 写入"是否登记作业截止提醒"。返回是否成功（语义同 writeThemeMode） */
+export function writeAssignmentReminder(context: common.Context, enabled: boolean): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_ASSIGNMENT_REMINDER, enabled);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入提醒开关失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取提醒提前量（分钟，FR-18）。
+ *
+ * 缺省与非法值（从未写过、被外部改写成非数字、超出合法范围）一律退让为
+ * `DEFAULT_OFFSET_MINUTES`——退让规则本身是纯逻辑（`model/reminder.parseOffsetMinutes`），
+ * 这里只负责取值并交给它判定。
+ */
+export function readAssignmentReminderOffset(context: common.Context): number {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_ASSIGNMENT_REMINDER_OFFSET,
+      DEFAULT_OFFSET_MINUTES);
+    if (typeof raw !== 'number') {
+      return DEFAULT_OFFSET_MINUTES;
+    }
+    const parsed: number | null = parseOffsetMinutes(`${raw}`);
+    return parsed === null ? DEFAULT_OFFSET_MINUTES : parsed;
+  } catch (err) {
+    Logger.warn(TAG, `读取提醒提前量失败，退让为默认值 code=${(err as BusinessError).code}`);
+    return DEFAULT_OFFSET_MINUTES;
+  }
+}
+
+/** 写入提醒提前量（分钟）。返回是否成功（语义同 writeThemeMode） */
+export function writeAssignmentReminderOffset(context: common.Context, minutes: number): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_ASSIGNMENT_REMINDER_OFFSET, minutes);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入提醒提前量失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 读取"已完成的作业是否不提醒"（FR-18）。默认 `false`（照提醒），对齐上游默认值 */
+export function readAssignmentReminderNoIfComplete(context: common.Context): boolean {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_ASSIGNMENT_REMINDER_NO_IF_COMPLETE, false);
+    return typeof raw === 'boolean' ? raw : false;
+  } catch (err) {
+    Logger.warn(TAG, `读取"已完成不提醒"失败，退让为照提醒 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 写入"已完成的作业是否不提醒"。返回是否成功（语义同 writeThemeMode） */
+export function writeAssignmentReminderNoIfComplete(context: common.Context, enabled: boolean): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_ASSIGNMENT_REMINDER_NO_IF_COMPLETE, enabled);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入"已完成不提醒"失败 code=${(err as BusinessError).code}`);
     return false;
   }
 }

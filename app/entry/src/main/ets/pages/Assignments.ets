@@ -18,6 +18,9 @@ import {
 import { AssignmentState, AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
 import { CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { requestAssignmentReminderSync } from '../viewmodel/reminderSync';
+import { applicationContextOf } from '../native/contextAdapter';
+import { common } from '@kit.AbilityKit';
 import { FailReason } from '../model/auth';
 import { TextKeys, textKeyOfRelativeDeadline } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';
@@ -47,13 +50,40 @@ export struct AssignmentListTab {
   private courseStore: CourseStore = CourseStore.getInstance();
   private semesterStore: SemesterStore = SemesterStore.getInstance();
 
+  /** 上一次通知时是否处于"取数在途"——用来认出"一次加载刚刚结束"（见 `alignRemindersAfterLoad`） */
+  private wasFetching: boolean = false;
+
   private listener: AssignmentStateListener = (state: AssignmentState) => {
     this.fetching = state.fetching;
     this.items = state.items;
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
+    this.alignRemindersAfterLoad(state);
   };
+
+  /** 偏好读写一律走应用级上下文；原因见 `native/contextAdapter.ets` */
+  private appContext(): common.ApplicationContext {
+    return applicationContextOf(this.getUIContext().getHostContext() as common.Context);
+  }
+
+  /**
+   * 一次加载**结束**时顺手对齐系统提醒（FR-18）。
+   *
+   * 判据取"`fetching` 由真转假"，而不是"每次通知都对一次"：通知在刷新开始 / 结束 / 提交后
+   * 重拉 / 补详情时都会发，每次都对齐等于把系统调用绑到渲染节奏上。对齐本身很便宜
+   * （读一次现有提醒、算差量、无变化就什么也不做），但它该由"数据落地"决定，不由 UI 事件频率决定。
+   *
+   * 失败与空数据不触发：错误态下同一批作业还会再拉一次，等那次成功再对齐（对齐是幂等的）。
+   */
+  private alignRemindersAfterLoad(state: AssignmentState): void {
+    const finished: boolean = this.wasFetching && !state.fetching;
+    this.wasFetching = state.fetching;
+    if (!finished || state.errorReason !== null || state.items.length === 0) {
+      return;
+    }
+    requestAssignmentReminderSync(this.appContext(), state.items);
+  }
 
   /** 学期变化或课程集变化都要让作业对齐（store 内部有签名比对，不会白拉） */
   private coursesListener: CourseStateListener = () => {
