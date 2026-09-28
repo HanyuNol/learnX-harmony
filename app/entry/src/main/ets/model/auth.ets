@@ -91,7 +91,7 @@ export class LogoutClearPlan {
  * - `true`（用户勾选"记住密码"）：**都保留**——下次打开可直接恢复登录态（FR-31 的目标语义）；
  * - `false`：**都清除**——登出即清除，与 `SECURITY.md` §2 的原语义一致。
  *
- * 设备指纹**永不**在此清除（它是设备标识而非凭据，见 `CredentialStore.clearCredentials` 的说明）。
+ * 设备指纹**永不**在此清除（它是设备标识而非凭据，见 `CredentialStore.applyLogoutPlan` 的说明）。
  */
 export function logoutClearPlan(rememberPassword: boolean): LogoutClearPlan {
   if (rememberPassword) {

@@ -205,8 +205,8 @@ HarmonyOS 侧用 `@ohos.security.cryptoFramework`（非对称加解密当前仅�
 2. `learnClient`：从样例登录页 HTML 能提取出 SM2 公钥；从样例 check 响应能提取出 ticket；从样例课程页能提取出 CSRF 令牌。
 3. `learnClient`：样例响应 URL 含 `login_timeout` 或状态 403 时，被正确归类为认证失效。
 4. `errors`：构造网络超时、凭据错误、缺公钥、响应畸形四类输入，断言归类互不串台（尤其网络问题不得归为应用缺陷）。
-5. `credentialStore`：写入后读取一致；清除后读不到；**断言凭据值不出现在任何日志输出中**。
-6. `authStore`：登录态迁移（未登录 → 登录中 → 已登录 / 失败）不出现非法中间态。
+5. **【待补·截至 2026-09-28 无单测】** `credentialStore`：写入后读取一致；清除后读不到；**断言凭据值不出现在任何日志输出中**。（该模块 import 平台 Kit，宿主侧导入即失败；可拆的判定逻辑已拆出并测，但「写入与清除成对」本身仍未覆盖，见代码审查 R1）
+6. **【待补·截至 2026-09-28 无单测】** `authStore`：登录态迁移（未登录 → 登录中 → 已登录 / 失败）不出现非法中间态。（同上，见代码审查 R1）
 
 **构建与静态检查**：
 
@@ -688,7 +688,7 @@ UI 节点树回到「已登录：朱贺」。**无需再次登录、无需验证
 
 **已修的**：
 
-1. `CredentialStore.clearCredentials()` 取代原 `clear()`：登出只清学号与密码，**保留设备指纹**。
+1. `CredentialStore.applyLogoutPlan()` 取代原 `clear()`/`clearCredentials()`：按「是否记住密码」处置学号与密码，**保留设备指纹**（FR-31 / ADR-0011）。
 2. 指纹复用也留痕（`复用已有设备指纹` / `已生成新的设备指纹`），下次运行一眼可辨。
 3. 清 Cookie 由"清空全部"改为"**只清会话 Cookie**"（`clearSessionCookieSync`）：
    原先 `clearAllCookiesSync` 连持久 Cookie 一起抹掉，而上游只清 `id` 域的 `JSESSIONID`——
