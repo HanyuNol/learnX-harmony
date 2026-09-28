@@ -13,6 +13,7 @@ import { fileIo as fs, fileUri } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { common, wantConstant, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
+import { isFileUri } from '../model/file';
 
 /** 沙箱内放下载文件的目录名 */
 const FILES_DIR_NAME: string = 'learnX-files';
@@ -115,8 +116,10 @@ export function decodePrefix(data: ArrayBuffer, maxBytes: number): string {
  *
  * 失败（设备上没有能处理该类型的应用）会抛出，由调用方给用户可见反馈。
  */
-export async function openFile(context: common.UIAbilityContext, path: string, mime: string): Promise<void> {
-  const uri: string = fileUri.getUriFromPath(path);
+export async function openFile(context: common.UIAbilityContext, pathOrUri: string, mime: string): Promise<void> {
+  // **按形态分流**：沙箱绝对路径要经 `getUriFromPath` 包装；而"自定义下载目录"里的文件
+  // 拿到的是**已经是 URI** 的文档地址，再包一次会得到非法 URI、打开失败（审查 Q1）
+  const uri: string = isFileUri(pathOrUri) ? pathOrUri : fileUri.getUriFromPath(pathOrUri);
   const want: Want = {
     action: ACTION_VIEW_DATA,
     uri: uri,
@@ -167,8 +170,18 @@ export function readAllBytes(path: string): ArrayBuffer {
   try {
     const size: number = fs.statSync(file.fd).size;
     const buffer: ArrayBuffer = new ArrayBuffer(size);
-    fs.readSync(file.fd, buffer);
-    return buffer;
+    // **循环读满**：单次 `readSync` 对大文件可能**短读**，剩下的字节会是 0（零填充），
+    // 于是"另存为"会写出一份**尾部损坏**却毫无报错的文件（2026-09-28 审查 Q2）
+    let offset: number = 0;
+    while (offset < size) {
+      const chunk: ArrayBuffer = buffer.slice(offset);
+      const read: number = fs.readSync(file.fd, chunk);
+      if (read <= 0) {
+        break;
+      }
+      offset += read;
+    }
+    return new Uint8Array(buffer, 0, offset).buffer as ArrayBuffer;
   } finally {
     fs.closeSync(file);
   }

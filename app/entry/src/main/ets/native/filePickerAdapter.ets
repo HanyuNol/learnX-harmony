@@ -39,14 +39,22 @@ function nameOfUri(uri: string): string {
   return name.length > 0 ? decodeURIComponent(name) : 'file';
 }
 
-/** 读取一个 URI 的全部字节 */
+/** 读取一个 URI 的全部字节（**循环读满**，单次 readSync 可能短读导致尾部零填充） */
 function readAll(uri: string): ArrayBuffer {
   const file: fs.File = fs.openSync(uri, fs.OpenMode.READ_ONLY);
   try {
     const size: number = fs.statSync(file.fd).size;
     const buffer: ArrayBuffer = new ArrayBuffer(size);
-    fs.readSync(file.fd, buffer);
-    return buffer;
+    let offset: number = 0;
+    while (offset < size) {
+      const chunk: ArrayBuffer = buffer.slice(offset);
+      const read: number = fs.readSync(file.fd, chunk);
+      if (read <= 0) {
+        break;
+      }
+      offset += read;
+    }
+    return new Uint8Array(buffer, 0, offset).buffer as ArrayBuffer;
   } finally {
     fs.closeSync(file);
   }

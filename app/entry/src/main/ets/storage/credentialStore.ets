@@ -9,7 +9,7 @@ import { asset } from '@kit.AssetStoreKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { buffer } from '@kit.ArkTS';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Credentials, LogoutClearPlan, logoutClearPlan } from '../model/auth';
+import { CredentialOp, Credentials, LogoutClearPlan, credentialSavePlan, logoutClearPlan } from '../model/auth';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 
@@ -149,14 +149,19 @@ export class CredentialStore {
    */
   static async save(credentials: Credentials, rememberPassword: boolean): Promise<void> {
     try {
-      if (!rememberPassword) {
-        // 先删：这一步失败就直接失败，绝不进入"已写学号但密码还在"的中间态
-        await removeIfPresent(ALIAS_PASSWORD);
-      }
-      await upsert(ALIAS_USERNAME, credentials.username);
-      await upsert(ALIAS_FINGER_PRINT, credentials.fingerPrint);
-      if (rememberPassword) {
-        await upsert(ALIAS_PASSWORD, credentials.password);
+      // 按 `credentialSavePlan` 给**定好的次序**执行：次序本身就是安全语义（fail-closed），
+      // 且它是纯函数、有单测（2026-09-28 审查 R1）
+      const plan: CredentialOp[] = credentialSavePlan(rememberPassword);
+      for (const op of plan) {
+        if (op === CredentialOp.DELETE_PASSWORD) {
+          await removeIfPresent(ALIAS_PASSWORD);
+        } else if (op === CredentialOp.WRITE_USERNAME) {
+          await upsert(ALIAS_USERNAME, credentials.username);
+        } else if (op === CredentialOp.WRITE_FINGERPRINT) {
+          await upsert(ALIAS_FINGER_PRINT, credentials.fingerPrint);
+        } else {
+          await upsert(ALIAS_PASSWORD, credentials.password);
+        }
       }
       // 只记存在性：学号同样不进日志（审查 R-11）
       Logger.info(TAG, `已保存学号 len=${credentials.username.length}`);

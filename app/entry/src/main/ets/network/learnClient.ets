@@ -51,6 +51,7 @@ import { parseAssignmentDescription, parseAssignmentList, parseAssignmentAttachm
 import { parseFileCategoryList, parseFileList } from './parseFile';
 import { MultipartFile, buildMultipartBody } from './multipart';
 import { ReloginPlan, reloginPlan } from './sessionPolicy';
+import { withCsrfToken } from './csrfUrl';
 import { Assignment, AssignmentAttachments } from '../model/assignment';
 import { LearnFile } from '../model/file';
 import { Notice } from '../model/notice';
@@ -64,8 +65,7 @@ const TIMEOUT_MS: number = 15000;
 /** 登录请求的重试次数。只对网络不可达重试；认证失败与语义变更不重试 */
 const LOGIN_RETRY_LIMIT: number = 1;
 
-/** 网络学堂域名标识，用于决定是否注入 CSRF */
-const TSINGHUA_HOST_MARKER: string = 'tsinghua.edu.cn';
+
 
 /**
  * 截止时间解析不出时留一条日志（只打时间串本身，不含任何隐私）。
@@ -248,11 +248,9 @@ export class LearnClient {
    * 全失败、`status=403`。（登出同样走 POST，也受影响。）
    */
   private addCsrf(url: string): string {
-    if (!url.includes(TSINGHUA_HOST_MARKER) || this.csrfToken.length === 0) {
-      return url;
-    }
-    const separator: string = url.includes('?') ? '&' : '?';
-    return `${url}${separator}_csrf=${this.csrfToken}`;
+    // 规则在 `network/csrfUrl` 里（纯函数 + 单测）：只对学堂域名注入、令牌为空不注入、
+    // 已有查询串用 `&`。这条属必测高风险区，故不留在私有方法里
+    return withCsrfToken(url, this.csrfToken);
   }
 
   /** 组装请求头，并按主机注入已持有的 Cookie */

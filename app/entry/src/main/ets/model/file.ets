@@ -327,3 +327,15 @@ export const UNCATEGORIZED_MARKER: string = '__uncategorized__';
 export function canReuseExisting(existingSize: number, expectedSize: number): boolean {
   return expectedSize > 0 && existingSize === expectedSize;
 }
+
+/**
+ * 这个字符串是不是**已经是一个 URI**（带 scheme），而不是沙箱里的绝对路径。
+ *
+ * 为什么需要（2026-09-28 审查 Q1）：下载位置可以是**自定义目录**（外部授权目录），
+ * 那里拿到的是 `file://docs/...` 这类**文档 URI**；若仍按沙箱路径喂给
+ * `fileUri.getUriFromPath()` 再包一次，交给系统应用打开就会失败。
+ * 判据只依赖字符串形状，故放在 `model` 里可穷举测试。
+ */
+export function isFileUri(pathOrUri: string): boolean {
+  return pathOrUri.includes('://');
+}

@@ -167,3 +167,28 @@ export enum LoginStatus {
   LOGGING_IN = 'LOGGING_IN',
   LOGGED_IN = 'LOGGED_IN'
 }
+
+/** 保存凭据时的一步操作（`credentialSavePlan` 的返回值元素） */
+export enum CredentialOp {
+  /** 删除已存的密码 */
+  DELETE_PASSWORD = 'delete-password',
+  WRITE_USERNAME = 'write-username',
+  WRITE_FINGERPRINT = 'write-fingerprint',
+  WRITE_PASSWORD = 'write-password'
+}
+
+/**
+ * 保存凭据的**操作序列**——把"写入与清除成对"这条安全语义变成可穷举测试的事实
+ * （`testing-and-quality` §2 第 1 项必测区；2026-09-28 代码审查 R1）。
+ *
+ * **次序是 fail-closed**：
+ * - 未勾选"记住密码"：**先删密码**再写学号与指纹——删失败就整体失败，
+ *   绝不出现"学号已更新、密码却还留着"（那会让用户明确选择"不记住"之后仍残留旧密码）；
+ * - 勾选：先写学号与指纹、**密码放最后**——前面失败就不会留下与当前学号不匹配的密码。
+ */
+export function credentialSavePlan(rememberPassword: boolean): CredentialOp[] {
+  if (rememberPassword) {
+    return [CredentialOp.WRITE_USERNAME, CredentialOp.WRITE_FINGERPRINT, CredentialOp.WRITE_PASSWORD];
+  }
+  return [CredentialOp.DELETE_PASSWORD, CredentialOp.WRITE_USERNAME, CredentialOp.WRITE_FINGERPRINT];
+}

@@ -22,6 +22,7 @@ import parseAssignmentTest from './parseAssignment.test';
 import fileTest from './file.test';
 import searchTest from './search.test';
 import sessionPolicyTest from './sessionPolicy.test';
+import credentialPolicyTest from './credentialPolicy.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -41,4 +42,5 @@ export default function testsuite() {
   fileTest();
   searchTest();
   sessionPolicyTest();
+  credentialPolicyTest();
 }

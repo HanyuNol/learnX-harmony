@@ -8,7 +8,7 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
   FileReadFilter, LearnFile, PROGRESS_UNKNOWN, attachmentFileOf, canPreviewInApp, downloadFileName,
-  canReuseExisting, extensionOf, filterByRead, percentOf, sanitizePathSegment, sortFiles,
+  canReuseExisting, extensionOf, filterByRead, isFileUri, percentOf, sanitizePathSegment, sortFiles,
   titleOfFileName
 } from '../main/ets/model/file';
 import { Attachment } from '../main/ets/model/attachment';
@@ -163,6 +163,16 @@ export default function fileTest() {
 
       it('负数已收视为未知，不显示负进度', 0, () => {
         expect(percentOf(-5, 1000)).assertEqual(PROGRESS_UNKNOWN);
+      });
+    });
+
+    describe('路径与 URI 的区分', () => {
+
+      it('已带 scheme 的是 URI（自定义目录的文件），沙箱绝对路径不是', 0, () => {
+        // 审查 Q1：自定义下载目录里的文件是**文档 URI**，再经 getUriFromPath 包一次就打开失败
+        expect(isFileUri('file://docs/storage/Users/currentUser/Download/a.pdf')).assertTrue();
+        expect(isFileUri('file:///data/storage/el2/base/haps/entry/cache/x.pdf')).assertTrue();
+        expect(isFileUri('/data/storage/el2/base/haps/entry/cache/x.pdf')).assertFalse();
       });
     });
 
