@@ -405,3 +405,55 @@ DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huaw
   驱动前先 `hdc shell hilog -r` 清缓冲，免得在几千行里找。
 - **`hdc` 路径**：`D:/DevEco Studio/sdk/default/openharmony/toolchains/hdc.exe`；
   在 Git Bash 下传设备路径要 `export MSYS_NO_PATHCONV=1`，否则 `/data/...` 会被改写成 `C:/...`。
+
+## 9. 打包与分发给他人安装
+
+> 触发场景：把应用装到**别人的设备**上（自己用 `devecocli run` 装本机不算，见 §8）。
+> **未签名产物装不上别人的机器**——这是 HarmonyOS 的硬约束，不是配置疏漏。
+
+### 9.1 现状（2026-09-28）
+
+仓库**没有配置签名**：`devecocli build` 会打印
+`WARN: Will skip sign 'hos_hap'. No signingConfigs profile is configured`，
+产物是**未签名 HAP**，只有在开发者模式下、用同一调试证书的设备才装得上（即 §8 的本机流程）。
+要分发给他人，必须先走下面的签名流程。
+
+### 9.2 方案一：调试签名 + 登记对方设备（人数少、最快）
+
+适用：你自己 + 少数几台设备（分享给同学、同事）。
+约束：**调试证书的有效设备数量有限**（华为开发者账号下可登记的调试设备通常在百台量级），
+调试 Profile **有效期约 90 天**，到期需重新生成并重装。对方也需在手机上打开
+"开发者模式"并允许"通过 USB 安装"。
+
+1. 用华为开发者账号登录：`devecocli auth login`（会拉起浏览器授权）；
+2. 连上**自己的**设备生成调试签名材料：`devecocli signature generate`
+   （生成调试证书/Profile 并写入工程签名配置）；
+3. 把**对方的设备**登记为调试设备：在 AppGallery Connect 控制台按设备的 **UDID** 添加
+   （手机上看 UDID：设置 → 关于本机，或 `hdc shell bm get -u`），然后重新下载/更新 Profile；
+4. 重新构建：`cd app && devecocli build`（此时 `SignHap` 不再跳过）；
+5. 交付产物：把签名后的 HAP 发给对方，他用自己的手机安装（或在开发者模式下用
+   `hdc install` 装）。**注意**：调试 Profile 里登记的是特定设备，未登记的设备装不上。
+
+### 9.3 方案二：正式签名 + AppGallery 内部测试（人多、可长期）
+
+适用：要发给一批人、或希望长期可用（不受 90 天限制）。
+约束：需要华为开发者账号（企业或个人实名），且**要过审核**；正式签名的 Profile 与
+应用包名、证书绑定，**包名一旦上架不可随便改**（本项目刻意用
+`io.github.hanyunol.learnx`，避开上游已上架的 `io.robertying.learnx`）。
+
+1. 在 AppGallery Connect 创建应用（包名与 `app.json5` 的 `bundleName` 一致）；
+2. 生成**发布证书**与发布 Profile，写入工程 `signingConfigs`（`build-profile.json5`）；
+3. `cd app && devecocli build`（或出 APP 包用于上架）；
+4. 用控制台的**内部测试/邀请测试**渠道上传版本、添加测试人员邮箱，对方通过
+   华为的测试链接安装（不需要开发者模式，但设备需登录被邀请的华为账号）；
+5. 若要公开上架，走"应用上架"提审——**注意合规**：本应用是清华网络学堂的第三方客户端，
+   分发前请自行确认学校与上游项目的许可与使用条款（上游为 MIT，本项目沿用，见 ADR-0002）。
+
+### 9.4 两个方案都要注意
+
+- **必须是同一版本号递增**：`versionCode` 必须大于对方已装的版本，否则报
+  `install version downgrade`（发布前用 `node scripts/sync-version.mjs` 同步版本号）；
+- **对方需要校园网或校方 VPN**，否则登录与外网访问都不通（应用里有对应提示文案）；
+- **别把真实凭据写进仓库或提交信息**（`SECURITY.md` §2）；演示用的账号密码不要外发；
+- 交付时一并说明"未验证项"（见 `CHANGELOG.md` 本版本说明与各 spec §5/§6），
+  避免对方把未构造验证的错误态当成"坏了"。

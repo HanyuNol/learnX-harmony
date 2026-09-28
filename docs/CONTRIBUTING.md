@@ -86,7 +86,7 @@
 - **`hotfix/*`**：从出问题的发布 tag 切分支紧急修，出补丁版后**回流 main**（`sdd-hotfix` 技能）。
 - **回滚**优先 `git revert`，不重写已 push 历史（`sdd-rollback-change` 技能）。
 
-版本号唯一来源是根 `VERSION` 文件，构建把它注入应用包版本（`app/AppScope/app.json5` 的 `versionName`），恒一致。
+版本号唯一来源是根 `VERSION` 文件；改完它跑 `node scripts/sync-version.mjs` 把它注入应用包版本（`app/AppScope/app.json5` 的 `versionName` 与 `versionCode`），两处恒一致。（2026-09-28 更正：原文写"构建把它注入"，但当时**没有**任何脚本读 `VERSION`，实际靠手改——脚本现已补上。）
 `versionCode` 按 `major×1000000 + minor×1000 + patch` 由同一版本号推出（如 0.5.0 → 5000、1.0.0 → 1000000），
 保证随版本单调递增——HarmonyOS 要求升级包的 `versionCode` 必须大于已装版本。
 
