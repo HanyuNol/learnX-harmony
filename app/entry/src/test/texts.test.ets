@@ -149,8 +149,33 @@ const KNOWN_KEYS: string[] = [
   TextKeys.SETTINGS_DOWNLOAD_DIR_CACHE,
   TextKeys.SETTINGS_DOWNLOAD_DIR_FILES,
   TextKeys.SETTINGS_SAVE_FAILED,
+  TextKeys.FILE_SAVE_AS_FAILED,
+
+  TextKeys.FILE_SAVE_AS_SUCCEEDED,
+
+  TextKeys.FILE_SAVE_AS,
+
+  TextKeys.SETTINGS_FOLDER_NOT_DIR,
+
+  TextKeys.SETTINGS_FOLDER_UNSUPPORTED,
+
   TextKeys.FILTER_ALL,
   TextKeys.LIST_REFRESHING,
+  TextKeys.SEARCH_SECTION_ASSIGNMENT,
+
+  TextKeys.SEARCH_SECTION_NOTICE,
+
+  TextKeys.SEARCH_SECTION_FILE,
+
+  TextKeys.SEARCH_SECTION_COURSE,
+
+  TextKeys.SEARCH_SCOPE_COURSE,
+
+  TextKeys.SEARCH_HINT,
+
+  TextKeys.SEARCH_TITLE,
+  TextKeys.SEARCH_PLACEHOLDER,
+
   TextKeys.SETTINGS_DISPLAY_TITLE,
   TextKeys.SETTINGS_OMIT_COURSE_NAME,
   TextKeys.SETTINGS_ABOUT,
@@ -256,7 +281,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(159);
+      expect(KNOWN_KEYS.length).assertEqual(172);
     });
 
     it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {

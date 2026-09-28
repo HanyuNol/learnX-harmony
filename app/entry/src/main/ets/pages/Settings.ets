@@ -15,6 +15,7 @@ import {
   loadCustomDownloadDir, loadOmitCourseName, loadThemeMode, loadUseDocumentDir
 } from '../viewmodel/settingsStore';
 import { pickFolder } from '../native/filePickerAdapter';
+import { supportsFolderSelection } from '../native/deviceAdapter';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -57,6 +58,8 @@ export struct SettingsView {
   @State private omitCourseName: boolean = false;
   /** 自定义下载目录 URI（空串＝未设置）。设置后下载**平铺**落进该目录 */
   @State private customDir: string = '';
+  /** 本设备是否支持选择文件夹（二合一支持；手机不支持，界面要如实说明） */
+  @State private folderSelectionSupported: boolean = false;
 
   private store: AuthStore = AuthStore.getInstance();
 
@@ -70,6 +73,7 @@ export struct SettingsView {
     this.useDocumentDir = loadUseDocumentDir(this.appContext());
     this.omitCourseName = loadOmitCourseName(this.appContext());
     this.customDir = loadCustomDownloadDir(this.appContext());
+    this.folderSelectionSupported = supportsFolderSelection();
   }
 
   /** 自定义目录只显示末段：完整 URI 又长又难读 */
@@ -89,7 +93,8 @@ export struct SettingsView {
       }
       this.applyCustomDir(uri);
     }).catch(() => {
-      showToast($r('app.string.' + TextKeys.SETTINGS_PICK_FOLDER_FAILED));
+      // 两种可能都要说清：选择未完成/未授权，或所选内容不是文件夹（设备不支持选文件夹）
+      showToast($r('app.string.' + TextKeys.SETTINGS_FOLDER_NOT_DIR));
     });
   }
 
@@ -197,11 +202,15 @@ export struct SettingsView {
         }
         .layoutWeight(1)
 
-        Button($r('app.string.' + TextKeys.SETTINGS_PICK_FOLDER))
-          .fontSize(14)
-          .onClick(() => {
-            this.chooseFolder();
-          })
+        // **只在支持选文件夹的设备上给这个按钮**（系统文档：FOLDER 模式只支持二合一设备；
+        // 手机上传了也会退化成"选文件"）。手机用户在文件详情页用"另存为"选位置
+        if (this.folderSelectionSupported) {
+          Button($r('app.string.' + TextKeys.SETTINGS_PICK_FOLDER))
+            .fontSize(14)
+            .onClick(() => {
+              this.chooseFolder();
+            })
+        }
         if (this.customDir.length > 0) {
           Button($r('app.string.' + TextKeys.SETTINGS_CLEAR_FOLDER))
             .fontSize(14)
@@ -214,7 +223,13 @@ export struct SettingsView {
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
       .backgroundColor($r('app.color.bg_card'))
 
-      if (this.customDir.length === 0) {
+      if (!this.folderSelectionSupported) {
+        Text($r('app.string.' + TextKeys.SETTINGS_FOLDER_UNSUPPORTED))
+          .fontSize(12)
+          .fontColor($r('app.color.text_secondary'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
+      } else if (this.customDir.length === 0) {
         Text($r('app.string.' + TextKeys.SETTINGS_NO_FOLDER))
           .fontSize(12)
           .fontColor($r('app.color.text_secondary'))

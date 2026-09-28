@@ -272,6 +272,8 @@ export class TextKeys {
   static readonly FILE_FILTER_UNREAD: string = 'file_filter_unread';
   /** 文件筛选：已读 */
   static readonly FILE_FILTER_READ: string = 'file_filter_read';
+  /** 课程详情页文件分组：未分类 */
+  static readonly FILE_CATEGORY_NONE: string = 'file_category_none';
   /** 作业附件行：查看 */
   static readonly ASSIGNMENT_ATTACHMENT_VIEW: string = 'assignment_attachment_view';
   /** 作业附件行：下载 */
@@ -289,11 +291,37 @@ export class TextKeys {
   static readonly SETTINGS_DOWNLOAD_DIR_FILES: string = 'settings_download_dir_files';
   /** 设置项未能保存（偏好写入失败） */
   static readonly SETTINGS_SAVE_FAILED: string = 'settings_save_failed';
+  /** 本设备不支持选择文件夹（手机不支持；改用"另存为"） */
+  static readonly SETTINGS_FOLDER_UNSUPPORTED: string = 'settings_folder_unsupported';
+  /** 所选内容不是文件夹 */
+  static readonly SETTINGS_FOLDER_NOT_DIR: string = 'settings_folder_not_dir';
+  /** 详情：另存为（保存到用户挑选的位置） */
+  static readonly FILE_SAVE_AS: string = 'file_save_as';
+  /** 另存为成功 */
+  static readonly FILE_SAVE_AS_SUCCEEDED: string = 'file_save_as_succeeded';
+  /** 另存为失败 */
+  static readonly FILE_SAVE_AS_FAILED: string = 'file_save_as_failed';
 
   /** 通用筛选：全部（FR-12 的通用筛选条，各维度共用） */
   static readonly FILTER_ALL: string = 'filter_all';
   /** 通用：刷新中…（放在刷新按钮旁，让"点了刷新"有可见反馈） */
   static readonly LIST_REFRESHING: string = 'list_refreshing';
+  /** 搜索页标题 */
+  static readonly SEARCH_TITLE: string = 'search_title';
+  /** 搜索页：输入框占位 */
+  static readonly SEARCH_PLACEHOLDER: string = 'search_placeholder';
+  /** 搜索页：未输入时的引导 */
+  static readonly SEARCH_HINT: string = 'search_hint';
+  /** 搜索页：课程内的范围说明（`%s` 为课程名） */
+  static readonly SEARCH_SCOPE_COURSE: string = 'search_scope_course';
+  /** 搜索结果段标题：课程 */
+  static readonly SEARCH_SECTION_COURSE: string = 'search_section_course';
+  /** 搜索结果段标题：文件 */
+  static readonly SEARCH_SECTION_FILE: string = 'search_section_file';
+  /** 搜索结果段标题：通知 */
+  static readonly SEARCH_SECTION_NOTICE: string = 'search_section_notice';
+  /** 搜索结果段标题：作业 */
+  static readonly SEARCH_SECTION_ASSIGNMENT: string = 'search_section_assignment';
 
   /** 设置页：显示项小节标题 */
   static readonly SETTINGS_DISPLAY_TITLE: string = 'settings_display_title';

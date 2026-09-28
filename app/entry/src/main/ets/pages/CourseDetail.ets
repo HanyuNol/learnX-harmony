@@ -45,6 +45,8 @@ export struct CourseDetailView {
   onOpenAssignment?: (assignmentId: string) => void;
   /** 打开文件详情。同样由 `Main` 提供、同样推在课程栈上，同样**必须传下去** */
   onOpenFile?: (fileId: string) => void;
+  /** 打开**本课程内**的搜索。同样由 `Main` 提供、推在课程栈上 */
+  onOpenSearch?: (courseId: string, courseName: string) => void;
 
   @State private activeTab: number = 0;
 
@@ -58,6 +60,20 @@ export struct CourseDetailView {
         .fontColor($r('app.color.text_primary'))
         .width('100%')
         .padding({ left: 16, right: 16, top: 12, bottom: 12 })
+
+      // 课程内搜索入口：范围限定在这门课（结果页顶部会写明，见 search spec §3.3 第 3 条）
+      Row() {
+        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
+          .fontSize(14)
+          .onClick(() => {
+            const open: ((courseId: string, courseName: string) => void) | undefined = this.onOpenSearch;
+            if (open !== undefined) {
+              open(this.courseId, this.store.nameOf(this.courseId));
+            }
+          })
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, bottom: 8 })
 
       Tabs({ barPosition: BarPosition.Start, index: this.activeTab }) {
         TabContent() {

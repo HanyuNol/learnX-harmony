@@ -647,6 +647,62 @@
     {
       "name": "list_refreshing",
       "value": "Refreshing…"
+    },
+    {
+      "name": "settings_folder_unsupported",
+      "value": "This device cannot pick a folder; use \"Save as\" from the file detail instead"
+    },
+    {
+      "name": "settings_folder_not_dir",
+      "value": "The chosen item is not a folder"
+    },
+    {
+      "name": "file_save_as",
+      "value": "Save as"
+    },
+    {
+      "name": "file_save_as_succeeded",
+      "value": "Saved to the chosen location"
+    },
+    {
+      "name": "file_save_as_failed",
+      "value": "Could not save. Please try again."
+    },
+    {
+      "name": "file_category_none",
+      "value": "Uncategorized"
+    },
+    {
+      "name": "search_placeholder",
+      "value": "Search courses, files, notices, assignments"
+    },
+    {
+      "name": "search_hint",
+      "value": "Type a keyword to search (searches loaded data)"
+    },
+    {
+      "name": "search_scope_course",
+      "value": "Searching only in “%s”"
+    },
+    {
+      "name": "search_section_course",
+      "value": "Courses"
+    },
+    {
+      "name": "search_section_file",
+      "value": "Files"
+    },
+    {
+      "name": "search_section_notice",
+      "value": "Notices"
+    },
+    {
+      "name": "search_section_assignment",
+      "value": "Assignments"
+    },
+    {
+      "name": "search_title",
+      "value": "Search"
     }
   ]
 }

@@ -216,6 +216,13 @@ export struct FileDetailView {
             .onClick(() => {
               this.openExternal(file);
             })
+          // **另存为**：手机上唯一能"自己挑保存位置"的方式（手机不支持选文件夹）
+          Button($r('app.string.' + TextKeys.FILE_SAVE_AS))
+            .fontSize(16)
+            .enabled(this.downloadState !== DownloadState.DOWNLOADING)
+            .onClick(() => {
+              this.saveAsFile(file);
+            })
         }
         .width('100%')
         .padding({ top: 12 })
@@ -281,6 +288,18 @@ export struct FileDetailView {
       this.previewUri = url;
     }).catch(() => {
       showToast($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED));
+    });
+  }
+
+  /** 另存为：先确保文件在沙箱（已下过则复用），再让用户挑位置保存一份 */
+  private saveAsFile(file: LearnFile): void {
+    this.store.saveAs(file, this.context()).then((saved: boolean) => {
+      if (saved) {
+        showToast($r('app.string.' + TextKeys.FILE_SAVE_AS_SUCCEEDED));
+      }
+      // 用户取消选择不是失败，不提示
+    }).catch(() => {
+      showToast($r('app.string.' + TextKeys.FILE_SAVE_AS_FAILED));
     });
   }
 

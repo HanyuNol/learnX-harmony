@@ -647,6 +647,62 @@
     {
       "name": "list_refreshing",
       "value": "刷新中…"
+    },
+    {
+      "name": "settings_folder_unsupported",
+      "value": "本设备不支持选择文件夹，请在文件详情页用\"另存为\"选位置"
+    },
+    {
+      "name": "settings_folder_not_dir",
+      "value": "所选内容不是文件夹"
+    },
+    {
+      "name": "file_save_as",
+      "value": "另存为"
+    },
+    {
+      "name": "file_save_as_succeeded",
+      "value": "已保存到所选位置"
+    },
+    {
+      "name": "file_save_as_failed",
+      "value": "保存失败，请重试"
+    },
+    {
+      "name": "file_category_none",
+      "value": "未分类"
+    },
+    {
+      "name": "search_placeholder",
+      "value": "搜索课程 / 文件 / 通知 / 作业"
+    },
+    {
+      "name": "search_hint",
+      "value": "输入关键词开始搜索（在已加载的数据里搜）"
+    },
+    {
+      "name": "search_scope_course",
+      "value": "仅在《%s》内搜索"
+    },
+    {
+      "name": "search_section_course",
+      "value": "课程"
+    },
+    {
+      "name": "search_section_file",
+      "value": "文件"
+    },
+    {
+      "name": "search_section_notice",
+      "value": "通知"
+    },
+    {
+      "name": "search_section_assignment",
+      "value": "作业"
+    },
+    {
+      "name": "search_title",
+      "value": "搜索"
     }
   ]
 }

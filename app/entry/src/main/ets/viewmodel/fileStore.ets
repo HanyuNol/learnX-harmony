@@ -251,6 +251,11 @@ export class FileStore {
     return percent === undefined ? PROGRESS_UNKNOWN : percent;
   }
 
+  /** 另存为：让用户挑位置保存一份（取消返回 false，不是失败） */
+  async saveAs(file: LearnFile, context: common.UIAbilityContext): Promise<boolean> {
+    return FileRepository.saveAsTo(file, context);
+  }
+
   /** 应用内预览用的 `file://` URI；未下载时为空串 */
   previewUriOf(file: LearnFile, context: common.Context): string {
     return FileRepository.previewUriOf(file, context);

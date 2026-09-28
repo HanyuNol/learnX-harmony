@@ -277,7 +277,21 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 > 判别口径：**build（含 `if` 条件、`ForEach` 数据源）里读到的状态才驱动刷新**。
 > 只从 store 取数、不经 `@State` 中转的渲染路径，数据变了也不会自己更新。
 
-### 7.7 全局 `@Builder` 的多参数是**按值传递**，值变了界面不会刷新
+### 7.7 `navDestination` 必须传 `@Builder` 方法，传箭头函数会**整页空白**
+
+2026-09-28 实测：把五个栈的目的地分派合并成一个 `@Builder routeOf(stack, name, param)` 之后，
+为了让每个栈都用它，我写成了
+`.navDestination((name: string, param: object) => { this.routeOf(this.noticesStack, name, param) })`
+——编译通过、应用不崩，但**点开任何目的地都是空白页**（连标题栏都没有）。
+
+原因：`navDestination` 收的是 **`@Builder` 方法**；箭头函数不是 `@Builder`，它被调用时产生的
+UI 不会挂到该 NavDestination 上。修法：每个栈留一个**薄 `@Builder` 包装**
+（`@Builder noticesDetail(name, param) { this.routeOf(this.noticesStack, name, param) }`），
+分派逻辑仍在共用的 `routeOf` 里。
+
+**判别口径**：`navDestination` 的参数位置若出现箭头函数，一律改成 `@Builder` 方法。
+
+### 7.8 全局 `@Builder` 的多参数是**按值传递**，值变了界面不会刷新
 
 2026-09-28 真机实测：把筛选条做成全局 `@Builder function filterBar(choices, selected, onSelect)`
 并在页面里 `filterBar(this.choices(), this.filter, ...)`，**点筛选没有任何反应**——
@@ -291,7 +305,7 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 
 **判别口径**：凡"状态变了但那一块不更新"，先看它是不是经全局 `@Builder` 的多参数渲染的。
 
-### 7.8 用 ArkWeb 打开沙箱里的文件：两个条件缺一不可
+### 7.9 用 ArkWeb 打开沙箱里的文件：两个条件缺一不可
 
 要在应用内预览下载好的文件（PDF、图片、文本…），Web 组件必须同时满足：
 
@@ -308,7 +322,7 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 两处的实现都在 `native/fileAdapter.previewUrlOf` 与 `pages/FileDetail` 的 Web 属性上，
 别在别处另拼 URL。
 
-### 7.9 文案键一致性检查（改文案后必跑）
+### 7.10 文案键一致性检查（改文案后必跑）
 
 ```bash
 node scripts/check-l10n.mjs

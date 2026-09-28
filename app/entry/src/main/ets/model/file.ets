@@ -248,3 +248,69 @@ export function attachmentFileOf(attachment: Attachment, courseId: string, cours
   return new LearnFile(attachment.fileId, attachment.fileId, courseId, courseName, courseTeacherName,
     titleOfFileName(attachment.name), '', '', 0, '', 0, extensionOf(attachment.name), '附件', false, false);
 }
+
+/**
+ * 列表里的"一行"：要么是**分组标题**（`header` 非空），要么是一条**文件**。
+ *
+ * 为什么拍平成行：ArkUI 的 `List` 里嵌套 `ForEach` 容易出坑（键冲突、刷新不彻底），
+ * 而"分组标题 + 该组文件"本质就是一串行。拍平后渲染只有一个 `ForEach`，行为可预期，
+ * 分组规则也能单独测试（`buildFileRows`）。
+ */
+export class FileRow {
+  /** 分组标题（空串＝这是文件行） */
+  readonly header: string;
+  /** 文件（`header` 为空时非 null） */
+  readonly file: LearnFile | null;
+
+  constructor(header: string, file: LearnFile | null) {
+    this.header = header;
+    this.file = file;
+  }
+}
+
+/**
+ * 按**分类**分组拍平成行（用于课程详情页：一门课里的分类才有意义）。
+ *
+ * 分组顺序按分类名升序，**未分类的排在最后**（它是"没有分组"，不该插在正常分组之间）。
+ * `grouped` 为 false 时只拍成文件行（聚合页用——跨课程时分类无信息量，见 list-filter-sort spec）。
+ */
+export function buildFileRows(files: LearnFile[], grouped: boolean): FileRow[] {
+  const sorted: LearnFile[] = sortFiles(files);
+  if (!grouped) {
+    return sorted.map((file: LearnFile) => new FileRow('', file));
+  }
+
+  const named: string[] = [];
+  const uncategorized: LearnFile[] = [];
+  for (const file of sorted) {
+    if (file.categoryName.length === 0) {
+      uncategorized.push(file);
+      continue;
+    }
+    if (!named.includes(file.categoryName)) {
+      named.push(file.categoryName);
+    }
+  }
+  named.sort((left: string, right: string): number => (left === right ? 0 : (left > right ? 1 : -1)));
+
+  const rows: FileRow[] = [];
+  for (const category of named) {
+    rows.push(new FileRow(category, null));
+    for (const file of sorted) {
+      if (file.categoryName === category) {
+        rows.push(new FileRow('', file));
+      }
+    }
+  }
+  if (uncategorized.length > 0) {
+    // 空标题在界面上用"未分类"代替；这里保留空串以便调用方区分"没有分组"
+    rows.push(new FileRow(UNCATEGORIZED_MARKER, null));
+    for (const file of uncategorized) {
+      rows.push(new FileRow('', file));
+    }
+  }
+  return rows;
+}
+
+/** 未分类分组的占位标题（界面据此换成"未分类"文案；用哨兵避免与真实分类名撞车） */
+export const UNCATEGORIZED_MARKER: string = '__uncategorized__';

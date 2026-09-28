@@ -12,7 +12,9 @@
  */
 
 import { Course } from '../model/course';
-import { FileReadFilter, LearnFile, formatUploadDate } from '../model/file';
+import {
+  FileReadFilter, FileRow, LearnFile, UNCATEGORIZED_MARKER, buildFileRows, formatUploadDate
+} from '../model/file';
 import { FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
@@ -132,11 +134,17 @@ export struct FileListTab {
         emptyView()
       } else {
         List() {
-          ForEach(this.visible(), (file: LearnFile) => {
+          // **课程详情页按分类分组**（一门课里的分类才有意义），聚合页平铺
+          // （跨课程时分类名看不出属于哪门课，见 list-filter-sort spec §3.3 第 4 条）
+          ForEach(this.rows(), (row: FileRow) => {
             ListItem() {
-              this.fileRow(file)
+              if (row.header.length > 0) {
+                this.groupHeader(row.header)
+              } else {
+                this.fileRow(row.file as LearnFile)
+              }
             }
-          }, (file: LearnFile) => file.id)
+          }, (row: FileRow) => row.header.length > 0 ? `h:${row.header}` : `f:${(row.file as LearnFile).id}`)
         }
         .layoutWeight(1)
         .width('100%')
@@ -151,6 +159,11 @@ export struct FileListTab {
     return this.store.visibleFor(this.courseId, this.readFilter);
   }
 
+  /** 列表要渲染的行：课程详情页分组、聚合页平铺（分组与否由是否有 courseId 决定） */
+  private rows(): FileRow[] {
+    return buildFileRows(this.visible(), this.courseId.length > 0);
+  }
+
   /** 筛选条：全部 / 未读 / 已读（未读＝服务端的"新文件"标记，与上游一致） */
   private choices(): FilterChoice[] {
     return [
@@ -158,6 +171,24 @@ export struct FileListTab {
       FilterChoice.ofKey(FileReadFilter.UNREAD, TextKeys.FILE_FILTER_UNREAD),
       FilterChoice.ofKey(FileReadFilter.READ, TextKeys.FILE_FILTER_READ)
     ];
+  }
+
+  /** 分组标题行（课程详情页的文件列表用）。分类名是服务端数据，故走字面量分支 */
+  @Builder
+  groupHeader(category: string) {
+    if (category === UNCATEGORIZED_MARKER) {
+      Text($r('app.string.' + TextKeys.FILE_CATEGORY_NONE))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 4 })
+    } else {
+      Text(category)
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 12, bottom: 4 })
+    }
   }
 
   @Builder

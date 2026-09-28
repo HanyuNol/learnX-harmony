@@ -20,6 +20,7 @@ import noticeTest from './notice.test';
 import assignmentTest from './assignment.test';
 import parseAssignmentTest from './parseAssignment.test';
 import fileTest from './file.test';
+import searchTest from './search.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -37,4 +38,5 @@ export default function testsuite() {
   assignmentTest();
   parseAssignmentTest();
   fileTest();
+  searchTest();
 }

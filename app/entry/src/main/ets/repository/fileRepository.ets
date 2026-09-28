@@ -13,8 +13,8 @@ import { Course } from '../model/course';
 import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
-import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
-import { existsAt, removeAtUri, writeIntoFolder } from '../native/filePickerAdapter';
+import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, readAllBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
+import { existsAt, removeAtUri, saveAs, writeIntoFolder } from '../native/filePickerAdapter';
 import { readCustomDownloadDir, readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
@@ -283,6 +283,22 @@ export class FileRepository {
   static anyDownloadedPathOf(file: LearnFile, context: common.Context): string {
     const inSandbox: string = FileRepository.downloadedPathOf(file, context);
     return inSandbox.length > 0 ? inSandbox : FileRepository.customPathOf(file, context);
+  }
+
+  /**
+   * **另存为**：让用户挑一个位置保存这份文件（手机上唯一能自选位置的方式）。
+   *
+   * 先确保文件在沙箱（已下过则复用），再把字节交给系统保存对话框；返回用户是否真的保存了
+   * （取消返回 false，**不是失败**）。
+   */
+  static async saveAsTo(file: LearnFile, context: common.UIAbilityContext): Promise<boolean> {
+    const existing: string = FileRepository.downloadedPathOf(file, context);
+    const path: string = existing.length > 0 ? existing
+      : await FileRepository.download(file, context, false);
+    const data: ArrayBuffer = readAllBytes(path);
+    const name: string = downloadFileName(file.courseName, file.title, file.fileType,
+      readOmitCourseName(context));
+    return saveAs(name, data, context);
   }
 
   /** 把沙箱路径变成应用内预览 URL（供附件走同一条预览路径） */

@@ -17,6 +17,8 @@ import { TextKeys } from '../common/texts';
 import { SettingsView } from './Settings';
 import { AboutView, ABOUT_DESTINATION } from './About';
 import { PROFILE_DESTINATION, ProfileView } from './Profile';
+import { SEARCH_DESTINATION, SearchParam, SearchView } from './Search';
+import { SearchKind } from '../model/search';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
 import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
@@ -103,86 +105,16 @@ export struct MainView {
     .title($r('app.string.' + titleKey))
   }
 
+  /**
+   * **五个栈共用一个目的地分派**。
+   *
+   * 为什么不再一栈一份：搜索结果可能落在任意一类上（在通知标签里搜到一门课程、点进去要看课程详情），
+   * 一栈一份的写法会让"从本栈打开别的类型"无处可去。共用之后每个栈都能打开任何详情，
+   * 也顺带去掉了五份重复代码。
+   */
   @Builder
-  noticesDetail(name: string, param: object) {
+  routeOf(stack: NavPathStack, name: string, param: object) {
     if (name === NOTICE_DETAIL_DESTINATION) {
-      NavDestination() {
-        NoticeDetailView({ noticeId: (param as NoticeDetailParam).noticeId })
-      }
-      .title($r('app.string.' + TextKeys.TAB_NOTICES))
-    } else {
-      this.detailOf(this.noticesStack, name)
-    }
-  }
-
-  @Builder
-  assignmentsDetail(name: string, param: object) {
-    if (name === ASSIGNMENT_DETAIL_DESTINATION) {
-      NavDestination() {
-        AssignmentDetailView({
-          assignmentId: (param as AssignmentDetailParam).assignmentId,
-          // 提交页推在**同一个栈**上：提交完返回就回到作业详情
-          onOpenSubmit: (assignmentId: string) => {
-            this.assignmentsStack.pushPath({
-              name: ASSIGNMENT_SUBMIT_DESTINATION,
-              param: new AssignmentSubmitParam(assignmentId)
-            });
-          }
-        })
-      }
-      .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
-    } else if (name === ASSIGNMENT_SUBMIT_DESTINATION) {
-      NavDestination() {
-        AssignmentSubmitView({ assignmentId: (param as AssignmentSubmitParam).assignmentId })
-      }
-      .title($r('app.string.' + TextKeys.ASSIGNMENT_SUBMIT))
-    } else {
-      this.detailOf(this.assignmentsStack, name)
-    }
-  }
-
-  @Builder
-  filesDetail(name: string, param: object) {
-    if (name === FILE_DETAIL_DESTINATION) {
-      NavDestination() {
-        FileDetailView({ fileId: (param as FileDetailParam).fileId })
-      }
-      .title($r('app.string.' + TextKeys.TAB_FILES))
-    } else {
-      this.detailOf(this.filesStack, name)
-    }
-  }
-
-  @Builder
-  coursesDetail(name: string, param: object) {
-    if (name === COURSE_DETAIL_DESTINATION) {
-      NavDestination() {
-        CourseDetailView({
-          courseId: (param as CourseDetailParam).courseId,
-          // 在课程详情里点通知 → 推在**课程栈**上（返回即回课程详情），与上游 CourseStack 一致
-          onOpenNotice: (noticeId: string) => {
-            this.coursesStack.pushPath({
-              name: NOTICE_DETAIL_DESTINATION,
-              param: new NoticeDetailParam(noticeId)
-            });
-          },
-          // 作业与文件同理：课程详情的对应页签里点一条，也推在课程栈上
-          onOpenAssignment: (assignmentId: string) => {
-            this.coursesStack.pushPath({
-              name: ASSIGNMENT_DETAIL_DESTINATION,
-              param: new AssignmentDetailParam(assignmentId)
-            });
-          },
-          onOpenFile: (fileId: string) => {
-            this.coursesStack.pushPath({
-              name: FILE_DETAIL_DESTINATION,
-              param: new FileDetailParam(fileId)
-            });
-          }
-        })
-      }
-      .title($r('app.string.' + TextKeys.TAB_COURSES))
-    } else if (name === NOTICE_DETAIL_DESTINATION) {
       NavDestination() {
         NoticeDetailView({ noticeId: (param as NoticeDetailParam).noticeId })
       }
@@ -191,9 +123,8 @@ export struct MainView {
       NavDestination() {
         AssignmentDetailView({
           assignmentId: (param as AssignmentDetailParam).assignmentId,
-          // 课程栈里的作业详情同样要能进提交页（漏传＝点了没反应）
           onOpenSubmit: (assignmentId: string) => {
-            this.coursesStack.pushPath({
+            stack.pushPath({
               name: ASSIGNMENT_SUBMIT_DESTINATION,
               param: new AssignmentSubmitParam(assignmentId)
             });
@@ -201,24 +132,49 @@ export struct MainView {
         })
       }
       .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
-    } else if (name === FILE_DETAIL_DESTINATION) {
-      NavDestination() {
-        FileDetailView({ fileId: (param as FileDetailParam).fileId })
-      }
-      .title($r('app.string.' + TextKeys.TAB_FILES))
     } else if (name === ASSIGNMENT_SUBMIT_DESTINATION) {
       NavDestination() {
         AssignmentSubmitView({ assignmentId: (param as AssignmentSubmitParam).assignmentId })
       }
       .title($r('app.string.' + TextKeys.ASSIGNMENT_SUBMIT))
-    } else {
-      this.detailOf(this.coursesStack, name)
-    }
-  }
-
-  @Builder
-  settingsDetail(name: string) {
-    if (name === SEMESTER_DESTINATION) {
+    } else if (name === FILE_DETAIL_DESTINATION) {
+      NavDestination() {
+        FileDetailView({ fileId: (param as FileDetailParam).fileId })
+      }
+      .title($r('app.string.' + TextKeys.TAB_FILES))
+    } else if (name === COURSE_DETAIL_DESTINATION) {
+      NavDestination() {
+        CourseDetailView({
+          courseId: (param as CourseDetailParam).courseId,
+          onOpenNotice: (noticeId: string) => {
+            stack.pushPath({
+              name: NOTICE_DETAIL_DESTINATION,
+              param: new NoticeDetailParam(noticeId)
+            });
+          },
+          onOpenAssignment: (assignmentId: string) => {
+            stack.pushPath({
+              name: ASSIGNMENT_DETAIL_DESTINATION,
+              param: new AssignmentDetailParam(assignmentId)
+            });
+          },
+          onOpenFile: (fileId: string) => {
+            stack.pushPath({
+              name: FILE_DETAIL_DESTINATION,
+              param: new FileDetailParam(fileId)
+            });
+          },
+          // 课程内的搜索：带 courseId 与课程名，预览页据此标明范围
+          onOpenSearch: (courseId: string, courseName: string) => {
+            stack.pushPath({
+              name: SEARCH_DESTINATION,
+              param: new SearchParam(courseId, courseName)
+            });
+          }
+        })
+      }
+      .title($r('app.string.' + TextKeys.TAB_COURSES))
+    } else if (name === SEMESTER_DESTINATION) {
       NavDestination() {
         SemesterSelectionView()
       }
@@ -233,9 +189,79 @@ export struct MainView {
         ProfileView()
       }
       .title($r('app.string.' + TextKeys.SETTINGS_PROFILE))
+    } else if (name === SEARCH_DESTINATION) {
+      NavDestination() {
+        SearchView({
+          courseId: (param as SearchParam).courseId,
+          courseName: (param as SearchParam).courseName,
+          onOpenResult: (kind: string, id: string) => {
+            this.openSearchResult(stack, kind, id);
+          }
+        })
+      }
+      .title($r('app.string.' + TextKeys.SEARCH_TITLE))
     } else {
-      this.detailOf(this.settingsStack, name)
+      this.detailOf(stack, name)
     }
+  }
+
+  /** 搜索结果的跳转：按类型推对应详情（推在**发起搜索的那个栈**上，返回即回搜索页） */
+  private openSearchResult(stack: NavPathStack, kind: string, id: string): void {
+    if (kind === SearchKind.COURSE) {
+      stack.pushPath({ name: COURSE_DETAIL_DESTINATION, param: new CourseDetailParam(id) });
+    } else if (kind === SearchKind.FILE) {
+      stack.pushPath({ name: FILE_DETAIL_DESTINATION, param: new FileDetailParam(id) });
+    } else if (kind === SearchKind.NOTICE) {
+      stack.pushPath({ name: NOTICE_DETAIL_DESTINATION, param: new NoticeDetailParam(id) });
+    } else if (kind === SearchKind.ASSIGNMENT) {
+      stack.pushPath({ name: ASSIGNMENT_DETAIL_DESTINATION, param: new AssignmentDetailParam(id) });
+    }
+  }
+
+  /**
+   * 每个栈一个**薄包装**，只为满足 ArkUI 的要求：`navDestination` 收的必须是
+   * `@Builder` 方法（传箭头函数不会渲染出内容——2026-09-28 实测：点搜索后整页空白）。
+   * 真正的分派在 `routeOf`，五个包装各自只交代"用哪个栈"。
+   */
+  @Builder
+  noticesDetail(name: string, param: object) {
+    this.routeOf(this.noticesStack, name, param)
+  }
+
+  @Builder
+  assignmentsDetail(name: string, param: object) {
+    this.routeOf(this.assignmentsStack, name, param)
+  }
+
+  @Builder
+  filesDetail(name: string, param: object) {
+    this.routeOf(this.filesStack, name, param)
+  }
+
+  @Builder
+  coursesDetail(name: string, param: object) {
+    this.routeOf(this.coursesStack, name, param)
+  }
+
+  @Builder
+  settingsDetail(name: string, param: object) {
+    this.routeOf(this.settingsStack, name, param)
+  }
+
+  /**
+   * 五个标签页共用的搜索入口（标题栏右侧放大镜）。
+   *
+   * `Navigation.menus` 收的是 **`NavigationMenuItem` 对象数组**（不是组件），故这里构造对象；
+   * 搜索推在**本栈**上，返回即回原页面。
+   */
+  private searchMenuItem(stack: NavPathStack): NavigationMenuItem {
+    return {
+      value: '',
+      icon: $r('sys.symbol.magnifyingglass'),
+      action: () => {
+        stack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+      }
+    };
   }
 
   build() {
@@ -263,6 +289,7 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_NOTICES))
+          .menus([this.searchMenuItem(this.noticesStack)])
           .navDestination(this.noticesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
@@ -279,6 +306,7 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
+          .menus([this.searchMenuItem(this.assignmentsStack)])
           .navDestination(this.assignmentsDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
@@ -295,6 +323,7 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_FILES))
+          .menus([this.searchMenuItem(this.filesStack)])
           .navDestination(this.filesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_FILES))
@@ -311,6 +340,7 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_COURSES))
+          .menus([this.searchMenuItem(this.coursesStack)])
           .navDestination(this.coursesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_COURSES))
@@ -330,6 +360,7 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_SETTINGS))
+          .menus([this.searchMenuItem(this.settingsStack)])
           .navDestination(this.settingsDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_SETTINGS))

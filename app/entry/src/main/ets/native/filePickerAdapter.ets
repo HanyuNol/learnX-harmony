@@ -91,6 +91,9 @@ export async function pickFile(context: common.UIAbilityContext): Promise<Picked
 export async function pickFolder(context: common.UIAbilityContext): Promise<string | null> {
   const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
   options.maxSelectNumber = 1;
+  // 注意：`selectMode = FOLDER` **只支持二合一设备**（系统文档原文），手机上传这个参数无效、
+  // 会退化成"选文件"。故调用方必须先看 `deviceAdapter.supportsFolderSelection()`；
+  // 这里仍再校验一次返回值**真的是目录**，避免把"选中的文件"当目录用
   options.selectMode = picker.DocumentSelectMode.FOLDER;
   let uris: string[] = [];
   try {
@@ -104,6 +107,12 @@ export async function pickFolder(context: common.UIAbilityContext): Promise<stri
     return null;
   }
   const uri: string = uris[0];
+  if (!isDirectory(uri)) {
+    // 设备不支持选目录时，选择器会当成选文件返回——此时**必须报错**，
+    // 否则会把它当目录用，下载全落不进去（用户看到的是"设置了没反应"）
+    Logger.warn(TAG, '所选内容不是目录（本设备可能不支持选择文件夹）');
+    throw new Error('所选内容不是目录');
+  }
   // 持久化授权：不申请就会在应用重启后失效，表现为"设置过的目录突然写不进去"
   try {
     await fileShare.persistPermission([{
@@ -136,6 +145,53 @@ export function removeAtUri(uri: string): void {
     fs.unlinkSync(uri);
   } catch (err) {
     Logger.warn(TAG, `删除外部文件失败 code=${(err as BusinessError).code}`);
+  }
+}
+
+/** 该 URI 是否为目录（探测失败按"不是目录"处理，宁可拒绝也不误用） */
+function isDirectory(uri: string): boolean {
+  try {
+    return fs.statSync(uri).isDirectory();
+  } catch (err) {
+    Logger.warn(TAG, `判断是否为目录失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * **另存为**：让用户挑一个位置与文件名保存这份字节。
+ *
+ * 这是**手机上唯一可用的"我自己选保存位置"方式**——手机不支持选文件夹（见 `pickFolder`），
+ * 但 `save()` 是逐次选择目标位置的，手机上完全可用。
+ * 返回是否真的保存了（用户取消返回 false，**取消不是失败**）。
+ */
+export async function saveAs(suggestedName: string, data: ArrayBuffer,
+                             context: common.UIAbilityContext): Promise<boolean> {
+  const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+  options.newFileNames = [suggestedName];
+  let uris: string[] = [];
+  try {
+    uris = await new picker.DocumentViewPicker(context).save(options);
+  } catch (err) {
+    Logger.info(TAG, `另存为未完成 ${(err as BusinessError).code}`);
+    return false;
+  }
+  if (uris.length === 0) {
+    return false;
+  }
+  const target: string = uris[0];
+  try {
+    const file: fs.File = fs.openSync(target, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    try {
+      fs.writeSync(file.fd, data);
+    } finally {
+      fs.closeSync(file);
+    }
+    Logger.info(TAG, `另存为完成 字节=${data.byteLength}`);
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `另存为写入失败 code=${(err as BusinessError).code}`);
+    throw new Error('另存为写入失败');
   }
 }
 

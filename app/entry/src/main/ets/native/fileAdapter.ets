@@ -160,3 +160,16 @@ export function fileUriOf(path: string): string {
 export function previewUrlOf(path: string): string {
   return `file://${path}`;
 }
+
+/** 读取沙箱文件的全部字节（另存为要把它交给系统保存对话框） */
+export function readAllBytes(path: string): ArrayBuffer {
+  const file: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
+  try {
+    const size: number = fs.statSync(file.fd).size;
+    const buffer: ArrayBuffer = new ArrayBuffer(size);
+    fs.readSync(file.fd, buffer);
+    return buffer;
+  } finally {
+    fs.closeSync(file);
+  }
+}

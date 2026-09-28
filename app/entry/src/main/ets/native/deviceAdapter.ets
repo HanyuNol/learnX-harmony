@@ -25,3 +25,21 @@ export function deviceLabel(): string {
   }
   return deviceInfo.deviceType;
 }
+
+/** 设备类型原始串（`phone` / `tablet` / `2in1` / …，取自系统） */
+export function deviceType(): string {
+  return deviceInfo.deviceType;
+}
+
+/**
+ * 本设备是否支持**选择文件夹**。
+ *
+ * 依据系统文档：`DocumentSelectOptions.selectMode = FOLDER` 标注
+ * "**Only 2-in-1 devices are supported**"，默认值是 `FILE`——也就是说**手机上调用它会退化成选文件**，
+ * 用户看到的会是"选文件"而不是"选目录"（2026-09-28 用户实测反馈）。
+ * 故这里显式判断设备类型，不支持时不去调它、也不给这个按钮，免得给出一个必然失败或
+ * 语义错误的入口。
+ */
+export function supportsFolderSelection(): boolean {
+  return deviceInfo.deviceType === '2in1';
+}
