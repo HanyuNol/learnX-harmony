@@ -31,6 +31,9 @@ const KEY_USE_DOCUMENT_DIR: string = 'use_document_dir';
 /** 下载文件名是否省略课程名前缀的键名。缺省/`false` = 带课程名前缀（FR-16） */
 const KEY_OMIT_COURSE_NAME: string = 'omit_course_name';
 
+/** 自定义下载目录（用户选定的外部目录 URI）；空串 = 未设置（用应用内目录） */
+const KEY_CUSTOM_DIR: string = 'custom_download_dir';
+
 /**
  * 打开偏好存储。
  *
@@ -165,6 +168,35 @@ export function writeOmitCourseName(context: common.Context, omitCourseName: boo
     return true;
   } catch (err) {
     Logger.warn(TAG, `写入文件名偏好失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/**
+ * 读取用户选定的**自定义下载目录**（外部目录 URI）。
+ *
+ * 空串表示未设置——此时仍用应用沙箱内的目录（缓存 / 应用文件目录，见 FR-10）。
+ * 该 URI 是用户通过系统目录选择器授权的，授权已持久化（见 `native/filePickerAdapter`）。
+ */
+export function readCustomDownloadDir(context: common.Context): string {
+  try {
+    const raw: Object = openStore(context).getSync(KEY_CUSTOM_DIR, '');
+    return typeof raw === 'string' ? raw : '';
+  } catch (err) {
+    Logger.warn(TAG, `读取自定义下载目录失败 code=${(err as BusinessError).code}`);
+    return '';
+  }
+}
+
+/** 写入自定义下载目录？返回是否成功（语义同 writeThemeMode） */
+export function writeCustomDownloadDir(context: common.Context, uri: string): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(KEY_CUSTOM_DIR, uri);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入自定义下载目录失败 code=${(err as BusinessError).code}`);
     return false;
   }
 }

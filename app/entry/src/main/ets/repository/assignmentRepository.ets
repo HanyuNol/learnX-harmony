@@ -12,6 +12,7 @@
 import { Course } from '../model/course';
 import { Assignment, AssignmentAttachments, sortAssignments } from '../model/assignment';
 import { LearnClient } from '../network/learnClient';
+import { MultipartFile } from '../network/multipart';
 import { Logger } from '../common/logger';
 
 const TAG: string = 'assignmentRepository';
@@ -112,6 +113,18 @@ export class AssignmentRepository {
       }
     }
     return filled;
+  }
+
+  /**
+   * 提交作业（含可选附件）。
+   *
+   * 编排留在这里而不是页面里：网络只能经 `LearnClient`（架构不变量 §3），
+   * 页面不得自己拼请求。
+   */
+  static async submitHomework(xszyid: string, content: string, file: MultipartFile | null,
+                              removeAttachment: boolean): Promise<void> {
+    await LearnClient.getInstance().submitHomework(xszyid, content, file, removeAttachment);
+    Logger.info(TAG, `作业已提交 id=${xszyid} 带附件=${file !== null} 移除附件=${removeAttachment}`);
   }
 
   /** 单条作业的详情（正文 + 四类附件）。详情页"重试"用；两半都没取到时抛出 */

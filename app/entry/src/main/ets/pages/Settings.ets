@@ -42,6 +42,8 @@ export struct SettingsView {
   onOpenSemesters?: () => void;
   /** 打开"关于与帮助"。同上 */
   onOpenAbout?: () => void;
+  /** 打开"个人信息"。同上 */
+  onOpenProfile?: () => void;
 
   /** 当前主题模式。仅本页关心，故用页内状态 */
   @State private themeMode: ThemeMode = ThemeMode.FOLLOW_SYSTEM;
@@ -182,6 +184,27 @@ export struct SettingsView {
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
         const open: (() => void) | undefined = this.onOpenSemesters;
+        if (open !== undefined) {
+          open();
+        }
+      })
+
+      // 个人信息（账号 + 下载位置，含自定义目录）
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_PROFILE))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        const open: (() => void) | undefined = this.onOpenProfile;
         if (open !== undefined) {
           open();
         }

@@ -12,7 +12,8 @@
  */
 
 import {
-  Assignment, AssignmentAttachments, RelativeDeadline, relativeDeadlineOf, formatDateTime
+  Assignment, AssignmentAttachments, HomeworkSubmissionType, RelativeDeadline, relativeDeadlineOf,
+  formatDateTime
 } from '../model/assignment';
 import { plainText } from '../model/notice';
 import { Attachment } from '../model/attachment';
@@ -38,6 +39,8 @@ export class AssignmentDetailParam {
 @Component
 export struct AssignmentDetailView {
   @Prop assignmentId: string;
+  /** 打开提交页。由持有作业栈的 `Main` 提供（页面不自己造路由栈） */
+  onOpenSubmit?: (assignmentId: string) => void;
 
   /**
    * 当前这条作业（放进 **@State**，且 **build 里真的读它**）。
@@ -172,6 +175,21 @@ export struct AssignmentDetailView {
 
         if (assignment.graded) {
           this.gradeBlock(assignment)
+        }
+
+        // 提交 / 修改提交：只在**在线提交**的作业上给（线下提交的作业在网上无事可做，
+        // 显示了却点不动属假动作）
+        if (assignment.submissionType !== HomeworkSubmissionType.OFFLINE) {
+          Button($r('app.string.' + (assignment.submitted
+            ? TextKeys.ASSIGNMENT_MODIFY_SUBMISSION : TextKeys.ASSIGNMENT_SUBMIT)))
+            .width('100%')
+            .padding({ top: 12 })
+            .onClick(() => {
+              const open: ((assignmentId: string) => void) | undefined = this.onOpenSubmit;
+              if (open !== undefined) {
+                open(this.assignmentId);
+              }
+            })
         }
 
         // 附件/文件的应用内预览（仅在"点开了可预览的附件"时出现）

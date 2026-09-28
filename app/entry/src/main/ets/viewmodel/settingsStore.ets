@@ -12,7 +12,10 @@
 
 import { common } from '@kit.AbilityKit';
 import { ThemeMode } from '../common/theme';
-import { readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir, readOmitCourseName, writeOmitCourseName } from '../storage/preferenceStore';
+import {
+  readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir, readOmitCourseName,
+  writeOmitCourseName, readCustomDownloadDir, writeCustomDownloadDir
+} from '../storage/preferenceStore';
 import { applyThemeMode } from '../native/themeAdapter';
 import { Logger } from '../common/logger';
 
@@ -74,6 +77,20 @@ export function changeOmitCourseName(context: common.Context, omitCourseName: bo
   const persisted: boolean = writeOmitCourseName(context, omitCourseName);
   if (!persisted) {
     Logger.warn(TAG, `文件名偏好未能持久化 omitCourseName=${omitCourseName}`);
+  }
+  return persisted;
+}
+
+/** 读取用户选定的自定义下载目录（空串 = 未设置，用应用内目录） */
+export function loadCustomDownloadDir(context: common.Context): string {
+  return readCustomDownloadDir(context);
+}
+
+/** 设置/清除自定义下载目录（传空串即清除）。返回是否持久化成功 */
+export function changeCustomDownloadDir(context: common.Context, uri: string): boolean {
+  const persisted: boolean = writeCustomDownloadDir(context, uri);
+  if (!persisted) {
+    Logger.warn(TAG, '自定义下载目录未能持久化');
   }
   return persisted;
 }

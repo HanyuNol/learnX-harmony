@@ -34,6 +34,7 @@ import {
   learnFileCategoryList,
   learnFileDownload,
   learnAssignmentAttachmentDownload,
+  LEARN_HOMEWORK_SUBMIT,
   LEARN_HOMEWORK_DETAIL,
   LEARN_CURRENT_SEMESTER
 } from '../model/urls';
@@ -48,6 +49,7 @@ import { parseCourseList } from './parseCourse';
 import { parseNoticeList } from './parseNotice';
 import { parseAssignmentDescription, parseAssignmentList, parseAssignmentAttachments } from './parseAssignment';
 import { parseFileCategoryList, parseFileList } from './parseFile';
+import { MultipartFile, buildMultipartBody } from './multipart';
 import { Assignment, AssignmentAttachments } from '../model/assignment';
 import { LearnFile } from '../model/file';
 import { Notice } from '../model/notice';
@@ -843,6 +845,57 @@ export class LearnClient {
     } catch (err) {
       request.destroy();
       throw normalize(err, `GET(bytes) ${this.maskUrl(url)}`);
+    }
+  }
+
+  /**
+   * 提交作业（含可选附件）。
+   *
+   * 表单字段照上游 `urls.ts:141-156` 写死：`xszyid`（学生作业 id）、`zynr`（正文）、
+   * `fileupload`（**没有附件时也要传一个值为字符串 `undefined` 的文本字段**——服务端以此
+   * 判断"本次没有上传文件"，而不是靠字段缺失）、`isDeleted`（`1` 表示移除已提交的附件）。
+   *
+   * 成功判定 `result === 'success'`；其余按"操作失败"归类（与账号密码无关，
+   * 不得报成认证问题）。
+   */
+  async submitHomework(xszyid: string, content: string, file: MultipartFile | null,
+                       removeAttachment: boolean): Promise<void> {
+    const fields: Map<string, string> = new Map();
+    fields.set('xszyid', xszyid);
+    fields.set('zynr', content);
+    fields.set('isDeleted', removeAttachment ? '1' : '0');
+    if (file === null) {
+      fields.set('fileupload', 'undefined');
+    }
+
+    const boundary: string = '----learnXSubmitBoundary7c41e9';
+    const body: ArrayBuffer = buildMultipartBody(boundary, fields, file);
+
+    const request: http.HttpRequest = LearnClient.createRequest(LEARN_HOMEWORK_SUBMIT, LearnClient.handleResponseHeader);
+    let response: http.HttpResponse;
+    try {
+      response = await request.request(this.addCsrf(LEARN_HOMEWORK_SUBMIT), {
+        method: http.RequestMethod.POST,
+        header: this.buildHeaders(LEARN_HOMEWORK_SUBMIT, '*/*',
+          `multipart/form-data; boundary=${boundary}`),
+        extraData: body,
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      request.destroy();
+    } catch (err) {
+      request.destroy();
+      throw normalize(err, '提交作业');
+    }
+
+    const text: string = asText(response.result);
+    if (response.responseCode as number !== 200) {
+      throw fromStatusCode(response.responseCode as number, '提交作业');
+    }
+    if (!text.includes('"success"')) {
+      // 服务端用 JSON 报文表达业务失败（如已过截止时间），归类为"操作失败"而非网络问题
+      Logger.warn(TAG, `提交作业未成功 status=${response.responseCode as number}`);
+      throw apiChanged('提交作业未成功（服务端未返回 success）');
     }
   }
 

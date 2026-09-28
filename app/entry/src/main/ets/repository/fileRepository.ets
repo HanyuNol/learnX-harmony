@@ -14,7 +14,8 @@ import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
 import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
-import { readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
+import { existsAt, removeAtUri, writeIntoFolder } from '../native/filePickerAdapter';
+import { readCustomDownloadDir, readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
@@ -141,14 +142,27 @@ export class FileRepository {
   private static async downloadVia(file: LearnFile, context: common.Context, forceRefresh: boolean,
                                    onProgress: ((received: number, total: number) => void) | undefined,
                                    kind: string, relativeDir: string): Promise<string> {
-    const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
-    const directory: string = `${root}/${relativeDir}`;
-    ensureDir(directory);
-    const path: string = `${directory}/${downloadFileName(file.courseName, file.title, file.fileType, readOmitCourseName(context))}`;
-
-    if (!forceRefresh && fileExists(path)) {
-      Logger.info(TAG, `文件已在本地，直接复用 id=${file.id}`);
-      return path;
+    const customDir: string = readCustomDownloadDir(context);
+    const fileName: string = downloadFileName(file.courseName, file.title, file.fileType,
+      readOmitCourseName(context));
+    let path: string = '';
+    if (customDir.length > 0) {
+      // 用户选了自定义目录：**平铺**放进去，不建子目录——外部目录不保证允许建目录，
+      // 平铺也正是用户在"下载"里期待的样子
+      path = `${customDir}/${encodeURIComponent(fileName)}`;
+      if (!forceRefresh && existsAt(path)) {
+        Logger.info(TAG, `文件已在自定义目录，直接复用 id=${file.id}`);
+        return path;
+      }
+    } else {
+      const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
+      const directory: string = `${root}/${relativeDir}`;
+      ensureDir(directory);
+      path = `${directory}/${fileName}`;
+      if (!forceRefresh && fileExists(path)) {
+        Logger.info(TAG, `文件已在本地，直接复用 id=${file.id}`);
+        return path;
+      }
     }
 
     let data: ArrayBuffer;
@@ -162,17 +176,43 @@ export class FileRepository {
       throw normalize(err, `${kind}下载`);
     }
     if (data.byteLength <= 0) {
-      removeFile(path);
+      FileRepository.removeAt(customDir, path);
       throw new Error('下载到的文件为空');
     }
     if (FileRepository.looksLikeRedirectStub(data)) {
-      removeFile(path);
+      FileRepository.removeAt(customDir, path);
       throw new Error('下载端点返回了跳转页面（会话可能已失效）');
     }
 
-    writeBytes(path, data);
+    if (customDir.length > 0) {
+      // 外部目录用被授权 URI 写（`writeIntoFolder` 会拼子路径），不能走沙箱的 fs 路径写法
+      writeIntoFolder(customDir, fileName, data);
+    } else {
+      writeBytes(path, data);
+    }
     Logger.info(TAG, `${kind}已下载 id=${file.id} 字节=${data.byteLength} 路径长度=${path.length}`);
     return path;
+  }
+
+  /** 失败清理：沙箱文件直接删，外部 URI 交给适配器删 */
+  private static removeAt(customDir: string, path: string): void {
+    if (customDir.length > 0) {
+      removeAtUri(path);
+    } else {
+      removeFile(path);
+    }
+  }
+
+  /** 该文件在**自定义目录**里的路径（未设置自定义目录返回空串） */
+  static customPathOf(file: LearnFile, context: common.Context): string {
+    const customDir: string = readCustomDownloadDir(context);
+    if (customDir.length === 0) {
+      return '';
+    }
+    const name: string = downloadFileName(file.courseName, file.title, file.fileType,
+      readOmitCourseName(context));
+    const path: string = `${customDir}/${encodeURIComponent(name)}`;
+    return existsAt(path) ? path : '';
   }
 
   /** 沙箱里的文件路径（按**当前偏好**算，不下载；判定"已下载"用 `isDownloaded`） */
@@ -188,7 +228,8 @@ export class FileRepository {
    * （FR-16），旧文件仍在原处；只看当前偏好会让详情页显示"未下载"而文件其实还在。
    */
   static isDownloaded(file: LearnFile, context: common.Context): boolean {
-    return FileRepository.downloadedPathOf(file, context).length > 0;
+    return FileRepository.downloadedPathOf(file, context).length > 0
+      || FileRepository.customPathOf(file, context).length > 0;
   }
 
   /** 已下载时的绝对路径（任一目录 + 任一种命名命中即可）；都没命中返回空串 */
@@ -232,8 +273,16 @@ export class FileRepository {
    * 放这里而不是页面里：`fileUri` 是系统能力，`pages` 不得直接用（架构不变量 §1）。
    */
   static previewUriOf(file: LearnFile, context: common.Context): string {
+    // 只对**沙箱内**的文件做应用内预览：外部目录（自定义下载目录）拿到的是文档 URI，
+    // ArkWeb 吃不了它，这类文件交给系统应用打开才对
     const path: string = FileRepository.downloadedPathOf(file, context);
     return path.length > 0 ? previewUrlOf(path) : '';
+  }
+
+  /** 已下载文件的位置（沙箱优先，其次自定义目录）；都没命中返回空串 */
+  static anyDownloadedPathOf(file: LearnFile, context: common.Context): string {
+    const inSandbox: string = FileRepository.downloadedPathOf(file, context);
+    return inSandbox.length > 0 ? inSandbox : FileRepository.customPathOf(file, context);
   }
 
   /** 把沙箱路径变成应用内预览 URL（供附件走同一条预览路径） */
@@ -268,7 +317,7 @@ export class FileRepository {
    * 两步都失败会抛出，由调用方给用户可见反馈——**不静默**。
    */
   static async openDownloaded(file: LearnFile, context: common.UIAbilityContext): Promise<void> {
-    const existing: string = FileRepository.downloadedPathOf(file, context);
+    const existing: string = FileRepository.anyDownloadedPathOf(file, context);
     const path: string = existing.length > 0
       ? existing
       : await FileRepository.download(file, context, false);

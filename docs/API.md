@@ -143,6 +143,11 @@
     `pysj→gradeTime`
   - **`submitted`/`graded` 不是响应字段**：由"这批来自哪个端点"写死注入
     （Wj→false/false、Yjwg→true/false、Ypg→true/true）。去响应里找这两个字段会永远读到 false
+- **作业提交**（`urls.ts:139-156`）：`POST …/b/wlxt/kczy/zy/student/tjzy`，**multipart**，
+  字段：`xszyid`（学生作业 id）、`zynr`（正文）、`fileupload`（附件字节；**没有附件时也要传
+  一个值为 `undefined` 的文本字段**）、`isDeleted`（`1` 移除已提交附件，否则 `0`）。
+  成功判定 `result === 'success'`。**上传要求请求体里混二进制**，故请求体用 `ArrayBuffer`
+  （本项目自己拼 multipart，禁引第三方 HTTP 库）
 - **作业附件下载**（与课件文件**不同**的端点，`urls.ts:132-133`）：
   `GET …/b/wlxt/kczy/zy/student/downloadFile/<课程 id>/<附件 id>`；课件文件才是
   `…/kj/wlkc_kjxxb/student/downloadFile?sfgk=0&wjid=<fileId>`。两者都要会话与 CSRF

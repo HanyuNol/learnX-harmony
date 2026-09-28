@@ -16,12 +16,14 @@
 import { TextKeys } from '../common/texts';
 import { SettingsView } from './Settings';
 import { AboutView, ABOUT_DESTINATION } from './About';
+import { PROFILE_DESTINATION, ProfileView } from './Profile';
 import { SEMESTER_DESTINATION, SemesterSelectionView } from './SemesterSelection';
 import { CourseListTab } from './Courses';
 import { NOTICE_DETAIL_DESTINATION, NoticeListTab } from './Notices';
 import { NoticeDetailParam, NoticeDetailView } from './NoticeDetail';
 import { ASSIGNMENT_DETAIL_DESTINATION, AssignmentListTab } from './Assignments';
 import { AssignmentDetailParam, AssignmentDetailView } from './AssignmentDetail';
+import { ASSIGNMENT_SUBMIT_DESTINATION, AssignmentSubmitParam, AssignmentSubmitView } from './AssignmentSubmit';
 import { FILE_DETAIL_DESTINATION, FileListTab } from './Files';
 import { FileDetailParam, FileDetailView } from './FileDetail';
 import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
@@ -117,9 +119,23 @@ export struct MainView {
   assignmentsDetail(name: string, param: object) {
     if (name === ASSIGNMENT_DETAIL_DESTINATION) {
       NavDestination() {
-        AssignmentDetailView({ assignmentId: (param as AssignmentDetailParam).assignmentId })
+        AssignmentDetailView({
+          assignmentId: (param as AssignmentDetailParam).assignmentId,
+          // 提交页推在**同一个栈**上：提交完返回就回到作业详情
+          onOpenSubmit: (assignmentId: string) => {
+            this.assignmentsStack.pushPath({
+              name: ASSIGNMENT_SUBMIT_DESTINATION,
+              param: new AssignmentSubmitParam(assignmentId)
+            });
+          }
+        })
       }
       .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
+    } else if (name === ASSIGNMENT_SUBMIT_DESTINATION) {
+      NavDestination() {
+        AssignmentSubmitView({ assignmentId: (param as AssignmentSubmitParam).assignmentId })
+      }
+      .title($r('app.string.' + TextKeys.ASSIGNMENT_SUBMIT))
     } else {
       this.detailOf(this.assignmentsStack, name)
     }
@@ -173,7 +189,16 @@ export struct MainView {
       .title($r('app.string.' + TextKeys.TAB_NOTICES))
     } else if (name === ASSIGNMENT_DETAIL_DESTINATION) {
       NavDestination() {
-        AssignmentDetailView({ assignmentId: (param as AssignmentDetailParam).assignmentId })
+        AssignmentDetailView({
+          assignmentId: (param as AssignmentDetailParam).assignmentId,
+          // 课程栈里的作业详情同样要能进提交页（漏传＝点了没反应）
+          onOpenSubmit: (assignmentId: string) => {
+            this.coursesStack.pushPath({
+              name: ASSIGNMENT_SUBMIT_DESTINATION,
+              param: new AssignmentSubmitParam(assignmentId)
+            });
+          }
+        })
       }
       .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
     } else if (name === FILE_DETAIL_DESTINATION) {
@@ -181,6 +206,11 @@ export struct MainView {
         FileDetailView({ fileId: (param as FileDetailParam).fileId })
       }
       .title($r('app.string.' + TextKeys.TAB_FILES))
+    } else if (name === ASSIGNMENT_SUBMIT_DESTINATION) {
+      NavDestination() {
+        AssignmentSubmitView({ assignmentId: (param as AssignmentSubmitParam).assignmentId })
+      }
+      .title($r('app.string.' + TextKeys.ASSIGNMENT_SUBMIT))
     } else {
       this.detailOf(this.coursesStack, name)
     }
@@ -198,6 +228,11 @@ export struct MainView {
         AboutView()
       }
       .title($r('app.string.' + TextKeys.SETTINGS_ABOUT))
+    } else if (name === PROFILE_DESTINATION) {
+      NavDestination() {
+        ProfileView()
+      }
+      .title($r('app.string.' + TextKeys.SETTINGS_PROFILE))
     } else {
       this.detailOf(this.settingsStack, name)
     }
@@ -288,6 +323,9 @@ export struct MainView {
               },
               onOpenAbout: () => {
                 this.settingsStack.pushPath({ name: ABOUT_DESTINATION });
+              },
+              onOpenProfile: () => {
+                this.settingsStack.pushPath({ name: PROFILE_DESTINATION });
               }
             })
           }

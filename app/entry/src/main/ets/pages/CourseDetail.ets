@@ -75,6 +75,7 @@ export struct CourseDetailView {
           // onOpenAssignment 必须传下去——列表行的点击在回调为空时是**静默无效**的
           AssignmentListTab({
             courseId: this.courseId,
+            // 回调**必须传下去**：漏传时点击是静默无效的（本项目踩过）
             onOpenAssignment: this.onOpenAssignment
           })
         }

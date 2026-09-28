@@ -515,6 +515,114 @@
     {
       "name": "assignment_attachment_open",
       "value": "Tap to open"
+    },
+    {
+      "name": "assignment_submit",
+      "value": "Submit"
+    },
+    {
+      "name": "assignment_modify_submission",
+      "value": "Modify submission"
+    },
+    {
+      "name": "assignment_submitting",
+      "value": "Submitting…"
+    },
+    {
+      "name": "assignment_submit_content",
+      "value": "Content"
+    },
+    {
+      "name": "assignment_submit_content_hint",
+      "value": "Optional note…"
+    },
+    {
+      "name": "assignment_submit_attachment",
+      "value": "Attachment"
+    },
+    {
+      "name": "assignment_pick_file",
+      "value": "Choose file"
+    },
+    {
+      "name": "assignment_pick_file_failed",
+      "value": "Could not read the chosen file. Please try again."
+    },
+    {
+      "name": "assignment_remove_picked",
+      "value": "Remove chosen"
+    },
+    {
+      "name": "assignment_remove_attachment",
+      "value": "Remove submitted file"
+    },
+    {
+      "name": "assignment_keep_attachment",
+      "value": "Keep submitted file"
+    },
+    {
+      "name": "assignment_no_attachment",
+      "value": "No file chosen"
+    },
+    {
+      "name": "assignment_already_uploaded",
+      "value": "Submitted file: "
+    },
+    {
+      "name": "assignment_past_deadline",
+      "value": "Past the deadline (you can still submit; it may be marked late)"
+    },
+    {
+      "name": "assignment_submit_succeeded",
+      "value": "Submitted"
+    },
+    {
+      "name": "assignment_submit_failed",
+      "value": "Submission failed. Please try again."
+    },
+    {
+      "name": "settings_profile",
+      "value": "Profile"
+    },
+    {
+      "name": "profile_account_title",
+      "value": "Account"
+    },
+    {
+      "name": "profile_download_title",
+      "value": "Download location"
+    },
+    {
+      "name": "profile_dir_app_cache",
+      "value": "In app (cache)"
+    },
+    {
+      "name": "profile_dir_app_files",
+      "value": "In app (files)"
+    },
+    {
+      "name": "profile_dir_custom",
+      "value": "Custom folder"
+    },
+    {
+      "name": "profile_pick_folder",
+      "value": "Choose folder"
+    },
+    {
+      "name": "profile_clear_folder",
+      "value": "Clear"
+    },
+    {
+      "name": "profile_no_folder",
+      "value": "No folder chosen"
+    },
+    {
+      "name": "profile_pick_folder_failed",
+      "value": "Folder selection failed or was not authorized"
+    },
+    {
+      "name": "profile_custom_dir_hint",
+      "value": "Files in a custom folder cannot be previewed in the app; open them with another app"
     }
   ]
 }

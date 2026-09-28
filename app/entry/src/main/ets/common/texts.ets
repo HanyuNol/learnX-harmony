@@ -147,6 +147,38 @@ export class TextKeys {
   static readonly ASSIGNMENT_GRADE_ATTACHMENT: string = 'assignment_grade_attachment';
   /** 详情：附件行的动作提示（点击下载并打开） */
   static readonly ASSIGNMENT_ATTACHMENT_OPEN: string = 'assignment_attachment_open';
+  /** 详情：提交作业（未提交时） */
+  static readonly ASSIGNMENT_SUBMIT: string = 'assignment_submit';
+  /** 详情：修改提交（已提交时） */
+  static readonly ASSIGNMENT_MODIFY_SUBMISSION: string = 'assignment_modify_submission';
+  /** 提交页：提交中… */
+  static readonly ASSIGNMENT_SUBMITTING: string = 'assignment_submitting';
+  /** 提交页：正文小节 */
+  static readonly ASSIGNMENT_SUBMIT_CONTENT: string = 'assignment_submit_content';
+  /** 提交页：正文输入提示 */
+  static readonly ASSIGNMENT_SUBMIT_CONTENT_HINT: string = 'assignment_submit_content_hint';
+  /** 提交页：附件小节 */
+  static readonly ASSIGNMENT_SUBMIT_ATTACHMENT: string = 'assignment_submit_attachment';
+  /** 提交页：选择文件 */
+  static readonly ASSIGNMENT_PICK_FILE: string = 'assignment_pick_file';
+  /** 提交页：选择文件失败 */
+  static readonly ASSIGNMENT_PICK_FILE_FAILED: string = 'assignment_pick_file_failed';
+  /** 提交页：移除所选 */
+  static readonly ASSIGNMENT_REMOVE_PICKED: string = 'assignment_remove_picked';
+  /** 提交页：移除已提交的附件 */
+  static readonly ASSIGNMENT_REMOVE_ATTACHMENT: string = 'assignment_remove_attachment';
+  /** 提交页：保留已提交的附件（取消移除） */
+  static readonly ASSIGNMENT_KEEP_ATTACHMENT: string = 'assignment_keep_attachment';
+  /** 提交页：未选择附件 */
+  static readonly ASSIGNMENT_NO_ATTACHMENT: string = 'assignment_no_attachment';
+  /** 提交页：已上传的附件前缀 */
+  static readonly ASSIGNMENT_ALREADY_UPLOADED: string = 'assignment_already_uploaded';
+  /** 提交页：已过截止时间 */
+  static readonly ASSIGNMENT_PAST_DEADLINE: string = 'assignment_past_deadline';
+  /** 提交成功 */
+  static readonly ASSIGNMENT_SUBMIT_SUCCEEDED: string = 'assignment_submit_succeeded';
+  /** 提交失败 */
+  static readonly ASSIGNMENT_SUBMIT_FAILED: string = 'assignment_submit_failed';
   /** 详情：补交截止 */
   static readonly ASSIGNMENT_LATE_DEADLINE: string = 'assignment_late_deadline';
   /** 详情：提交时间 */
@@ -257,6 +289,28 @@ export class TextKeys {
   static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';
   /** 设置页入口：关于与帮助 */
   static readonly SETTINGS_ABOUT: string = 'settings_about';
+  /** 设置页入口：个人信息 */
+  static readonly SETTINGS_PROFILE: string = 'settings_profile';
+  /** 个人信息页：姓名与院系的标题 */
+  static readonly PROFILE_ACCOUNT_TITLE: string = 'profile_account_title';
+  /** 个人信息页：下载位置小节标题 */
+  static readonly PROFILE_DOWNLOAD_TITLE: string = 'profile_download_title';
+  /** 个人信息页：下载位置选项——应用内（缓存） */
+  static readonly PROFILE_DIR_APP_CACHE: string = 'profile_dir_app_cache';
+  /** 个人信息页：下载位置选项——应用内（文件目录） */
+  static readonly PROFILE_DIR_APP_FILES: string = 'profile_dir_app_files';
+  /** 个人信息页：下载位置选项——自定义目录 */
+  static readonly PROFILE_DIR_CUSTOM: string = 'profile_dir_custom';
+  /** 个人信息页：选择自定义目录 */
+  static readonly PROFILE_PICK_FOLDER: string = 'profile_pick_folder';
+  /** 个人信息页：清除自定义目录 */
+  static readonly PROFILE_CLEAR_FOLDER: string = 'profile_clear_folder';
+  /** 个人信息页：尚未选择目录 */
+  static readonly PROFILE_NO_FOLDER: string = 'profile_no_folder';
+  /** 个人信息页：目录选择失败 */
+  static readonly PROFILE_PICK_FOLDER_FAILED: string = 'profile_pick_folder_failed';
+  /** 个人信息页：自定义目录下文件的应用内预览不可用，说明 */
+  static readonly PROFILE_CUSTOM_DIR_HINT: string = 'profile_custom_dir_hint';
   /** 关于：版本 */
   static readonly ABOUT_VERSION: string = 'about_version';
   /** 关于：包名 */

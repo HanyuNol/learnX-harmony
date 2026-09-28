@@ -9,6 +9,7 @@
 import { Course } from '../model/course';
 import { Assignment, AssignmentFilter, filterAssignments, sortAssignments } from '../model/assignment';
 import { AssignmentBatch, AssignmentRepository } from '../repository/assignmentRepository';
+import { MultipartFile } from '../network/multipart';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
@@ -114,6 +115,23 @@ export class AssignmentStore {
       }
     }
     return null;
+  }
+
+  /**
+   * 提交作业，成功后**按上次的学期与课程重拉一次**。
+   *
+   * 为什么重拉：提交会改变完成状态（未提交→已提交）与已提交附件，
+   * 而这两样**都来自服务端**（完成状态由端点决定，见 spec §3.1），
+   * 本地自己改状态等于编数据。重拉用上次请求的入参，页面不必再传一遍。
+   */
+  async submit(assignmentId: string, content: string, file: MultipartFile | null,
+               removeAttachment: boolean): Promise<void> {
+    await AssignmentRepository.submitHomework(assignmentId, content, file, removeAttachment);
+    const last: AssignmentRequest | null = this.requested;
+    if (last !== null) {
+      this.loadedSignature = '';
+      await this.refresh(last.semesterId, last.courses);
+    }
   }
 
   /**

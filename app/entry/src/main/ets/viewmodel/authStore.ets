@@ -276,6 +276,16 @@ export class AuthStore {
     this.notify();
   }
 
+  /**
+   * 当前用户信息（姓名与院系）。未登录或还没解析到时返回 null。
+   *
+   * 单独开一个只读入口而不是把 `snapshot()` 公开：页面只需要这一项，
+   * 而 `AuthState` 里还带着状态机细节，公开它会让页面有机会依赖实现细节。
+   */
+  currentUserInfo(): UserInfo | null {
+    return this.userInfo;
+  }
+
   /** 供登录页回填学号 */
   async loadSavedUsername(): Promise<string> {
     try {

@@ -515,6 +515,114 @@
     {
       "name": "assignment_attachment_open",
       "value": "点此查看"
+    },
+    {
+      "name": "assignment_submit",
+      "value": "提交作业"
+    },
+    {
+      "name": "assignment_modify_submission",
+      "value": "修改提交"
+    },
+    {
+      "name": "assignment_submitting",
+      "value": "提交中…"
+    },
+    {
+      "name": "assignment_submit_content",
+      "value": "正文"
+    },
+    {
+      "name": "assignment_submit_content_hint",
+      "value": "可填写提交说明…"
+    },
+    {
+      "name": "assignment_submit_attachment",
+      "value": "附件"
+    },
+    {
+      "name": "assignment_pick_file",
+      "value": "选择文件"
+    },
+    {
+      "name": "assignment_pick_file_failed",
+      "value": "选择文件失败，请重试"
+    },
+    {
+      "name": "assignment_remove_picked",
+      "value": "移除所选"
+    },
+    {
+      "name": "assignment_remove_attachment",
+      "value": "移除已提交的附件"
+    },
+    {
+      "name": "assignment_keep_attachment",
+      "value": "保留已提交的附件"
+    },
+    {
+      "name": "assignment_no_attachment",
+      "value": "未选择附件"
+    },
+    {
+      "name": "assignment_already_uploaded",
+      "value": "已上传："
+    },
+    {
+      "name": "assignment_past_deadline",
+      "value": "已过截止时间（仍可提交，可能记为补交）"
+    },
+    {
+      "name": "assignment_submit_succeeded",
+      "value": "已提交"
+    },
+    {
+      "name": "assignment_submit_failed",
+      "value": "提交失败，请重试"
+    },
+    {
+      "name": "settings_profile",
+      "value": "个人信息"
+    },
+    {
+      "name": "profile_account_title",
+      "value": "账号"
+    },
+    {
+      "name": "profile_download_title",
+      "value": "下载位置"
+    },
+    {
+      "name": "profile_dir_app_cache",
+      "value": "应用内（缓存目录）"
+    },
+    {
+      "name": "profile_dir_app_files",
+      "value": "应用内（文件目录）"
+    },
+    {
+      "name": "profile_dir_custom",
+      "value": "自定义目录"
+    },
+    {
+      "name": "profile_pick_folder",
+      "value": "选择目录"
+    },
+    {
+      "name": "profile_clear_folder",
+      "value": "清除"
+    },
+    {
+      "name": "profile_no_folder",
+      "value": "尚未选择目录"
+    },
+    {
+      "name": "profile_pick_folder_failed",
+      "value": "目录选择未完成或未获授权"
+    },
+    {
+      "name": "profile_custom_dir_hint",
+      "value": "自定义目录里的文件不支持应用内预览，请用其他应用打开"
     }
   ]
 }
