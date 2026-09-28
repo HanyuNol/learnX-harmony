@@ -13,6 +13,8 @@ import { Course } from '../model/course';
 import { Assignment, AssignmentAttachments, sortAssignments } from '../model/assignment';
 import { LearnClient } from '../network/learnClient';
 import { MultipartFile } from '../network/multipart';
+import { AuthError } from '../model/auth';
+import { firstFailure, normalize } from '../common/errors';
 import { Logger } from '../common/logger';
 
 const TAG: string = 'assignmentRepository';
@@ -40,10 +42,13 @@ export class AssignmentBatch {
 class CourseAssignmentResult {
   readonly items: Assignment[] | null;
   readonly course: Course;
+  /** 失败原因（**已归一**，保住四分类）；成功时为 null */
+  readonly failure: AuthError | null;
 
-  constructor(items: Assignment[] | null, course: Course) {
+  constructor(items: Assignment[] | null, course: Course, failure: AuthError | null) {
     this.items = items;
     this.course = course;
+    this.failure = failure;
   }
 }
 
@@ -56,6 +61,8 @@ export class AssignmentRepository {
    */
   static async loadAll(courses: Course[], now: number): Promise<AssignmentBatch> {
     const collected: Assignment[] = [];
+    /** 各课**已归一**的失败原因（全失败时要抛它，见 common/errors.firstFailure 的说明） */
+    const failures: AuthError[] = [];
     let failed: number = 0;
 
     for (let i = 0; i < courses.length; i += FANOUT_LIMIT) {
@@ -65,6 +72,9 @@ export class AssignmentRepository {
       for (const entry of settled) {
         if (entry.items === null) {
           failed++;
+          if (entry.failure !== null) {
+            failures.push(entry.failure);
+          }
           continue;
         }
         for (const item of entry.items) {
@@ -74,8 +84,11 @@ export class AssignmentRepository {
     }
 
     if (courses.length > 0 && failed === courses.length) {
-      Logger.warn(TAG, `全部 ${courses.length} 门课程的作业都加载失败，按错误态处理`);
-      throw new Error('全部课程的作业都加载失败');
+      const first: AuthError = firstFailure(failures, '加载作业');
+      Logger.warn(TAG, `全部 ${courses.length} 门课程的作业都加载失败，按错误态处理 reason=${first.reason}`);
+      // **抛已归一的错误**而不是裸 Error：裸 Error 没有平台错误码，normalize 会把它归成
+      // "解析失败"，于是"登录失效/断网"被显示成"响应无法识别"（2026-09-28 审查 🔴）
+      throw first;
     }
 
     const withDetail: Assignment[] = await AssignmentRepository.fillDetails(collected);
@@ -89,10 +102,11 @@ export class AssignmentRepository {
     try {
       const items: Assignment[] = await LearnClient.getInstance()
         .fetchAssignmentsOfCourse(course.id, course.displayName(), course.teacherName);
-      return new CourseAssignmentResult(items, course);
+      return new CourseAssignmentResult(items, course, null);
     } catch (err) {
-      Logger.warn(TAG, `课程作业加载失败 course=${course.id}`);
-      return new CourseAssignmentResult(null, course);
+      const error: AuthError = normalize(err, '加载课程作业');
+      Logger.warn(TAG, `课程作业加载失败 course=${course.id} reason=${error.reason}`);
+      return new CourseAssignmentResult(null, course, error);
     }
   }
 
@@ -149,7 +163,7 @@ export class AssignmentRepository {
       description = await client.fetchAssignmentDescription(item.baseId);
       descriptionOk = true;
     } catch (err) {
-      Logger.warn(TAG, `作业正文加载失败 id=${item.id}`);
+      Logger.warn(TAG, `作业正文加载失败 id=${item.id} reason=${normalize(err, '加载作业正文').reason}`);
     }
 
     let attachments: AssignmentAttachments = item.attachments;

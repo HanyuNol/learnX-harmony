@@ -18,7 +18,8 @@ import { existsAt, removeAtUri, saveAs, writeIntoFolder } from '../native/filePi
 import { readCustomDownloadDir, readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
-import { normalize } from '../common/errors';
+import { apiChanged, authFailed, firstFailure, normalize } from '../common/errors';
+import { AuthError } from '../model/auth';
 import { common } from '@kit.AbilityKit';
 
 const TAG: string = 'fileRepository';
@@ -56,10 +57,13 @@ export class FileBatch {
 class CourseFileResult {
   readonly items: LearnFile[] | null;
   readonly course: Course;
+  /** 失败原因（**已归一**，保住四分类）；成功时为 null */
+  readonly failure: AuthError | null;
 
-  constructor(items: LearnFile[] | null, course: Course) {
+  constructor(items: LearnFile[] | null, course: Course, failure: AuthError | null) {
     this.items = items;
     this.course = course;
+    this.failure = failure;
   }
 }
 
@@ -67,6 +71,8 @@ export class FileRepository {
   /** 取全部课程的文件。全部失败时抛出，交给上层既有错误路径 */
   static async loadAll(courses: Course[]): Promise<FileBatch> {
     const collected: LearnFile[] = [];
+    /** 各课**已归一**的失败原因（全失败时要抛它，见 common/errors.firstFailure 的说明） */
+    const failures: AuthError[] = [];
     let failed: number = 0;
 
     for (let i = 0; i < courses.length; i += FANOUT_LIMIT) {
@@ -76,6 +82,9 @@ export class FileRepository {
       for (const entry of settled) {
         if (entry.items === null) {
           failed++;
+          if (entry.failure !== null) {
+            failures.push(entry.failure);
+          }
           continue;
         }
         for (const item of entry.items) {
@@ -85,8 +94,11 @@ export class FileRepository {
     }
 
     if (courses.length > 0 && failed === courses.length) {
-      Logger.warn(TAG, `全部 ${courses.length} 门课程的文件都加载失败，按错误态处理`);
-      throw new Error('全部课程的文件都加载失败');
+      const first: AuthError = firstFailure(failures, '加载文件');
+      Logger.warn(TAG, `全部 ${courses.length} 门课程的文件都加载失败，按错误态处理 reason=${first.reason}`);
+      // **抛已归一的错误**（不抛裸 Error）：否则会被 normalize 归成"解析失败"，
+      // 把"登录失效/断网"显示成"响应无法识别"（2026-09-28 审查 🔴）
+      throw first;
     }
 
     const sorted: LearnFile[] = sortFiles(collected);
@@ -98,10 +110,11 @@ export class FileRepository {
     try {
       const items: LearnFile[] = await LearnClient.getInstance()
         .fetchFilesOfCourse(course.id, course.displayName(), course.teacherName);
-      return new CourseFileResult(items, course);
+      return new CourseFileResult(items, course, null);
     } catch (err) {
-      Logger.warn(TAG, `课程文件加载失败 course=${course.id}`);
-      return new CourseFileResult(null, course);
+      const error: AuthError = normalize(err, '加载课程文件');
+      Logger.warn(TAG, `课程文件加载失败 course=${course.id} reason=${error.reason}`);
+      return new CourseFileResult(null, course, error);
     }
   }
 
@@ -177,11 +190,13 @@ export class FileRepository {
     }
     if (data.byteLength <= 0) {
       FileRepository.removeAt(customDir, path);
-      throw new Error('下载到的文件为空');
+      throw apiChanged('下载到的文件为空（服务端语义可能变更）');
     }
     if (FileRepository.looksLikeRedirectStub(data)) {
       FileRepository.removeAt(customDir, path);
-      throw new Error('下载端点返回了跳转页面（会话可能已失效）');
+      // 跳转桩页面是**会话失效**的典型表现，必须归为认证失败而不是"解析失败"——
+      // 否则用户看到"响应无法识别"，不知道要重新登录（2026-09-28 审查 M1）
+      throw authFailed('下载端点返回了跳转页面（会话可能已失效）');
     }
 
     if (customDir.length > 0) {

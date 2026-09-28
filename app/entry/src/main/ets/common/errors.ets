@@ -57,6 +57,27 @@ export function parseFailed(detail: string): AuthError {
 }
 
 /**
+ * 一批扇出请求里**第一个已归一的失败**。
+ *
+ * 为什么需要它（2026-09-28 代码审查 🔴）：通知/作业/文件都是"按课程扇出、全部失败才算错误态"。
+ * 若汇总层丢掉每课的错误、改抛一个裸 `new Error('全部课程都加载失败')`，那么 `normalize`
+ * 会因为**没有平台错误码**把它归成 `PARSE_FAILED`——于是"登录态失效"和"断网"都会显示成
+ * "服务端返回的内容无法识别"，既不提示重新登录也不区分网络问题。
+ * 这正是 `architecture-invariants` 的红线"把网络问题报成应用缺陷"，也违 `testing-and-quality` §2.3。
+ *
+ * 契约：**只接受已归一的 `AuthError`**，返回的也一定是 `AuthError`——
+ * 调用方（各 repository）必须在单课 catch 里 `normalize` 后再存进这个列表。
+ */
+export function firstFailure(failures: AuthError[], context: string): AuthError {
+  if (failures.length > 0) {
+    return failures[0];
+  }
+  // 理论上到不了这里（调用方只在"全部失败"时才问）；真到了也要给一个**已归一的**错误，
+  // 绝不返回裸 Error，否则四分类又丢
+  return apiChanged(`${context}：全部失败但未记录原因`);
+}
+
+/**
  * 把任意抛出物归一为 AuthError。
  *
  * 已是 AuthError 的原样透传（避免分类信息在层层包装中丢失）；

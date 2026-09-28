@@ -12,7 +12,7 @@
 import { Course } from '../model/course';
 import { FileReadFilter, LearnFile, PROGRESS_UNKNOWN, filterByRead, percentOf, sortFiles } from '../model/file';
 import { FileBatch, FileRepository } from '../repository/fileRepository';
-import { FailReason } from '../model/auth';
+import { AuthError, FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
@@ -218,8 +218,10 @@ export class FileStore {
     } catch (err) {
       this.setDownloadState(file.id, DownloadState.FAILED);
       this.setDownloadPercent(file.id, PROGRESS_UNKNOWN);
-      Logger.warn(TAG, `文件下载失败 id=${file.id}`);
-      throw new Error('文件下载失败');
+      const error: AuthError = normalize(err, '下载文件');
+      Logger.warn(TAG, `文件下载失败 id=${file.id} reason=${error.reason}`);
+      // **不再包一层裸 Error**：那会把下层的四分类丢掉（2026-09-28 审查 M1）
+      throw error;
     }
   }
 
@@ -239,9 +241,9 @@ export class FileStore {
       this.setDownloadState(file.id, DownloadState.READY);
     } catch (err) {
       this.setDownloadState(file.id, DownloadState.FAILED);
-      // 失败明细（含系统错误码）由 repository 记——`viewmodel` 不直连 `native`（架构不变量 §1）
-      Logger.warn(TAG, `文件打开失败 id=${file.id}`);
-      throw new Error('文件打开失败');
+      const error: AuthError = normalize(err, '打开文件');
+      Logger.warn(TAG, `文件打开失败 id=${file.id} reason=${error.reason}`);
+      throw error;
     }
   }
 
@@ -275,8 +277,9 @@ export class FileStore {
       this.setDownloadState(file.id, DownloadState.READY);
     } catch (err) {
       this.setDownloadState(file.id, DownloadState.FAILED);
-      Logger.warn(TAG, `附件下载失败 id=${file.id}`);
-      throw new Error('附件下载失败');
+      const error: AuthError = normalize(err, '下载附件');
+      Logger.warn(TAG, `附件下载失败 id=${file.id} reason=${error.reason}`);
+      throw error;
     }
   }
 
