@@ -422,7 +422,7 @@
     },
     {
       "name": "file_open",
-      "value": "Open"
+      "value": "Open with system app"
     },
     {
       "name": "file_download_failed",
@@ -503,6 +503,14 @@
     {
       "name": "help_remember",
       "value": "With \"Remember password\" checked, credentials are kept after you sign out so the next launch restores automatically. Do not check it on a shared device."
+    },
+    {
+      "name": "file_open_failed",
+      "value": "Could not open the file: no app on this device can handle this type."
+    },
+    {
+      "name": "file_preview",
+      "value": "Preview"
     }
   ]
 }

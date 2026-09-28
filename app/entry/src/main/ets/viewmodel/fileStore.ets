@@ -259,6 +259,11 @@ export class FileStore {
     return percent === undefined ? PROGRESS_UNKNOWN : percent;
   }
 
+  /** 应用内预览用的 `file://` URI；未下载时为空串 */
+  previewUriOf(file: LearnFile, context: common.Context): string {
+    return FileRepository.previewUriOf(file, context);
+  }
+
   /** 该文件是否已在沙箱（详情页显示"已下载"） */
   isDownloaded(file: LearnFile, context: common.Context): boolean {
     if (this.downloadStateOf(file.id) === DownloadState.READY) {

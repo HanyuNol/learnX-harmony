@@ -224,8 +224,12 @@ export class TextKeys {
   static readonly FILE_DOWNLOADING: string = 'file_downloading';
   /** 详情：已下载 */
   static readonly FILE_DOWNLOADED: string = 'file_downloaded';
-  /** 详情：在系统查看器中打开 */
+  /** 详情：在系统查看器中打开（次要路径，设备上未必有能打开该类型的应用） */
   static readonly FILE_OPEN: string = 'file_open';
+  /** 详情：应用内预览（主路径，无需设备上装有对应应用） */
+  static readonly FILE_PREVIEW: string = 'file_preview';
+  /** 打开失败：设备上没有能打开该类型文件的应用（与"下载失败"分开，否则用户无从判断） */
+  static readonly FILE_OPEN_FAILED: string = 'file_open_failed';
   /** 下载或打开失败 */
   static readonly FILE_DOWNLOAD_FAILED: string = 'file_download_failed';
   /** 下载进度：`下载中 %d%%`（图形之外必须有文字才可验收） */

@@ -277,7 +277,24 @@ ArkUI（本机 API 24 实测）**只把 build 里实际读到的状态变量登�
 > 判别口径：**build（含 `if` 条件、`ForEach` 数据源）里读到的状态才驱动刷新**。
 > 只从 store 取数、不经 `@State` 中转的渲染路径，数据变了也不会自己更新。
 
-### 7.7 文案键一致性检查（改文案后必跑）
+### 7.7 用 ArkWeb 打开沙箱里的文件：两个条件缺一不可
+
+要在应用内预览下载好的文件（PDF、图片、文本…），Web 组件必须同时满足：
+
+1. **显式 `.fileAccess(true)`**：API 12 起该能力**默认关闭**，关闭时 ArkWeb 直接拒绝本地文件；
+2. **URL 用 `file://` + 沙箱绝对路径**（`file:///data/storage/el2/...`）——
+   **不能**用 `fileUri.getUriFromPath()` 返回的 `file://<包名>/...`。
+
+只满足一半时的现象都是同一句：`[WebNavigation] LoadUrl message:invalidFileUrl` +
+`nweb_delegate.cc: IsUrlFileExist failed, file does not exist`（**看起来像"文件不存在"，
+其实文件好好地躺在沙箱里**）。实测 2026-09-28：缺 `fileAccess(true)` 时两份形态都失败；
+补上后带包名的形态仍失败、绝对路径形态立刻成功，且在 hilog 里能看到 Chromium 的
+`pdf_document_helper` 在处理 PDF（说明是真的渲染了，不是加载了一个错误页）。
+
+两处的实现都在 `native/fileAdapter.previewUrlOf` 与 `pages/FileDetail` 的 Web 属性上，
+别在别处另拼 URL。
+
+### 7.8 文案键一致性检查（改文案后必跑）
 
 ```bash
 node scripts/check-l10n.mjs

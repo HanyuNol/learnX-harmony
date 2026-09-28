@@ -113,6 +113,8 @@ const KNOWN_KEYS: string[] = [
   TextKeys.FILE_DOWNLOADING,
   TextKeys.FILE_DOWNLOADED,
   TextKeys.FILE_OPEN,
+  TextKeys.FILE_OPEN_FAILED,
+  TextKeys.FILE_PREVIEW,
   TextKeys.FILE_DOWNLOAD_FAILED,
   TextKeys.FILE_DOWNLOAD_PROGRESS,
   TextKeys.FILE_REDOWNLOAD,
@@ -214,7 +216,7 @@ export default function textsTest() {
         expect(key.length > 0).assertTrue();
         expect(/^[a-z][a-z0-9_]*$/.test(key)).assertTrue();
       });
-      expect(KNOWN_KEYS.length).assertEqual(123);
+      expect(KNOWN_KEYS.length).assertEqual(125);
     });
 
     it('作业的每个相对时间档位、完成/提交方式都应映射到已知键', 0, () => {

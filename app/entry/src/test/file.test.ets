@@ -7,8 +7,8 @@
 
 import { describe, expect, it } from '@ohos/hypium';
 import {
-  LearnFile, PROGRESS_UNKNOWN, categoryNamesOf, downloadFileName, filterByCategory, percentOf,
-  sanitizePathSegment, sortFiles
+  LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, categoryNamesOf, downloadFileName, filterByCategory,
+  percentOf, sanitizePathSegment, sortFiles
 } from '../main/ets/model/file';
 import { mimeOfExtension } from '../main/ets/common/mime';
 import { parseFileCategoryList, parseFileList } from '../main/ets/network/parseFile';
@@ -181,6 +181,22 @@ export default function fileTest() {
         expect(filterByCategory(items, '').length).assertEqual(3);
         expect(filterByCategory(items, '课件').length).assertEqual(2);
         expect(filterByCategory(items, '不存在的分类').length).assertEqual(0);
+      });
+    });
+
+    describe('应用内预览的适用类型', () => {
+
+      it('浏览器能渲染的类型可预览；Office 文档不行（点了也是空白）', 0, () => {
+        expect(canPreviewInApp('pdf')).assertTrue();
+        expect(canPreviewInApp('.PDF')).assertTrue();
+        expect(canPreviewInApp('txt')).assertTrue();
+        expect(canPreviewInApp('png')).assertTrue();
+        expect(canPreviewInApp('mp4')).assertTrue();
+        expect(canPreviewInApp('pptx')).assertFalse();
+        expect(canPreviewInApp('docx')).assertFalse();
+        expect(canPreviewInApp('xlsx')).assertFalse();
+        expect(canPreviewInApp('')).assertFalse();
+        expect(canPreviewInApp('zip')).assertFalse();
       });
     });
 

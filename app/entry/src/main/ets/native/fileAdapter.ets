@@ -136,3 +136,27 @@ export function describeError(err: Object): string {
   const error: BusinessError = err as BusinessError;
   return `code=${error.code} message=${error.message}`;
 }
+
+/**
+ * 沙箱绝对路径 → **交给系统查看器**的 `file://` URI（形如 `file://<包名>/data/...`）。
+ *
+ * 与 `previewUrlOf` 是**两个不同的东西**，别混用：
+ * - 系统查看器要 `getUriFromPath` 那个带包名的形态；
+ * - ArkWeb 要 `file://` + 绝对路径，喂它带包名的形态会被拒绝
+ *   （2026-09-28 实测：`IsUrlFileExist failed` / `invalidFileUrl`）。
+ */
+export function fileUriOf(path: string): string {
+  return fileUri.getUriFromPath(path);
+}
+
+/**
+ * 沙箱绝对路径 → **应用内预览（ArkWeb）**的 URL：`file://` + 绝对路径。
+ *
+ * 两个实测坑（2026-09-28，缺一不可）：
+ * 1. 形态必须是 `file://` + 绝对路径（`file:///data/storage/...`），**不能用**
+ *    `getUriFromPath` 那个 `file://<包名>/...`——ArkWeb 会报 `invalidFileUrl`；
+ * 2. Web 组件必须显式 `.fileAccess(true)`：API 12 起该能力**默认关闭**，关闭时不认本地文件。
+ */
+export function previewUrlOf(path: string): string {
+  return `file://${path}`;
+}

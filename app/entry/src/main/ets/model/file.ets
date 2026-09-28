@@ -201,3 +201,26 @@ export function percentOf(received: number, total: number): number {
   }
   return percent > 100 ? 100 : percent;
 }
+
+/**
+ * 该类型能否在应用内预览（决定详情页是否给出"预览"按钮）。
+ *
+ * 应用内预览由系统 ArkWeb 承载，故能看的类型=**浏览器能直接渲染的那几类**：
+ * PDF（实测 ArkWeb 内置 PDF 文档视图，见 files spec §3.1）、HTML/纯文本/CSV/JSON/XML、
+ * 常见图片与音视频。**Office 文档（doc/docx/ppt/pptx/xls/xlsx）不在其中**——
+ * ArkWeb 只会把它当附件下载、渲染不出内容。
+ *
+ * 判据放这里而不是页面里，是为了可穷举测试，也为了"不给出点了没用的按钮"
+ * （对不能预览的类型，详情页干脆不显示该按钮）。
+ */
+const PREVIEWABLE: string[] = [
+  'pdf', 'html', 'htm', 'txt', 'md', 'csv', 'json', 'xml',
+  'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'svg',
+  'mp3', 'wav', 'm4a', 'mp4', 'mov', 'webm'
+];
+
+/** 扩展名（可带点、大小写不敏感）是否可在应用内预览 */
+export function canPreviewInApp(fileType: string): boolean {
+  const normalized: string = fileType.trim().toLowerCase().replace(/^\./, '');
+  return PREVIEWABLE.includes(normalized);
+}

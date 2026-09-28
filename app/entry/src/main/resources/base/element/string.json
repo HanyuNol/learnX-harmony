@@ -422,7 +422,7 @@
     },
     {
       "name": "file_open",
-      "value": "打开"
+      "value": "用系统应用打开"
     },
     {
       "name": "file_download_failed",
@@ -503,6 +503,14 @@
     {
       "name": "help_remember",
       "value": "勾选「记住密码」后，登出不会清除已保存的凭据，下次打开可直接恢复；共用设备上请勿勾选。"
+    },
+    {
+      "name": "file_open_failed",
+      "value": "打开失败：设备上没有能打开该类型文件的应用"
+    },
+    {
+      "name": "file_preview",
+      "value": "预览"
     }
   ]
 }

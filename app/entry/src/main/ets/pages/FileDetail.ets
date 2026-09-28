@@ -11,13 +11,15 @@
  * （与设置页写偏好同一做法，见 `native/contextAdapter` 的说明）。
  */
 
-import { LearnFile, PROGRESS_UNKNOWN, formatUploadDate } from '../model/file';
+import { LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, formatUploadDate } from '../model/file';
 import { plainText } from '../model/notice';
 import { DownloadState, FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';
 import { common } from '@kit.AbilityKit';
+import { webview } from '@kit.ArkWeb';
+import { Logger } from '../common/logger';
 
 /** 详情目的地的参数载体 */
 export class FileDetailParam {
@@ -42,6 +44,17 @@ export struct FileDetailView {
   @State private downloadState: DownloadState = DownloadState.IDLE;
   @State private percent: number = PROGRESS_UNKNOWN;
   @State private downloaded: boolean = false;
+  /**
+   * 应用内预览的 `file://` URI（空串＝不显示预览区）。
+   *
+   * 为什么需要它：设备上未必装了能打开该类型的应用（模拟器上实测
+   * `16000019 No matching ability is found`），此时"打开"不能只报失败。
+   * 上游 learnX 的做法正是**内置预览**（PDF 用 pdf 组件、其他用 WebView，
+   * 见 `screens/FileDetail.tsx` 的 canRender 分支）；这里用系统 ArkWeb 承载本地文件，
+   * 效果等同它那条 WebView 分支。
+   */
+  @State private previewUri: string = '';
+  private webController: webview.WebviewController = new webview.WebviewController();
 
   private store: FileStore = FileStore.getInstance();
 
@@ -167,8 +180,7 @@ export struct FileDetailView {
         }
 
         Row({ space: 12 }) {
-          // 三个动作分开（files spec §2.3 + downloads spec §2 第 3/4 条）：
-          // 只落盘 / 覆盖重下 / 交给系统查看器
+          // 落在盘上：下载 / 覆盖重下
           Button($r('app.string.' + this.downloadKey(file)))
             .fontSize(16)
             .enabled(this.downloadState !== DownloadState.DOWNLOADING)
@@ -181,15 +193,50 @@ export struct FileDetailView {
             .onClick(() => {
               this.download(file, true);
             })
+        }
+        .width('100%')
+        .padding({ top: 12 })
+
+        Row({ space: 12 }) {
+          // 应用内预览：不依赖设备上装没装能打开该类型的应用（上游 learnX 也是内置预览为主）。
+          // **只在浏览器渲染得出来的类型上给这个按钮**——Office 文档点了也是空白，
+          // 不给点了没用的按钮
+          if (canPreviewInApp(file.fileType)) {
+            Button($r('app.string.' + TextKeys.FILE_PREVIEW))
+              .fontSize(16)
+              .enabled(this.downloadState !== DownloadState.DOWNLOADING)
+              .onClick(() => {
+                this.preview(file);
+              })
+          }
+          // 交给系统应用（装了 WPS 一类应用时才有用；设备上没有处理器会如实报错）
           Button($r('app.string.' + TextKeys.FILE_OPEN))
             .fontSize(16)
             .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
-              this.openFile(file);
+              this.openExternal(file);
             })
         }
         .width('100%')
         .padding({ top: 12 })
+
+        // 应用内预览（仅在"系统查看器不可用"时出现）
+        if (this.previewUri.length > 0) {
+          Web({ src: this.previewUri, controller: this.webController })
+            .width('100%')
+            .height(720)
+            // **必须显式打开**：API 12 起 `fileAccess` 默认关闭，关闭时 ArkWeb 会拒绝
+            // `file://` 本地文件（实测报 `IsUrlFileExist failed` / `invalidFileUrl`），
+            // 沙箱里的课件就打不开（2026-09-28 真机实测）
+            .fileAccess(true)
+            .onPageEnd((event: OnPageEndEvent) => {
+              // ArkWeb 加载结束：有这条日志才说明本地文件确实被交到渲染器手里
+              Logger.info('filePreview', '预览加载结束');
+            })
+            .onErrorReceive((event: OnErrorReceiveEvent) => {
+              Logger.warn('filePreview', `预览加载出错 code=${event.error.getErrorCode()}`);
+            })
+        }
       }
       .width('100%')
       .padding(16)
@@ -214,9 +261,25 @@ export struct FileDetailView {
     });
   }
 
-  private openFile(file: LearnFile): void {
-    this.store.openDownloaded(file, this.context()).catch(() => {
+  /** 应用内预览：先确保文件在沙箱（已下过则复用），再把 URL 交给 ArkWeb */
+  private preview(file: LearnFile): void {
+    this.store.download(file, this.context(), false).then(() => {
+      const url: string = this.store.previewUriOf(file, this.context());
+      if (url.length === 0) {
+        // 下载成功了却算不出路径=不该发生；如实报，不静默
+        showToast($r('app.string.' + TextKeys.FILE_OPEN_FAILED));
+        return;
+      }
+      this.previewUri = url;
+    }).catch(() => {
       showToast($r('app.string.' + TextKeys.FILE_DOWNLOAD_FAILED));
+    });
+  }
+
+  /** 交给系统应用打开（设备上未必有能处理该类型的应用，故与预览分开且不改文案） */
+  private openExternal(file: LearnFile): void {
+    this.store.openDownloaded(file, this.context()).catch(() => {
+      showToast($r('app.string.' + TextKeys.FILE_OPEN_FAILED));
     });
   }
 

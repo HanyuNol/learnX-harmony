@@ -15,6 +15,7 @@ import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
 import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
 import { readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
+import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 import { common } from '@kit.AbilityKit';
@@ -121,7 +122,14 @@ export class FileRepository {
       return path;
     }
 
-    const data: ArrayBuffer = await LearnClient.getInstance().downloadFileBytes(file.fileId, onProgress);
+    let data: ArrayBuffer;
+    try {
+      data = await LearnClient.getInstance().downloadFileBytes(file.fileId, onProgress);
+    } catch (err) {
+      // 带上失败原因：只说"下载失败"没法定位是会话、网络还是服务端语义问题
+      Logger.warn(TAG, `下载失败 id=${file.id} fileId=${file.fileId} ${describeError(err)}`);
+      throw normalize(err, '下载文件');
+    }
     if (data.byteLength <= 0) {
       removeFile(path);
       throw new Error('下载到的文件为空');
@@ -132,7 +140,7 @@ export class FileRepository {
     }
 
     writeBytes(path, data);
-    Logger.info(TAG, `文件已下载 id=${file.id} 字节=${data.byteLength}`);
+    Logger.info(TAG, `文件已下载 id=${file.id} 字节=${data.byteLength} 路径长度=${path.length}`);
     return path;
   }
 
@@ -163,6 +171,16 @@ export class FileRepository {
       }
     }
     return '';
+  }
+
+  /**
+   * 已下载文件的 `file://` URI（供应用内预览用）；未下载时返回空串。
+   *
+   * 放这里而不是页面里：`fileUri` 是系统能力，`pages` 不得直接用（架构不变量 §1）。
+   */
+  static previewUriOf(file: LearnFile, context: common.Context): string {
+    const path: string = FileRepository.downloadedPathOf(file, context);
+    return path.length > 0 ? previewUrlOf(path) : '';
   }
 
   private static pathIn(root: string, file: LearnFile, omitCourseName: boolean): string {
