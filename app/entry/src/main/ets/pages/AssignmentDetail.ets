@@ -15,12 +15,12 @@ import {
   Assignment, AssignmentAttachments, HomeworkSubmissionType, RelativeDeadline, relativeDeadlineOf,
   formatDateTime
 } from '../model/assignment';
-import { plainText } from '../model/notice';
 import { Attachment } from '../model/attachment';
 import { AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
 import { TextKeys, textKeyOfRelativeDeadline, textKeyOfCompletionType, textKeyOfSubmissionType, textKeyOfGradeLevel } from '../common/texts';
 import { showToast } from '../components/toast';
 import { PreviewPane } from '../components/PreviewPane';
+import { RichTextView } from '../components/RichTextView';
 import { emptyView } from '../components/StateView';
 import { common } from '@kit.AbilityKit';
 import { LearnFile, attachmentFileOf, canPreviewInApp } from '../model/file';
@@ -191,10 +191,7 @@ export struct AssignmentDetailView {
 
         // 正文（纯文本）
         if (assignment.description.length > 0) {
-          Text(plainText(assignment.description))
-            .fontSize(16)
-            .fontColor($r('app.color.text_primary'))
-            .width('100%')
+          RichTextView({ raw: assignment.description })
         } else {
           Text($r('app.string.' + TextKeys.ASSIGNMENT_NO_DESCRIPTION))
             .fontSize(16)
@@ -407,10 +404,7 @@ export struct AssignmentDetailView {
       .width('100%')
 
       if (assignment.gradeContent.length > 0) {
-        Text(plainText(assignment.gradeContent))
-          .fontSize(14)
-          .fontColor($r('app.color.text_primary'))
-          .width('100%')
+        RichTextView({ raw: assignment.gradeContent })
       }
 
       if (assignment.graderName.length > 0) {

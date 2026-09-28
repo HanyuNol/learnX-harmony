@@ -15,7 +15,7 @@
 
 import { LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, formatUploadDate } from '../model/file';
 import { PreviewPane } from '../components/PreviewPane';
-import { plainText } from '../model/notice';
+import { RichTextView } from '../components/RichTextView';
 import { DownloadState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -165,10 +165,7 @@ export struct FileDetailView {
         this.infoRow(TextKeys.FILE_UPLOAD_TIME, formatUploadDate(file.uploadTimeMs))
 
         if (file.description.length > 0) {
-          Text(plainText(file.description))
-            .fontSize(14)
-            .fontColor($r('app.color.text_primary'))
-            .width('100%')
+          RichTextView({ raw: file.description })
             .padding({ top: 4 })
         } else {
           Text($r('app.string.' + TextKeys.FILE_NO_DESCRIPTION))

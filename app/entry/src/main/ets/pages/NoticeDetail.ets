@@ -9,10 +9,11 @@
  * 让列表的未读标记立刻消失；下次刷新以服务端为准（notices spec §3.3 第 7 条）。
  */
 
-import { Notice, formatPublishDate, plainText } from '../model/notice';
+import { Notice, formatPublishDate } from '../model/notice';
 import { NoticeStateListener, NoticeStore } from '../viewmodel/noticeStore';
 import { TextKeys } from '../common/texts';
 import { emptyView } from '../components/StateView';
+import { RichTextView } from '../components/RichTextView';
 
 /** 详情目的地的参数载体 */
 export class NoticeDetailParam {
@@ -88,10 +89,8 @@ export struct NoticeDetailView {
         }
         .width('100%')
 
-        Text(plainText(notice.content))
-          .fontSize(16)
-          .fontColor($r('app.color.text_primary'))
-          .width('100%')
+        // 正文按**清洗后的富文本**渲染（含图片；脚本/事件属性/危险链接已在清洗层丢掉）
+        RichTextView({ raw: notice.content })
 
         if (notice.attachmentName.length > 0) {
           Row({ space: 8 }) {
