@@ -44,6 +44,76 @@ const KEY_ASSIGNMENT_REMINDER_OFFSET: string = 'assignment_reminder_offset';
 /** 已完成的作业是否不提醒（FR-18）。缺省/`false` = 照提醒 */
 const KEY_ASSIGNMENT_REMINDER_NO_IF_COMPLETE: string = 'assignment_reminder_no_if_complete';
 
+/** 课表是否按**研究生**取（FR-19）。缺省/`false` = 本科 */
+const KEY_COURSE_GRADUATE: string = 'course_graduate';
+
+/** 同步出的课程日程是否带提醒（FR-19）。缺省/`false` = 不带（对齐上游 `alarms.courseAlarm` 默认） */
+const KEY_COURSE_REMINDER: string = 'course_reminder';
+
+/** 上课提醒的提前量（分钟，FR-19）。缺省 = 15（对齐上游 `courseAlarmOffset ?? 15`） */
+const KEY_COURSE_REMINDER_OFFSET: string = 'course_reminder_offset';
+
+/** 上次成功同步课表的时间戳（FR-19）。缺省 `0` = 从未同步 */
+const KEY_LAST_COURSE_SYNC_AT: string = 'last_course_sync_at';
+
+/** 上课提醒提前量的默认值（分钟）：15，对齐上游 `courseAlarmOffset ?? 15` */
+export const DEFAULT_COURSE_OFFSET_MINUTES: number = 15;
+
+/** 读一个布尔偏好；缺失/类型不符退让为 `fallback`，读失败记 WARN 后同样退让 */
+function readBool(context: common.Context, key: string, fallback: boolean, what: string): boolean {
+  try {
+    const raw: Object = openStore(context).getSync(key, fallback);
+    return typeof raw === 'boolean' ? raw : fallback;
+  } catch (err) {
+    Logger.warn(TAG, `读取${what}失败，退让为默认值 code=${(err as BusinessError).code}`);
+    return fallback;
+  }
+}
+
+/** 写一个布尔偏好。返回是否成功（语义同 writeThemeMode） */
+function writeBool(context: common.Context, key: string, value: boolean, what: string): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(key, value);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入${what}失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 读一个数值偏好（缺失/类型不符/超范围退让为 `fallback`） */
+function readNumber(context: common.Context, key: string, fallback: number, what: string): number {
+  try {
+    const raw: Object = openStore(context).getSync(key, fallback);
+    return typeof raw === 'number' && Number.isFinite(raw) ? raw : fallback;
+  } catch (err) {
+    Logger.warn(TAG, `读取${what}失败，退让为默认值 code=${(err as BusinessError).code}`);
+    return fallback;
+  }
+}
+
+/** 写一个数值偏好。返回是否成功 */
+function writeNumber(context: common.Context, key: string, value: number, what: string): boolean {
+  try {
+    const store: preferences.Preferences = openStore(context);
+    store.putSync(key, value);
+    store.flushSync();
+    return true;
+  } catch (err) {
+    Logger.warn(TAG, `写入${what}失败 code=${(err as BusinessError).code}`);
+    return false;
+  }
+}
+
+/** 读**分钟数**偏好：还要过一遍 `parseOffsetMinutes` 的合法性判定（超上限等一律退让） */
+function readMinutes(context: common.Context, key: string, fallback: number, what: string): number {
+  const raw: number = readNumber(context, key, fallback, what);
+  const parsed: number | null = parseOffsetMinutes(`${raw}`);
+  return parsed === null ? fallback : parsed;
+}
+
 /**
  * 打开偏好存储。
  *
@@ -284,6 +354,46 @@ export function readAssignmentReminderNoIfComplete(context: common.Context): boo
     Logger.warn(TAG, `读取"已完成不提醒"失败，退让为照提醒 code=${(err as BusinessError).code}`);
     return false;
   }
+}
+
+/** 读取"课表是否按研究生取"（FR-19）。默认 `false`（本科） */
+export function readCourseGraduate(context: common.Context): boolean {
+  return readBool(context, KEY_COURSE_GRADUATE, false, '研究生课表开关');
+}
+
+/** 写入"课表是否按研究生取"。返回是否成功（语义同 writeThemeMode） */
+export function writeCourseGraduate(context: common.Context, graduate: boolean): boolean {
+  return writeBool(context, KEY_COURSE_GRADUATE, graduate, '研究生课表开关');
+}
+
+/** 读取"课程日程是否带提醒"（FR-19）。默认 `false`（对齐上游） */
+export function readCourseReminder(context: common.Context): boolean {
+  return readBool(context, KEY_COURSE_REMINDER, false, '上课提醒开关');
+}
+
+/** 写入"课程日程是否带提醒"。返回是否成功 */
+export function writeCourseReminder(context: common.Context, enabled: boolean): boolean {
+  return writeBool(context, KEY_COURSE_REMINDER, enabled, '上课提醒开关');
+}
+
+/** 读取上课提醒的提前量（分钟）。缺省与非法值退让为 15 */
+export function readCourseReminderOffset(context: common.Context): number {
+  return readMinutes(context, KEY_COURSE_REMINDER_OFFSET, DEFAULT_COURSE_OFFSET_MINUTES, '上课提醒提前量');
+}
+
+/** 写入上课提醒的提前量（分钟）。返回是否成功 */
+export function writeCourseReminderOffset(context: common.Context, minutes: number): boolean {
+  return writeNumber(context, KEY_COURSE_REMINDER_OFFSET, minutes, '上课提醒提前量');
+}
+
+/** 读取上次同步课表的时间戳（0 = 从未同步） */
+export function readLastCourseSyncAt(context: common.Context): number {
+  return readNumber(context, KEY_LAST_COURSE_SYNC_AT, 0, '上次课表同步时间');
+}
+
+/** 写入上次同步课表的时间戳。失败只记日志（不影响同步结果本身） */
+export function writeLastCourseSyncAt(context: common.Context, timestamp: number): boolean {
+  return writeNumber(context, KEY_LAST_COURSE_SYNC_AT, timestamp, '上次课表同步时间');
 }
 
 /** 写入"已完成的作业是否不提醒"。返回是否成功（语义同 writeThemeMode） */

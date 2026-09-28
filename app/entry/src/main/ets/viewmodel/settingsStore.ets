@@ -16,7 +16,9 @@ import {
   readThemeMode, writeThemeMode, readUseDocumentDir, writeUseDocumentDir, readOmitCourseName,
   writeOmitCourseName, readCustomDownloadDir, writeCustomDownloadDir, readAssignmentReminder,
   writeAssignmentReminder, readAssignmentReminderOffset, writeAssignmentReminderOffset,
-  readAssignmentReminderNoIfComplete, writeAssignmentReminderNoIfComplete
+  readAssignmentReminderNoIfComplete, writeAssignmentReminderNoIfComplete, readCourseGraduate,
+  writeCourseGraduate, readCourseReminder, writeCourseReminder, readCourseReminderOffset,
+  writeCourseReminderOffset, readLastCourseSyncAt, writeLastCourseSyncAt
 } from '../storage/preferenceStore';
 import { applyThemeMode } from '../native/themeAdapter';
 import { OFFSET_MINUTES_MAX, parseOffsetMinutes } from '../model/reminder';
@@ -156,4 +158,61 @@ export function changeAssignmentReminderNoIfComplete(context: common.Context, en
     Logger.warn(TAG, `"已完成不提醒"未能持久化 enabled=${enabled}`);
   }
   return persisted;
+}
+
+/** 读取"课表是否按研究生取"（FR-19） */
+export function loadCourseGraduate(context: common.Context): boolean {
+  return readCourseGraduate(context);
+}
+
+/** 设置"课表是否按研究生取"。返回是否持久化成功 */
+export function changeCourseGraduate(context: common.Context, graduate: boolean): boolean {
+  const persisted: boolean = writeCourseGraduate(context, graduate);
+  if (!persisted) {
+    Logger.warn(TAG, `研究生课表开关未能持久化 graduate=${graduate}`);
+  }
+  return persisted;
+}
+
+/** 读取"课程日程是否带提醒" */
+export function loadCourseReminder(context: common.Context): boolean {
+  return readCourseReminder(context);
+}
+
+/** 设置"课程日程是否带提醒"。返回是否持久化成功 */
+export function changeCourseReminder(context: common.Context, enabled: boolean): boolean {
+  const persisted: boolean = writeCourseReminder(context, enabled);
+  if (!persisted) {
+    Logger.warn(TAG, `上课提醒开关未能持久化 enabled=${enabled}`);
+  }
+  return persisted;
+}
+
+/** 解析用户输入的上课提醒提前量文本。`null` 表示不被接受（非法输入由页面提示并退回旧值） */
+export function parseCourseReminderOffset(text: string): number | null {
+  return parseOffsetMinutes(text);
+}
+
+/** 读取上课提醒的提前量（分钟，默认 15） */
+export function loadCourseReminderOffset(context: common.Context): number {
+  return readCourseReminderOffset(context);
+}
+
+/** 写入上课提醒的提前量（分钟）。返回是否持久化成功 */
+export function changeCourseReminderOffset(context: common.Context, minutes: number): boolean {
+  const persisted: boolean = writeCourseReminderOffset(context, minutes);
+  if (!persisted) {
+    Logger.warn(TAG, `上课提醒提前量未能持久化 minutes=${minutes}`);
+  }
+  return persisted;
+}
+
+/** 读取上次成功同步课表的时间戳（0 = 从未同步） */
+export function loadLastCourseSyncAt(context: common.Context): number {
+  return readLastCourseSyncAt(context);
+}
+
+/** 记录这次同步的时间。返回是否持久化成功（失败只影响"上次同步时间"的显示） */
+export function recordCourseSyncedAt(context: common.Context, timestamp: number): boolean {
+  return writeLastCourseSyncAt(context, timestamp);
 }

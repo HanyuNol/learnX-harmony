@@ -169,3 +169,40 @@ export const LEARN_HOMEWORK_SUBMIT: string = `${LEARN_PREFIX}/b/wlxt/kczy/zy/stu
 export const LEARN_LOGOUT: string = `${LEARN_PREFIX}/f/j_spring_security_logout`;
 // 曾有一个 ID_SESSION_COOKIE 常量，但会话 Cookie 的判定一直走
 // WebCookieStore.clearSessionCookieSync()，常量无人引用，已删除（审查 R-23）。
+
+/** 注册中心（课表等教学日历数据）前缀。**与网络学堂不是同一个主机**（上游 `urls.ts:7`） */
+export const REGISTRAR_PREFIX: string = 'https://zhjw.cic.tsinghua.edu.cn';
+
+/**
+ * 取注册中心**工单**的端点（POST multipart，表单体 `appId=ALL_ZHJW`）。
+ *
+ * 响应体是**带引号的字符串**，用前要去掉首尾引号（对齐上游 `index.ts:292-293`）。
+ */
+export const REGISTRAR_TICKET: string = `${LEARN_PREFIX}/b/wlxt/common/auth/gnt`;
+
+/** 用**工单**在注册中心完成认证（GET；上游这一跳**不带** CSRF 令牌） */
+export function registrarAuth(ticket: string): string {
+  return `${REGISTRAR_PREFIX}/j_acegi_login.do?url=/&ticket=${ticket}`;
+}
+
+/**
+ * 课表 JSONP 端点。
+ *
+ * `m` 取 `bks_jxrl_all`（本科）/ `yjs_jxrl_all`（研究生），`jsoncallback` 是**回调名**，
+ * 服务端会把结果包成 `<回调名>(<数组>)` 返回。
+ * **单次查询不超过 29 天**（上游 `index.ts:280-285` 的原话）。
+ */
+export function registrarSchedule(startDate: string, endDate: string, graduate: boolean,
+                                 callbackName: string): string {
+  const kind: string = graduate ? 'yjs' : 'bks';
+  return `${REGISTRAR_PREFIX}/jxmh_out.do?m=${kind}_jxrl_all`
+    + `&p_start_date=${startDate}&p_end_date=${endDate}&jsoncallback=${callbackName}`;
+}
+
+/**
+ * 课表 JSONP 的**回调名**（服务端原样回显）。
+ *
+ * 沿用上游的名字只为对照方便；本项目**不做动态求值**（ArkTS 禁反射），
+ * 解析时按括号切分取值，故回调名本身不参与逻辑（见 `network/parseSchedule.ets`）。
+ */
+export const SCHEDULE_JSONP_CALLBACK: string = 'thu_learn_lib_jsonp_extractor';

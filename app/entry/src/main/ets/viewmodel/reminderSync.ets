@@ -14,7 +14,8 @@ import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Assignment } from '../model/assignment';
 import {
-  CalendarAlignPlan, CalendarEventPlan, ExistingCalendarEvent, alignCalendarEvents, planAssignmentEvents
+  CalendarAlignPlan, CalendarEventPlan, EVENT_KEY_PREFIX, ExistingCalendarEvent, alignCalendarEvents,
+  planAssignmentEvents
 } from '../model/reminder';
 import {
   addEvent, deleteEvent, ensureCalendar, hasCalendarPermission, listEvents, requestCalendarPermission
@@ -144,7 +145,7 @@ async function runSync(context: common.UIAbilityContext, assignments: Assignment
     return new ReminderSyncResult(enabled, 0, 0, true, false);
   }
 
-  const plan: CalendarAlignPlan = alignCalendarEvents(desired, existing);
+  const plan: CalendarAlignPlan = alignCalendarEvents(desired, existing, EVENT_KEY_PREFIX);
   if (plan.isEmpty()) {
     Logger.info(TAG, `日历日程已是最新，无需变更 enabled=${enabled}`);
     return new ReminderSyncResult(enabled, 0, 0, false, false);

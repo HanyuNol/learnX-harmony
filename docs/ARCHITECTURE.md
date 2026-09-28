@@ -193,6 +193,18 @@ pages → viewmodel → repository → network / storage / native
 （用 ApplicationContext 一律报 `201`，而权限查下来是已授予的）；`getEvents` **不能传参数**
 （传 `undefined` 报 `401`，API 20 起默认查询字段已含所需字段）。
 
+**课程表同步（FR-19）**：同一套日历管道，数据来自**注册中心**（`zhjw.cic.tsinghua.edu.cn`，跨主机、
+JSONP，三步：取工单 → 票据认证 → 拉课表）。每次同步取"今天起 4 周"（接口单次上限 29 天），
+把课程写进系统默认日历（标题＝课程名、起止＝该次课时间、地点写日程地点），按设置挂上课提醒。
+纯逻辑在 `model/courseEvent.ets`（北京时间换算、条目 → 日程计划），解析在
+`network/parseSchedule.ets`（ArkTS 禁动态求值，故按括号切分 JSONP），编排在
+`viewmodel/courseCalendarSync.ets`。
+
+> **两族日程按前缀划作用域**：日程标识 `learnx:`（作业）与 `learnx-course:`（课程）互不重叠，
+> 差量对齐**只认本族**——否则一次课程同步会把作业日程成批删掉（本次一并修掉）。
+> **注册中心的会话要每次重建**：该主机自己的 `JSESSIONID` 若还在，票据认证会返回登录页 HTML
+> （实测"只有第一次同步成功"），故认证前先把它置过期；与学堂同值时**不清**（那是同一份域 Cookie）。
+
 > 分层的落点：纯逻辑（筛选 / 提醒时刻 / 标题正文 / 差量对齐）在 `model/reminder.ets`（可穷举测试），
 > 系统调用在 `native/reminderAdapter.ets`（不含业务判断），两者之间的编排在
 > `viewmodel/reminderSync.ets`。详见 `docs/specs/reminders.md`。

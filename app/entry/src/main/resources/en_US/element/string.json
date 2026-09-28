@@ -739,6 +739,54 @@
     {
       "name": "permission_calendar_reason",
       "value": "Used to write assignment deadlines into the system calendar and remind you in advance"
+    },
+    {
+      "name": "settings_course_title",
+      "value": "Class schedule"
+    },
+    {
+      "name": "settings_course_sync",
+      "value": "Sync schedule to calendar"
+    },
+    {
+      "name": "settings_course_syncing",
+      "value": "Syncing…"
+    },
+    {
+      "name": "settings_course_graduate",
+      "value": "Graduate schedule"
+    },
+    {
+      "name": "settings_course_reminder",
+      "value": "Remind me before class"
+    },
+    {
+      "name": "settings_course_reminder_offset",
+      "value": "Remind me this many minutes in advance"
+    },
+    {
+      "name": "settings_course_clear",
+      "value": "Remove synced class events"
+    },
+    {
+      "name": "settings_course_hint",
+      "value": "Syncs the next 4 weeks of classes (the school interface allows at most 29 days per query); re-sync for changes to the reminder settings to take effect"
+    },
+    {
+      "name": "settings_course_last_sync",
+      "value": "Last synced: %s"
+    },
+    {
+      "name": "settings_course_never_synced",
+      "value": "Not synced yet"
+    },
+    {
+      "name": "settings_course_synced",
+      "value": "Synced %d class events"
+    },
+    {
+      "name": "settings_course_cleared",
+      "value": "Class events removed"
     }
   ]
 }

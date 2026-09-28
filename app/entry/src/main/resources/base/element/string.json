@@ -739,6 +739,54 @@
     {
       "name": "permission_calendar_reason",
       "value": "用于把作业截止时间写入系统日历并提前提醒"
+    },
+    {
+      "name": "settings_course_title",
+      "value": "课程表"
+    },
+    {
+      "name": "settings_course_sync",
+      "value": "同步课程表到日历"
+    },
+    {
+      "name": "settings_course_syncing",
+      "value": "同步中…"
+    },
+    {
+      "name": "settings_course_graduate",
+      "value": "研究生课表"
+    },
+    {
+      "name": "settings_course_reminder",
+      "value": "上课提醒"
+    },
+    {
+      "name": "settings_course_reminder_offset",
+      "value": "提前多久提醒（分钟）"
+    },
+    {
+      "name": "settings_course_clear",
+      "value": "清除已同步的课程日程"
+    },
+    {
+      "name": "settings_course_hint",
+      "value": "同步“今天起 4 周”的课程（校方接口单次最多 29 天）；改动上课提醒或提前量后要重新同步才生效"
+    },
+    {
+      "name": "settings_course_last_sync",
+      "value": "上次同步：%s"
+    },
+    {
+      "name": "settings_course_never_synced",
+      "value": "尚未同步过"
+    },
+    {
+      "name": "settings_course_synced",
+      "value": "已同步 %d 条课程日程"
+    },
+    {
+      "name": "settings_course_cleared",
+      "value": "已清除课程日程"
     }
   ]
 }

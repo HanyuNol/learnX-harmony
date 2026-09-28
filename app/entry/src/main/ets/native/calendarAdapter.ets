@@ -124,37 +124,38 @@ export async function listEvents(calendar: calendarManager.Calendar): Promise<Ex
     const startTime: number = event.startTime === undefined ? 0 : event.startTime;
     const times: number[] | undefined = event.reminderTime;
     const reminderMinutes: number | null = times === undefined || times.length === 0 ? null : times[0];
-    result.push(new ExistingCalendarEvent(id, identifier, title, startTime, reminderMinutes));
+    // 地点在 `Location` 对象里（`{ location, longitude, latitude }`），自由文本是 `location` 字段
+    const place: calendarManager.Location | undefined = event.location;
+    const location: string = place === undefined || place.location === undefined ? '' : place.location;
+    result.push(new ExistingCalendarEvent(id, identifier, title, location, startTime, reminderMinutes));
   }
   return result;
 }
 
-/** 写入一条日程，返回系统给的日程 id */
+/**
+ * 写入一条日程，返回系统给的日程 id。
+ *
+ * 两个可选字段都**只在需要时才填**：不设提醒就不填 `reminderTime`（官方"不填即不提醒"，
+ * 空数组的语义官方没写，不拿它赌）；没有地点就不填 `location`。
+ * 地点写进 `Location.location`（自由文本），另两个字段是经纬度，本项目不用。
+ */
 export async function addEvent(calendar: calendarManager.Calendar,
                                plan: CalendarEventPlan): Promise<number> {
-  // 不设提醒时**不填 `reminderTime`**（官方："不填时默认为不提醒"），
-  // 而不是填空数组——空数组的语义官方没写，不拿它赌。
-  if (plan.reminderMinutes === null) {
-    const withoutReminder: calendarManager.Event = {
-      type: calendarManager.EventType.NORMAL,
-      title: plan.title,
-      startTime: plan.startTime,
-      endTime: plan.endTime,
-      description: plan.description,
-      identifier: plan.key
-    };
-    return calendar.addEvent(withoutReminder);
-  }
-  const withReminder: calendarManager.Event = {
+  const event: calendarManager.Event = {
     type: calendarManager.EventType.NORMAL,
     title: plan.title,
     startTime: plan.startTime,
     endTime: plan.endTime,
     description: plan.description,
-    identifier: plan.key,
-    reminderTime: [plan.reminderMinutes]
+    identifier: plan.key
   };
-  return calendar.addEvent(withReminder);
+  if (plan.reminderMinutes !== null) {
+    event.reminderTime = [plan.reminderMinutes];
+  }
+  if (plan.location.length > 0) {
+    event.location = { location: plan.location };
+  }
+  return calendar.addEvent(event);
 }
 
 /** 删除一条日程 */

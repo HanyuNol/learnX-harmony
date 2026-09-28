@@ -17,10 +17,15 @@ import {
   changeAssignmentReminderOffset, changeCustomDownloadDir, changeOmitCourseName, changeThemeMode,
   changeUseDocumentDir, loadAssignmentReminder, loadAssignmentReminderNoIfComplete,
   loadAssignmentReminderOffset, loadCustomDownloadDir, loadOmitCourseName, loadThemeMode,
-  loadUseDocumentDir, parseAssignmentReminderOffset
+  loadUseDocumentDir, parseAssignmentReminderOffset, changeCourseGraduate, changeCourseReminder,
+  changeCourseReminderOffset, loadCourseGraduate, loadCourseReminder, loadCourseReminderOffset,
+  loadLastCourseSyncAt, parseCourseReminderOffset
 } from '../viewmodel/settingsStore';
+import { formatDateTime } from '../model/assignment';
 import { ReminderSyncResult, calendarPermissionGranted, requestCalendarAccess, syncAssignmentReminders }
   from '../viewmodel/reminderSync';
+import { CourseSyncResult, clearCourseSchedule, courseCalendarPermissionGranted, syncCourseSchedule }
+  from '../viewmodel/courseCalendarSync';
 import { SemesterStore } from '../viewmodel/semesterStore';
 import { CourseStore } from '../viewmodel/courseStore';
 import { pickFolder } from '../native/filePickerAdapter';
@@ -85,6 +90,22 @@ export struct SettingsView {
   @State private reminderAligning: boolean = false;
   /** 上一次对齐**没能把提醒登记进系统**（如系统通知被关、设备不支持）——常驻提示，不是一闪而过的 Toast */
   @State private reminderFailed: boolean = false;
+  /** 课表是否按研究生取（FR-19） */
+  @State private courseGraduate: boolean = false;
+  /** 同步出的课程日程是否带提醒 */
+  @State private courseReminder: boolean = false;
+  /** 上课提醒提前量的已持久化值（分钟） */
+  @State private courseOffsetMinutes: number = 0;
+  /** 上课提醒提前量输入框里的文本 */
+  @State private courseOffsetText: string = '';
+  /** 正在同步课程表 */
+  @State private courseSyncing: boolean = false;
+  /** 上次成功同步的时间戳（0 = 从未） */
+  @State private courseLastSyncAt: number = 0;
+  /** 本次会话最后一次同步后的课程日程条数（-1 = 还没同步过，不显示条数行） */
+  @State private courseSyncedCount: number = -1;
+  /** 课程同步失败的**可读原因**文案键（四分类口径）；空串＝没有失败 */
+  @State private courseErrorKey: string = '';
 
   private store: AuthStore = AuthStore.getInstance();
   /** 对齐提醒要用到"当前已知的作业"；没有数据时要先把作业拉起来（见 `alignReminders`） */
@@ -109,6 +130,34 @@ export struct SettingsView {
     this.reminderOffsetText = `${this.reminderOffsetMinutes}`;
     this.reminderNoIfComplete = loadAssignmentReminderNoIfComplete(this.appContext());
     this.reminderPermissionOn = calendarPermissionGranted();
+    this.courseGraduate = loadCourseGraduate(this.appContext());
+    this.courseReminder = loadCourseReminder(this.appContext());
+    this.courseOffsetMinutes = loadCourseReminderOffset(this.appContext());
+    this.courseOffsetText = `${this.courseOffsetMinutes}`;
+    this.courseLastSyncAt = loadLastCourseSyncAt(this.appContext());
+  }
+
+  /** 宿主（Ability）上下文：日历接口必须用它（用应用级上下文调日历会报 201，见 reminderSync） */
+  private abilityContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  /**
+   * 课程表状态行：本次同步的条数优先，其次"上次同步时间"，都没有就说"尚未同步过"。
+   *
+   * 为什么用**条数**而不是"新增 N 条"：重复同步时新增是 0，说"已同步 0 条"会让人以为坏了；
+   * 用户关心的是"日历里现在有多少条课程日程"。
+   */
+  private courseStatusText(): Resource {
+    const synced: number = this.courseSyncedCount;
+    if (synced >= 0) {
+      return $r('app.string.' + TextKeys.SETTINGS_COURSE_SYNCED, synced);
+    }
+    const last: string = formatDateTime(this.courseLastSyncAt);
+    if (last.length > 0) {
+      return $r('app.string.' + TextKeys.SETTINGS_COURSE_LAST_SYNC, last);
+    }
+    return $r('app.string.' + TextKeys.SETTINGS_COURSE_NEVER_SYNCED);
   }
 
   /** 自定义目录只显示末段：完整 URI 又长又难读 */
@@ -183,10 +232,8 @@ export struct SettingsView {
       return;
     }
     if (enabled && !calendarPermissionGranted()) {
-      const context: common.UIAbilityContext =
-        this.getUIContext().getHostContext() as common.UIAbilityContext;
       this.reminderAligning = true;
-      requestCalendarAccess(context).then((granted: boolean) => {
+      requestCalendarAccess(this.abilityContext()).then((granted: boolean) => {
         this.reminderPermissionOn = granted;
         this.alignReminders();
       }).catch(() => {
@@ -240,6 +287,106 @@ export struct SettingsView {
     if (this.reminderEnabled) {
       this.alignReminders();
     }
+  }
+
+  private selectCourseGraduate(graduate: boolean): void {
+    this.courseGraduate = graduate;
+    if (!changeCourseGraduate(this.appContext(), graduate)) {
+      this.courseGraduate = !graduate;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    // 换研/本课表后必须重新同步（已写入日历的日程不会自己变）
+    this.courseErrorKey = '';
+  }
+
+  private selectCourseReminder(enabled: boolean): void {
+    this.courseReminder = enabled;
+    if (!changeCourseReminder(this.appContext(), enabled)) {
+      this.courseReminder = !enabled;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+    }
+    this.courseErrorKey = '';
+  }
+
+  private applyCourseOffset(): void {
+    const parsed: number | null = parseCourseReminderOffset(this.courseOffsetText);
+    if (parsed === null) {
+      showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_OFFSET_INVALID,
+        assignmentReminderOffsetMax()));
+      this.courseOffsetText = `${this.courseOffsetMinutes}`;
+      return;
+    }
+    if (parsed === this.courseOffsetMinutes) {
+      this.courseOffsetText = `${parsed}`;
+      return;
+    }
+    if (!changeCourseReminderOffset(this.appContext(), parsed)) {
+      this.courseOffsetText = `${this.courseOffsetMinutes}`;
+      showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    this.courseOffsetMinutes = parsed;
+    this.courseOffsetText = `${parsed}`;
+    this.courseErrorKey = '';
+  }
+
+  /** 同步课程表：没日历权限先申请（写日程的前提），再同步 */
+  private syncCourse(): void {
+    if (this.courseSyncing) {
+      return;
+    }
+    if (courseCalendarPermissionGranted()) {
+      this.runCourseSync();
+      return;
+    }
+    this.courseSyncing = true;
+    requestCalendarAccess(this.abilityContext()).then((granted: boolean) => {
+      this.reminderPermissionOn = granted;
+      this.runCourseSync();
+    }).catch(() => {
+      this.courseSyncing = false;
+      this.reminderPermissionOn = courseCalendarPermissionGranted();
+    });
+  }
+
+  private runCourseSync(): void {
+    this.courseSyncing = true;
+    this.courseErrorKey = '';
+    syncCourseSchedule(this.abilityContext()).then((result: CourseSyncResult) => {
+      this.courseSyncing = false;
+      this.reminderPermissionOn = courseCalendarPermissionGranted();
+      if (result.permissionMissing) {
+        return;
+      }
+      if (!result.ok) {
+        // 取数失败：**如实说原因**（四分类的可读文案），已有日程一条没动
+        this.courseErrorKey = result.errorTextKey.length > 0
+          ? result.errorTextKey : TextKeys.SETTINGS_REMINDER_FAILED;
+        return;
+      }
+      this.courseSyncedCount = result.expected;
+      this.courseLastSyncAt = loadLastCourseSyncAt(this.appContext());
+    }).catch(() => {
+      this.courseSyncing = false;
+      this.courseErrorKey = TextKeys.SETTINGS_REMINDER_FAILED;
+    });
+  }
+
+  /** 清除已同步的课程日程（作业日程不受影响——对齐按前缀划分作用域） */
+  private clearCourse(): void {
+    this.courseErrorKey = '';
+    clearCourseSchedule(this.abilityContext()).then((result: CourseSyncResult) => {
+      if (!result.ok) {
+        this.courseErrorKey = result.errorTextKey.length > 0
+          ? result.errorTextKey : TextKeys.SETTINGS_REMINDER_FAILED;
+        return;
+      }
+      this.courseSyncedCount = 0;
+      showToast($r('app.string.' + TextKeys.SETTINGS_COURSE_CLEARED));
+    }).catch(() => {
+      this.courseErrorKey = TextKeys.SETTINGS_REMINDER_FAILED;
+    });
   }
 
   /**
@@ -551,6 +698,141 @@ export struct SettingsView {
             .width('100%')
             .padding({ left: 16, right: 16, top: 4 })
         }
+      }
+
+      // 课程表（FR-19）：把课表写进系统日历，可在上课前提醒
+      Text($r('app.string.' + TextKeys.SETTINGS_COURSE_TITLE))
+        .fontSize(14)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, top: 16, bottom: 8 })
+
+      Row({ space: 8 }) {
+        Text($r('app.string.' + TextKeys.SETTINGS_COURSE_SYNC))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        // 同步要打三个请求（含跨主机），给一个可见的进行中反馈
+        if (this.courseSyncing) {
+          Text($r('app.string.' + TextKeys.SETTINGS_COURSE_SYNCING))
+            .fontSize(12)
+            .fontColor($r('app.color.text_secondary'))
+        }
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        this.syncCourse();
+      })
+
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_COURSE_GRADUATE))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Toggle({ type: ToggleType.Switch, isOn: this.courseGraduate })
+          .onChange((isOn: boolean) => {
+            this.selectCourseGraduate(isOn);
+          })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_COURSE_REMINDER))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        Toggle({ type: ToggleType.Switch, isOn: this.courseReminder })
+          .onChange((isOn: boolean) => {
+            this.selectCourseReminder(isOn);
+          })
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+
+      if (this.courseReminder) {
+        Row({ space: 8 }) {
+          Text($r('app.string.' + TextKeys.SETTINGS_COURSE_REMINDER_OFFSET))
+            .fontSize(16)
+            .fontColor($r('app.color.text_primary'))
+            .layoutWeight(1)
+          TextInput({ text: this.courseOffsetText })
+            .type(InputType.Number)
+            .fontSize(16)
+            .width(96)
+            .textAlign(TextAlign.End)
+            .onChange((value: string) => {
+              this.courseOffsetText = value;
+            })
+            .onSubmit(() => {
+              this.applyCourseOffset();
+            })
+            .onBlur(() => {
+              this.applyCourseOffset();
+            })
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 16, right: 16 })
+        .backgroundColor($r('app.color.bg_card'))
+      }
+
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_COURSE_CLEAR))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        this.clearCourse();
+      })
+
+      Text($r('app.string.' + TextKeys.SETTINGS_COURSE_HINT))
+        .fontSize(12)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 4 })
+
+      // 状态行：先给"上次同步"，再给本次同步的条数（都没有就说"尚未同步过"）
+      Text(this.courseStatusText())
+        .fontSize(12)
+        .fontColor($r('app.color.text_secondary'))
+        .width('100%')
+        .padding({ left: 16, right: 16, top: 4 })
+
+      // 没有日历权限：与「提醒」组共用同一条提示（权限是同一个事实）
+      if (!this.reminderPermissionOn) {
+        Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_PERMISSION_MISSING))
+          .fontSize(12)
+          .fontColor($r('app.color.danger'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
+      }
+
+      // 同步失败：如实说原因（网络不可达 / 登录已失效 / 接口变更 / 解析失败）
+      if (this.courseErrorKey.length > 0) {
+        Text($r('app.string.' + this.courseErrorKey))
+          .fontSize(12)
+          .fontColor($r('app.color.danger'))
+          .width('100%')
+          .padding({ left: 16, right: 16, top: 4 })
       }
 
       // 学期切换入口（FR-05 的用户入口；上游也放在设置页）

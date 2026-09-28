@@ -79,16 +79,25 @@ export class CalendarEventPlan {
   readonly key: string;
   readonly title: string;
   readonly description: string;
+  /**
+   * 地点（空串＝不写）。**课表用**（教室），作业日程留空。
+   *
+   * 注意鸿蒙的日程地点是 `Location` 对象（`{ location, longitude, latitude }`），
+   * 其中 `location` 才是自由文本的地点名——与上游（expo-calendar 的 `location` 就是字符串）不同，
+   * 故适配器要包一层 `{ location: ... }`。
+   */
+  readonly location: string;
   readonly startTime: number;
   readonly endTime: number;
   /** 距**开始时间**提前多少分钟提醒；`null` = 不设提醒 */
   readonly reminderMinutes: number | null;
 
-  constructor(key: string, title: string, description: string, startTime: number, endTime: number,
-              reminderMinutes: number | null) {
+  constructor(key: string, title: string, description: string, location: string, startTime: number,
+              endTime: number, reminderMinutes: number | null) {
     this.key = key;
     this.title = title;
     this.description = description;
+    this.location = location;
     this.startTime = startTime;
     this.endTime = endTime;
     this.reminderMinutes = reminderMinutes;
@@ -165,7 +174,7 @@ export function planAssignmentEvents(assignments: Assignment[], offsetMinutes: n
       ? offsetMinutes - EVENT_LENGTH_MINUTES
       : null;
     plans.push(new CalendarEventPlan(eventKeyOf(assignment), eventTitleOf(assignment),
-      eventDescriptionOf(assignment), startTime, endTime, reminderMinutes));
+      eventDescriptionOf(assignment), '', startTime, endTime, reminderMinutes));
   }
 
   // 开始时间升序；同一刻按标识定序，让结果**稳定**（可复现、可测）
@@ -191,14 +200,17 @@ export class ExistingCalendarEvent {
   readonly eventId: number;
   readonly key: string;
   readonly title: string;
+  /** 地点（没有则为空串）——变教室也要重写日程，故参与等价判定 */
+  readonly location: string;
   readonly startTime: number;
   readonly reminderMinutes: number | null;
 
-  constructor(eventId: number, key: string, title: string, startTime: number,
+  constructor(eventId: number, key: string, title: string, location: string, startTime: number,
               reminderMinutes: number | null) {
     this.eventId = eventId;
     this.key = key;
     this.title = title;
+    this.location = location;
     this.startTime = startTime;
     this.reminderMinutes = reminderMinutes;
   }
@@ -229,22 +241,28 @@ function sameReminder(left: number | null, right: number | null): boolean {
 
 /** 期望的日程与现有日程是否**等价**（等价就不动它，免得每次刷新都重写用户的日历） */
 function sameEvent(plan: CalendarEventPlan, existing: ExistingCalendarEvent): boolean {
-  return plan.title === existing.title && plan.startTime === existing.startTime
+  return plan.title === existing.title && plan.location === existing.location
+    && plan.startTime === existing.startTime
     && sameReminder(plan.reminderMinutes, existing.reminderMinutes);
 }
 
 /**
- * 期望集合与日历现状的**差量**。
+ * 期望集合与日历现状的**差量**——只看**本族**（`keyPrefix`）的日程。
  *
- * 删除的三种情形：① 不在期望集合里的（作业已截止 / 已提交且勾了"已完成不提醒" / 已不在当前学期）；
+ * ⚠️ `keyPrefix` 不是可选参数，而是安全边界：日历里同时躺着**作业**日程（`learnx:`）与
+ * **课程**日程（`learnx-course:`），还可能躺着别的应用写的、恰好也带 `identifier` 的日程。
+ * 若不按前缀收窄，一次课程对齐就会把作业日程**全部删掉**（"不在期望集合里的都删"），
+ * 用户日历里的作业截止会无声消失。故只认本前缀，其余一律不碰。
+ *
+ * 删除的三种情形：① 本族里不在期望集合的（已截止 / 已提交且勾了"已完成不提醒" / 已不在当前学期）；
  * ② 在集合里但**内容变了**（老师改了截止时间、改了作业名）；③ 同一标识在日历里重复出现（自愈成一条）。
  * 其余原样留着。
  *
  * 为什么要"变了就删了重建"而不是更新：更新需要拿日程 id 去改，而 id 只存在于"刚读回来的那份"
  * 里——重建用的是我们自己的期望值，来源单一、不会出现"改了一半"的中间态。
  */
-export function alignCalendarEvents(desired: CalendarEventPlan[],
-                                    existing: ExistingCalendarEvent[]): CalendarAlignPlan {
+export function alignCalendarEvents(desired: CalendarEventPlan[], existing: ExistingCalendarEvent[],
+                                    keyPrefix: string): CalendarAlignPlan {
   const desiredByKey: Map<string, CalendarEventPlan> = new Map();
   for (const plan of desired) {
     desiredByKey.set(plan.key, plan);
@@ -253,7 +271,8 @@ export function alignCalendarEvents(desired: CalendarEventPlan[],
   const existingByKey: Map<string, ExistingCalendarEvent> = new Map();
   const toDelete: number[] = [];
   for (const event of existing) {
-    if (event.key.length === 0) {
+    // 不是本族的：不认识的东西不删（用户自己加的、别的应用写的、另一族日程）
+    if (!event.key.startsWith(keyPrefix)) {
       continue;
     }
     // 同一标识在日历里出现两次（不该发生）：删掉后来者，自愈成一条

@@ -52,6 +52,10 @@ import { parseFileCategoryList, parseFileList } from './parseFile';
 import { MultipartFile, buildMultipartBody } from './multipart';
 import { ReloginPlan, reloginPlan } from './sessionPolicy';
 import { withCsrfToken } from './csrfUrl';
+import { looksLikeHtml, parseRegistrarTicket } from './parseSchedule';
+import {
+  LEARN_PREFIX, REGISTRAR_TICKET, SCHEDULE_JSONP_CALLBACK, registrarAuth, registrarSchedule
+} from '../model/urls';
 import { Assignment, AssignmentAttachments } from '../model/assignment';
 import { LearnFile } from '../model/file';
 import { Notice } from '../model/notice';
@@ -282,6 +286,30 @@ export class LearnClient {
     } catch (err) {
       request.destroy();
       throw normalize(err, `GET ${this.maskUrl(url)}`);
+    }
+  }
+
+  /**
+   * 发起一次**不带 CSRF 令牌**的 GET。
+   *
+   * 与 `get` 的唯一差别是不挂 `_csrf`：注册中心的认证跳转（`j_acegi_login.do`）在上游走的是
+   * **不带令牌**的那条路径，而**实测**给它挂上 `_csrf` 会让它返回登录页 HTML（会话建不起来，
+   * 见 `authenticateRegistrar` 的说明）。故这一跳单独留一个不带令牌的原语。
+   */
+  private async getWithoutCsrf(url: string): Promise<HttpResult> {
+    const request: http.HttpRequest = LearnClient.createRequest(url, LearnClient.handleResponseHeader);
+    try {
+      const response: http.HttpResponse = await request.request(url, {
+        method: http.RequestMethod.GET,
+        header: this.buildHeaders(url, 'text/html,application/json', ''),
+        connectTimeout: TIMEOUT_MS,
+        readTimeout: TIMEOUT_MS
+      });
+      request.destroy();
+      return new HttpResult(asText(response.result), response.responseCode as number);
+    } catch (err) {
+      request.destroy();
+      throw normalize(err, `GET(no-csrf) ${this.maskUrl(url)}`);
     }
   }
 
@@ -959,6 +987,77 @@ export class LearnClient {
   }
 
   /** 读取用户信息（姓名与院系）；取不到不视为失败 */
+  /**
+   * 取注册中心**工单**（课表三步取数的第一步）。
+   *
+   * 表单体只有一个字段 `appId=ALL_ZHJW`（上游 `urls.ts:243-247`）；响应是**带引号的字符串**，
+   * 去掉引号才是工单（解析在 `network/parseSchedule.parseRegistrarTicket`，纯函数 + 单测）。
+   */
+  async fetchRegistrarTicket(): Promise<string> {
+    const fields: Map<string, string> = new Map();
+    fields.set('appId', 'ALL_ZHJW');
+    const result: HttpResult = await this.postMultipart(REGISTRAR_TICKET, fields);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '取注册中心工单');
+    }
+    const ticket: string = parseRegistrarTicket(result.body);
+    // 只记长度不记内容：工单是凭据性质的东西，不能进日志（SECURITY §2）
+    Logger.info(TAG, `注册中心工单 长度=${ticket.length}`);
+    return ticket;
+  }
+
+  /**
+   * 用**工单**在注册中心完成认证（第二步）。
+   *
+   * **已知偏差**：上游这一跳走的是"不带令牌"的请求路径（`index.ts:295` 用的是 `#myFetch`，
+   * 而不是 `#myFetchWithToken`），本项目的 GET 原语对所有 `tsinghua.edu.cn` 域名统一挂
+   * `_csrf`，故这里会多带一个查询参数。是否被注册中心接受**只能实测**
+   * （与 `network/csrfUrl.ets` 里记录的统一身份认证域那处偏差同一性质）；若被拒，
+   * 就为这一跳加一个"不带令牌"的原语。
+   */
+  async authenticateRegistrar(ticket: string): Promise<void> {
+    const url: string = registrarAuth(ticket);
+    // 只记**长度**与 Cookie **名字**：判断"这一跳有没有把注册中心的会话建起来"、
+    // 以及"带的是哪一族的凭据"。Cookie 的值属凭据，绝不进日志（SECURITY §2）。
+    // 注册中心**自己那一份** JSESSIONID 若还在，票据认证会被它挡住（实测：认证直接返回登录页
+    // HTML，会话建不起来，第二次同步就再也拉不到课表）。故先清掉它——但只清"与学堂不是同一份"
+    // 的那种（值相同说明是同一个域 Cookie，清掉会把学堂会话一起干掉，那不能碰）。
+    const registrarSession: string = WebCookieStore.valueOf(url, 'JSESSIONID');
+    const learnSession: string = WebCookieStore.valueOf(LEARN_PREFIX, 'JSESSIONID');
+    const shared: boolean = registrarSession.length > 0 && registrarSession === learnSession;
+    const staleRegistrarSession: boolean = registrarSession.length > 0 && !shared;
+    if (staleRegistrarSession) {
+      WebCookieStore.expireCookie(url, 'JSESSIONID');
+      Logger.info(TAG, '已清掉注册中心的旧 JSESSIONID（与学堂的不是同一份），改用票据重新认证');
+    } else if (shared) {
+      Logger.warn(TAG, '注册中心与学堂共用同一个 JSESSIONID，不清（清了会一并登出学堂）');
+    }
+    const result: HttpResult = await this.getWithoutCsrf(url);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '注册中心认证');
+    }
+    // 只记"有没有把会话建起来"这个事实（Cookie 的值属凭据，绝不进日志）
+    Logger.info(TAG, `注册中心认证 状态=${result.status}`
+      + ` 建起会话=${WebCookieStore.headerFor(url).length > 0}`);
+  }
+
+  /**
+   * 拉课表（第三步，JSONP）。返回**原始文本**，解析交给 `network/parseSchedule`。
+   *
+   * 走 `getWithAuth`：会话失效时自动重登一次并重放（与其它数据端点一致）。
+   * 注意回调名只是服务端原样回显的壳，真正取数组靠括号切分（ArkTS 禁动态求值）。
+   */
+  async fetchCourseScheduleJsonp(startDate: string, endDate: string, graduate: boolean): Promise<string> {
+    const url: string = registrarSchedule(startDate, endDate, graduate, SCHEDULE_JSONP_CALLBACK);
+    const result: HttpResult = await this.getWithAuth(url);
+    if (result.status !== 200) {
+      throw fromStatusCode(result.status, '取课表');
+    }
+    // 同上：只记形状不记内容（响应可能带会话信息）
+    Logger.info(TAG, `课表响应 长度=${result.body.length} 像HTML=${looksLikeHtml(result.body)}`);
+    return result.body;
+  }
+
   async fetchUserInfo(): Promise<UserInfo> {
     const result: HttpResult = await this.getWithAuth(LEARN_STUDENT_HOME);
     const name: string = extractUserName(result.body);

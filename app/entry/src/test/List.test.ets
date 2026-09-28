@@ -24,6 +24,7 @@ import searchTest from './search.test';
 import sessionPolicyTest from './sessionPolicy.test';
 import credentialPolicyTest from './credentialPolicy.test';
 import reminderTest from './reminder.test';
+import courseEventTest from './courseEvent.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -45,4 +46,5 @@ export default function testsuite() {
   sessionPolicyTest();
   credentialPolicyTest();
   reminderTest();
+  courseEventTest();
 }

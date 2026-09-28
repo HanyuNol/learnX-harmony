@@ -78,6 +78,39 @@ export class WebCookieStore {
   }
 
   /**
+   * 取某个 Cookie 的**值**。
+   *
+   * ⚠️ 只给 `LearnClient` 做"两份 JSESSIONID 是不是同一个"的比较用：
+   * **绝不写日志、绝不返回给上层业务**（值属会话凭据，SECURITY §2）。
+   */
+  static valueOf(url: string, name: string): string {
+    const header: string = WebCookieStore.headerFor(url);
+    for (const pair of header.split(';')) {
+      const trimmed: string = pair.trim();
+      const equalsIndex: number = trimmed.indexOf('=');
+      if (equalsIndex > 0 && trimmed.substring(0, equalsIndex) === name) {
+        return trimmed.substring(equalsIndex + 1);
+      }
+    }
+    return '';
+  }
+
+  /**
+   * 让某个 Cookie **过期**（等于删除该 URL 名下的这一个）。
+   *
+   * 为什么用"置过期"而不是删除接口：`WebCookieManager` 只有 `clearAllCookies` /
+   * `clearSessionCookie`（都是全局），没有按域按名的删除——把过期时间设到过去是通行的替代做法。
+   */
+  static expireCookie(url: string, name: string): void {
+    try {
+      webview.WebCookieManager.configCookieSync(url,
+        `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`, false, true);
+    } catch (err) {
+      Logger.warn(TAG, `清除 Cookie 失败 code=${(err as BusinessError).code}`);
+    }
+  }
+
+  /**
    * 列出该 URL 名下**有哪些 Cookie（只给名字，不给值）**，供排障。
    *
    * 需要它是因为"服务端有没有给过我们一个用来认设备的持久 Cookie、

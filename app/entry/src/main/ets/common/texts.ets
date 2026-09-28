@@ -341,6 +341,30 @@ export class TextKeys {
   static readonly SETTINGS_REMINDER_PERMISSION_MISSING: string = 'settings_reminder_permission_missing';
   /** 提醒：写入系统日历失败 */
   static readonly SETTINGS_REMINDER_FAILED: string = 'settings_reminder_failed';
+  /** 设置页：课程表小节标题（FR-19） */
+  static readonly SETTINGS_COURSE_TITLE: string = 'settings_course_title';
+  /** 课程表：同步到日历（动作行） */
+  static readonly SETTINGS_COURSE_SYNC: string = 'settings_course_sync';
+  /** 课程表：同步中 */
+  static readonly SETTINGS_COURSE_SYNCING: string = 'settings_course_syncing';
+  /** 课程表：研究生课表开关 */
+  static readonly SETTINGS_COURSE_GRADUATE: string = 'settings_course_graduate';
+  /** 课程表：上课提醒开关 */
+  static readonly SETTINGS_COURSE_REMINDER: string = 'settings_course_reminder';
+  /** 课程表：上课提醒提前量（分钟） */
+  static readonly SETTINGS_COURSE_REMINDER_OFFSET: string = 'settings_course_reminder_offset';
+  /** 课程表：清除已同步的课程日程 */
+  static readonly SETTINGS_COURSE_CLEAR: string = 'settings_course_clear';
+  /** 课程表：范围与"改设置要重新同步"的说明 */
+  static readonly SETTINGS_COURSE_HINT: string = 'settings_course_hint';
+  /** 课程表：上次同步时间（`%s` 为时间） */
+  static readonly SETTINGS_COURSE_LAST_SYNC: string = 'settings_course_last_sync';
+  /** 课程表：尚未同步过 */
+  static readonly SETTINGS_COURSE_NEVER_SYNCED: string = 'settings_course_never_synced';
+  /** 课程表：已同步 %d 条课程日程 */
+  static readonly SETTINGS_COURSE_SYNCED: string = 'settings_course_synced';
+  /** 课程表：已清除 */
+  static readonly SETTINGS_COURSE_CLEARED: string = 'settings_course_cleared';
   /** 显示项：下载文件名省略课程名前缀 */
   static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';
   /** 设置页入口：关于与帮助 */

@@ -31,7 +31,8 @@ function assignment(id: string, courseId: string, deadlineTime: number, submitte
 
 function existing(eventId: number, key: string, title: string, startTime: number,
                   reminderMinutes: number | null): ExistingCalendarEvent {
-  return new ExistingCalendarEvent(eventId, key, title, startTime, reminderMinutes);
+  // 作业日程没有地点（留空）；地点参与等价判定，见课程日程那批用例
+  return new ExistingCalendarEvent(eventId, key, title, '', startTime, reminderMinutes);
 }
 
 /** 期望里那一条（取不到就抛，避免用手写索引） */
@@ -180,14 +181,14 @@ export default function reminderTest() {
       const now: number = 1000 * DAY;
 
       it('日历里没有的 → 新增', 0, () => {
-        const plan: CalendarAlignPlan = alignCalendarEvents(desiredOf(now + DAY, 60, now), []);
+        const plan: CalendarAlignPlan = alignCalendarEvents(desiredOf(now + DAY, 60, now), [], EVENT_KEY_PREFIX);
         expect(plan.toAdd.length).assertEqual(1);
         expect(plan.toDelete.length).assertEqual(0);
       });
 
       it('不在期望里的（已截止 / 已勾选完成不提醒）→ 删除', 0, () => {
         const plan: CalendarAlignPlan = alignCalendarEvents([],
-          [existing(7, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY, 30)]);
+          [existing(7, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY, 30)], EVENT_KEY_PREFIX);
         expect(plan.toAdd.length).assertEqual(0);
         expect(plan.toDelete.length).assertEqual(1);
         expect(plan.toDelete[0]).assertEqual(7);
@@ -196,7 +197,7 @@ export default function reminderTest() {
       it('截止时间被改（开始时间变了）→ 删了重建', 0, () => {
         const desired: CalendarEventPlan[] = desiredOf(now + 2 * DAY, 60, now);
         const plan: CalendarAlignPlan = alignCalendarEvents(desired,
-          [existing(9, desired[0].key, desired[0].title, now + DAY, 30)]);
+          [existing(9, desired[0].key, desired[0].title, now + DAY, 30)], EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(1);
         expect(plan.toDelete[0]).assertEqual(9);
         expect(plan.toAdd.length).assertEqual(1);
@@ -206,7 +207,7 @@ export default function reminderTest() {
         const desired: CalendarEventPlan[] = desiredOf(now + 2 * DAY, 120, now);
         const stale: ExistingCalendarEvent[] =
           [existing(4, desired[0].key, desired[0].title, desired[0].startTime, 1440 - 30)];
-        const plan: CalendarAlignPlan = alignCalendarEvents(desired, stale);
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, stale, EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(1);
         expect(plan.toAdd.length).assertEqual(1);
       });
@@ -215,14 +216,14 @@ export default function reminderTest() {
         const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
         const current: ExistingCalendarEvent[] =
           [existing(3, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes)];
-        expect(alignCalendarEvents(desired, current).isEmpty()).assertTrue();
+        expect(alignCalendarEvents(desired, current, EVENT_KEY_PREFIX).isEmpty()).assertTrue();
       });
 
       it('"没有提醒"也算一种状态：期望有提醒而现状没有 → 重建', 0, () => {
         const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
         const current: ExistingCalendarEvent[] =
           [existing(5, desired[0].key, desired[0].title, desired[0].startTime, null)];
-        const plan: CalendarAlignPlan = alignCalendarEvents(desired, current);
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, current, EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(1);
         expect(plan.toAdd.length).assertEqual(1);
       });
@@ -230,7 +231,7 @@ export default function reminderTest() {
       it('没有账户标识的日程（不是本应用写的）不动', 0, () => {
         const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
         const plan: CalendarAlignPlan =
-          alignCalendarEvents(desired, [existing(11, '', '用户自己加的日程', now + HOUR, null)]);
+          alignCalendarEvents(desired, [existing(11, '', '用户自己加的日程', now + HOUR, null)], EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(0);
         expect(plan.toAdd.length).assertEqual(1);
       });
@@ -241,10 +242,35 @@ export default function reminderTest() {
           existing(1, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes),
           existing(2, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes)
         ];
-        const plan: CalendarAlignPlan = alignCalendarEvents(desired, duplicated);
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, duplicated, EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(1);
         expect(plan.toDelete[0]).assertEqual(2);
         expect(plan.toAdd.length).assertEqual(0);
+      });
+
+      it('前缀作用域：课程日程与无前缀的日程都不动（不认识的绝不删）', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
+        const otherFamily: ExistingCalendarEvent[] = [
+          // 课程日程（另一族）：期望里没有它，但**不属于**作业族，不许删
+          existing(31, 'learnx-course:202609290800:高等数学', '高等数学', now + DAY, 60),
+          // 没有标识的（用户自己加的）：同样不碰
+          existing(32, '', '用户自己加的日程', now + HOUR, null)
+        ];
+        const plan: CalendarAlignPlan =
+          alignCalendarEvents(desired, otherFamily, EVENT_KEY_PREFIX);
+        expect(plan.toDelete.length).assertEqual(0);
+        expect(plan.toAdd.length).assertEqual(1);
+      });
+
+      it('期望为空时只清本族（作业族清空不碰课程日程）', 0, () => {
+        const existingEvents: ExistingCalendarEvent[] = [
+          existing(41, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY, 30),
+          existing(42, 'learnx-course:202609290800:高等数学', '高等数学', now + DAY, 60)
+        ];
+        const plan: CalendarAlignPlan =
+          alignCalendarEvents([], existingEvents, EVENT_KEY_PREFIX);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toDelete[0]).assertEqual(41);
       });
 
       it('取消条数截断后，未过期作业一条都不漏', 0, () => {
