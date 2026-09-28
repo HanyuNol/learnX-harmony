@@ -68,6 +68,14 @@ export struct AssignmentListTab {
   }
 
   /**
+   * 宿主（Ability）上下文：**系统日历接口必须用它**——用应用级上下文调
+   * `calendarManager.getCalendar()` 会报 201（实测，见 `viewmodel/reminderSync` 的说明）。
+   */
+  private abilityContext(): common.UIAbilityContext {
+    return this.getUIContext().getHostContext() as common.UIAbilityContext;
+  }
+
+  /**
    * 一次加载**结束**时顺手对齐系统提醒（FR-18）。
    *
    * 判据取"`fetching` 由真转假"，而不是"每次通知都对一次"：通知在刷新开始 / 结束 / 提交后
@@ -86,7 +94,7 @@ export struct AssignmentListTab {
     // 部分课程失败时传 false：对齐会一条也不动，宁可这份数据晚点生效，
     // 也不能因为一次部分失败就把用户已登记的提醒撤掉。
     const complete: boolean = state.totalCourses > 0 && state.failedCourses === 0;
-    requestAssignmentReminderSync(this.appContext(), state.items, complete);
+    requestAssignmentReminderSync(this.abilityContext(), state.items, complete);
   }
 
   /** 学期变化或课程集变化都要让作业对齐（store 内部有签名比对，不会白拉） */

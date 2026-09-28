@@ -337,9 +337,9 @@ export class TextKeys {
   static readonly SETTINGS_REMINDER_HINT: string = 'settings_reminder_hint';
   /** 提醒：提前量输入非法（`%d` 为上限分钟数） */
   static readonly SETTINGS_REMINDER_OFFSET_INVALID: string = 'settings_reminder_offset_invalid';
-  /** 提醒：系统通知已关闭，弹不出来 */
-  static readonly SETTINGS_REMINDER_NOTIFICATION_OFF: string = 'settings_reminder_notification_off';
-  /** 提醒：登记到系统失败 */
+  /** 提醒：未获得日历权限（写不进日历，需用户去系统设置授权） */
+  static readonly SETTINGS_REMINDER_PERMISSION_MISSING: string = 'settings_reminder_permission_missing';
+  /** 提醒：写入系统日历失败 */
   static readonly SETTINGS_REMINDER_FAILED: string = 'settings_reminder_failed';
   /** 显示项：下载文件名省略课程名前缀 */
   static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';

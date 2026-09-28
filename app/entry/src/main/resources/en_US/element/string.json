@@ -722,19 +722,23 @@
     },
     {
       "name": "settings_reminder_hint",
-      "value": "Reminders follow the current semester's assignments and are realigned whenever the data refreshes"
+      "value": "Assignment deadlines are written into the system calendar with an advance reminder; only the current semester is kept in sync, updated automatically whenever the data refreshes"
     },
     {
       "name": "settings_reminder_offset_invalid",
       "value": "Enter a whole number of minutes between 0 and %d"
     },
     {
-      "name": "settings_reminder_notification_off",
-      "value": "System notifications are off, so reminders will not pop up. Turn on notifications for this app in system settings"
+      "name": "settings_reminder_failed",
+      "value": "Reminders could not be written to the system calendar, please try again later"
     },
     {
-      "name": "settings_reminder_failed",
-      "value": "Reminders could not be registered with the system, please try again later"
+      "name": "settings_reminder_permission_missing",
+      "value": "No calendar permission, so assignment deadlines cannot be added to the calendar. Please grant this app calendar access in system settings"
+    },
+    {
+      "name": "permission_calendar_reason",
+      "value": "Used to write assignment deadlines into the system calendar and remind you in advance"
     }
   ]
 }

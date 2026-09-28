@@ -722,19 +722,23 @@
     },
     {
       "name": "settings_reminder_hint",
-      "value": "提醒的是当前学期的作业；作业数据刷新时会自动对齐"
+      "value": "作业截止会写入系统日历并提前提醒；只对齐当前学期的作业，数据刷新时自动更新"
     },
     {
       "name": "settings_reminder_offset_invalid",
       "value": "请输入 0 到 %d 之间的整数分钟"
     },
     {
-      "name": "settings_reminder_notification_off",
-      "value": "系统通知已关闭，提醒不会弹出。请在系统设置里开启本应用的通知"
+      "name": "settings_reminder_failed",
+      "value": "提醒未能写入系统日历，请稍后重试"
     },
     {
-      "name": "settings_reminder_failed",
-      "value": "提醒未能登记到系统，请稍后重试"
+      "name": "settings_reminder_permission_missing",
+      "value": "未获得日历权限，作业截止无法写入日历。请在系统设置里授予本应用的日历权限"
+    },
+    {
+      "name": "permission_calendar_reason",
+      "value": "用于把作业截止时间写入系统日历并提前提醒"
     }
   ]
 }

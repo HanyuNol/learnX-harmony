@@ -16,9 +16,26 @@
         "name": "ohos.permission.INTERNET"
       },
       {
-        // 登记作业截止前的本地通知提醒（FR-18）；normal 级别且为系统授权（system_grant），
-        // 不弹授权框。系统通知总开关是否开着另查（native/reminderAdapter.notificationsEnabled）
-        "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+        // 把作业截止写进系统日历并设提前提醒（FR-18）。user_grant 级别，需要用户授权，
+        // 故下面给了 reason 与 usedScene；授权被拒时主流程不受影响，设置页会如实提示
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:permission_calendar_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:permission_calendar_reason",
+        "usedScene": {
+          "abilities": [
+            "EntryAbility"
+          ],
+          "when": "inuse"
+        }
       }
     ],
     "abilities": [

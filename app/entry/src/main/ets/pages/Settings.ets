@@ -19,7 +19,7 @@ import {
   loadAssignmentReminderOffset, loadCustomDownloadDir, loadOmitCourseName, loadThemeMode,
   loadUseDocumentDir, parseAssignmentReminderOffset
 } from '../viewmodel/settingsStore';
-import { ReminderSyncResult, reminderNotificationsEnabled, syncAssignmentReminders }
+import { ReminderSyncResult, calendarPermissionGranted, requestCalendarAccess, syncAssignmentReminders }
   from '../viewmodel/reminderSync';
 import { SemesterStore } from '../viewmodel/semesterStore';
 import { CourseStore } from '../viewmodel/courseStore';
@@ -79,8 +79,8 @@ export struct SettingsView {
   @State private reminderOffsetText: string = '';
   /** 已完成的作业不提醒 */
   @State private reminderNoIfComplete: boolean = false;
-  /** 系统通知总开关是否开着（关着时提醒登记了也弹不出来） */
-  @State private reminderNotificationOn: boolean = true;
+  /** 是否已获得**日历权限**（没权限就写不进日历，界面要如实说明） */
+  @State private reminderPermissionOn: boolean = false;
   /** 正在对齐系统提醒（含为对齐而补拉作业数据） */
   @State private reminderAligning: boolean = false;
   /** 上一次对齐**没能把提醒登记进系统**（如系统通知被关、设备不支持）——常驻提示，不是一闪而过的 Toast */
@@ -108,7 +108,7 @@ export struct SettingsView {
     this.reminderOffsetMinutes = loadAssignmentReminderOffset(this.appContext());
     this.reminderOffsetText = `${this.reminderOffsetMinutes}`;
     this.reminderNoIfComplete = loadAssignmentReminderNoIfComplete(this.appContext());
-    this.reminderNotificationOn = reminderNotificationsEnabled();
+    this.reminderPermissionOn = calendarPermissionGranted();
   }
 
   /** 自定义目录只显示末段：完整 URI 又长又难读 */
@@ -170,8 +170,9 @@ export struct SettingsView {
   /**
    * 开/关作业截止提醒（FR-18）。
    *
-   * 改动后**立刻对齐一次**：开启＝把当前作业登记上（没有数据就先把作业拉起来，见 `alignReminders`），
-   * 关闭＝把此前登记的撤干净。不留"关了还在弹"的幽灵提醒。
+   * 打开时先**申请日历权限**（写日程的前提），再对齐一次；关闭时对齐会把本应用写在日历里的
+   * 日程清干净。开关位置**保留用户的意图**——权限被拒也不把开关弹回去，而是用下面那行
+   * 常驻提示说明"没权限、写不进去"（弹回开关会让人以为是自己点错了）。
    */
   private selectReminderEnabled(enabled: boolean): void {
     const before: boolean = this.reminderEnabled;
@@ -179,6 +180,19 @@ export struct SettingsView {
     if (!changeAssignmentReminder(this.appContext(), enabled)) {
       this.reminderEnabled = before;
       showToast($r('app.string.' + TextKeys.SETTINGS_SAVE_FAILED));
+      return;
+    }
+    if (enabled && !calendarPermissionGranted()) {
+      const context: common.UIAbilityContext =
+        this.getUIContext().getHostContext() as common.UIAbilityContext;
+      this.reminderAligning = true;
+      requestCalendarAccess(context).then((granted: boolean) => {
+        this.reminderPermissionOn = granted;
+        this.alignReminders();
+      }).catch(() => {
+        this.reminderAligning = false;
+        this.reminderPermissionOn = calendarPermissionGranted();
+      });
       return;
     }
     this.alignReminders();
@@ -237,7 +251,9 @@ export struct SettingsView {
    * 那正是这个功能要避免的"被落下"。已有数据时这一句是空操作（store 内有签名比对）。
    */
   private alignReminders(): void {
-    const context: common.ApplicationContext = this.appContext();
+    // 日历接口必须用宿主（Ability）上下文，见 `viewmodel/reminderSync`
+    const context: common.UIAbilityContext =
+      this.getUIContext().getHostContext() as common.UIAbilityContext;
     this.reminderAligning = true;
     this.reminderFailed = false;
     this.assignmentStore.ensureLoadedFor(this.semesterStore.snapshot().current,
@@ -250,8 +266,8 @@ export struct SettingsView {
       })
       .then((result: ReminderSyncResult) => {
         this.reminderAligning = false;
-        // 登记可能因"系统通知被关掉 / 系统拒绝登记"而失败，顺带刷新这一提示行
-        this.reminderNotificationOn = reminderNotificationsEnabled();
+        // 顺着结果刷新权限提示行（用户可能刚在系统设置里改了授权）
+        this.reminderPermissionOn = !result.permissionMissing && calendarPermissionGranted();
         this.reminderFailed = result.failed;
         if (result.failed) {
           showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED));
@@ -517,18 +533,17 @@ export struct SettingsView {
           .width('100%')
           .padding({ left: 16, right: 16, top: 4 })
 
-        // 系统通知被关掉时**如实说**：提醒登记得上，但弹不出来，用户不该以为"设置好了"
-        if (!this.reminderNotificationOn) {
-          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_NOTIFICATION_OFF))
+        // 没有日历权限时**如实说**：开关打开着，但日程写不进日历，用户不该以为"设置好了"
+        if (!this.reminderPermissionOn) {
+          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_PERMISSION_MISSING))
             .fontSize(12)
             .fontColor($r('app.color.danger'))
             .width('100%')
             .padding({ left: 16, right: 16, top: 4 })
         }
 
-        // 上一次**没能登记进系统**时也留在界面上（Toast 一闪就没了，
-        // 而"提醒其实没登记上"是用户必须知道的状态——2026-09-28 模拟器实测：
-        // 该模拟器的提醒服务拒绝一切登记，正是靠这条才看得出来）
+        // 上一次**没能写进日历**时也留在界面上（Toast 一闪就没了，
+        // 而"日程其实没写进去"是用户必须知道的状态）
         if (this.reminderFailed) {
           Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED))
             .fontSize(12)

@@ -1,9 +1,10 @@
 /**
- * 作业提醒纯逻辑的单元测试（reminders spec §5 第 1–6 项）。
+ * 作业截止提醒纯逻辑的单元测试（reminders spec §5 第 1–4 项）。
  *
- * 钉住三件最容易错的事：**提醒时刻已过去的不该登记**（过去时刻系统不接受）、
- * **"该撤哪些"必须包含"时刻变了"这一种**（否则老师改截止时间后提醒会停在旧时刻）、
- * **月份从 1 起算**（这批字段直接喂给系统的 `LocalDateTime`，差一月就是差一个月）。
+ * 钉住三件最容易错的事：**提醒时刻已过去时不设提醒（但日程照写）**——系统对"提醒时间已过
+ * 但日程未结束"的日程会立即弹提醒，那等于当场发一条无意义的通知；
+ * **提醒分钟数相对的是日程开始时间**（官方语义），而日程结束于截止时刻，故要减掉 30 分钟；
+ * **"内容变了"必须删了重建**，否则老师改了截止时间后，日历里会停在旧时刻。
  */
 
 import { describe, expect, it } from '@ohos/hypium';
@@ -11,9 +12,9 @@ import {
   Assignment, AssignmentAttachments, HomeworkCompletionType, HomeworkSubmissionType
 } from '../main/ets/model/assignment';
 import {
-  DEFAULT_OFFSET_MINUTES, MAX_REMINDERS, ReminderEntry, ReminderMoment, ReminderPlan, ReminderRecord,
-  momentOf, parseOffsetMinutes, planReminders, reconcile, reminderContentOf, reminderKeyOf,
-  reminderTitleOf, sameMoment
+  CalendarAlignPlan, CalendarEventPlan, DEFAULT_OFFSET_MINUTES, EVENT_LENGTH_MINUTES, EVENT_KEY_PREFIX,
+  ExistingCalendarEvent, alignCalendarEvents, eventDescriptionOf, eventKeyOf, eventTitleOf,
+  parseOffsetMinutes, planAssignmentEvents
 } from '../main/ets/model/reminder';
 
 const MINUTE: number = 60 * 1000;
@@ -28,23 +29,24 @@ function assignment(id: string, courseId: string, deadlineTime: number, submitte
     '', '', '', '', '', AssignmentAttachments.empty(), true);
 }
 
-/** 断言用：把"期望的那一条"从计划里取出来（取不到就抛，避免用手写索引） */
-function entryOf(entries: ReminderEntry[], key: string): ReminderEntry {
-  for (const entry of entries) {
-    if (entry.key === key) {
-      return entry;
+function existing(eventId: number, key: string, title: string, startTime: number,
+                  reminderMinutes: number | null): ExistingCalendarEvent {
+  return new ExistingCalendarEvent(eventId, key, title, startTime, reminderMinutes);
+}
+
+/** 期望里那一条（取不到就抛，避免用手写索引） */
+function planOf(plans: CalendarEventPlan[], key: string): CalendarEventPlan {
+  for (const plan of plans) {
+    if (plan.key === key) {
+      return plan;
     }
   }
-  throw new Error(`期望集合里应有 ${key}`);
+  throw new Error(`期望里应有 ${key}`);
 }
 
-/** 差量对齐用例共用：由作业算出"期望登记的提醒"（与实现同一条纯函数，`now` 固定便于断言） */
-function desiredOf(items: Assignment[], offsetMinutes: number, now: number): ReminderEntry[] {
-  return planReminders(items, offsetMinutes, false, now);
-}
-
-function record(id: number, key: string, moment: ReminderMoment): ReminderRecord {
-  return new ReminderRecord(id, key, moment);
+/** 差量对齐用例共用：由一条作业算出"期望的日程"（`now` 固定便于断言） */
+function desiredOf(deadline: number, offsetMinutes: number, now: number): CalendarEventPlan[] {
+  return planAssignmentEvents([assignment('a', 'c1', deadline, false, '正文')], offsetMinutes, false, now);
 }
 
 export default function reminderTest() {
@@ -71,44 +73,53 @@ export default function reminderTest() {
       });
     });
 
-    describe('作业 → 提醒条目', () => {
+    describe('作业 → 日历日程', () => {
 
       it('只收未过期的作业（严格晚于当前时刻）', 0, () => {
         const now: number = 1000 * DAY;
-        const items: Assignment[] = [
+        const plans: CalendarEventPlan[] = planAssignmentEvents([
           assignment('a', 'c1', now + DAY, false, '正文'),
           assignment('b', 'c1', now - DAY, false, '正文'),
           assignment('c', 'c1', now, false, '正文')
-        ];
-        const entries: ReminderEntry[] = planReminders(items, 60, false, now);
-        expect(entries.length).assertEqual(1);
-        expect(entries[0].key).assertEqual('c1:a');
+        ], 60, false, now);
+        expect(plans.length).assertEqual(1);
+        expect(plans[0].key).assertEqual(`${EVENT_KEY_PREFIX}c1:a`);
       });
 
-      it('提醒时刻 = 截止 − 提前量；提前量已把时刻推到过去的不登记', 0, () => {
+      it('日程结束于截止时刻、开始于截止前 30 分钟', 0, () => {
         const now: number = 1000 * DAY;
-        const items: Assignment[] = [
-          // 还有 2 小时截止，提前 1 小时提醒 → 时刻在未来，登记
-          assignment('a', 'c1', now + 2 * HOUR, false, '正文'),
-          // 还有 30 分钟截止，提前 1 小时提醒 → 时刻已过去，不登记
-          assignment('b', 'c1', now + 30 * MINUTE, false, '正文')
-        ];
-        const entries: ReminderEntry[] = planReminders(items, 60, false, now);
-        expect(entries.length).assertEqual(1);
-        expect(entries[0].triggerTime).assertEqual(now + 2 * HOUR - HOUR);
+        const deadline: number = now + 2 * DAY;
+        const plans: CalendarEventPlan[] = planAssignmentEvents(
+          [assignment('a', 'c1', deadline, false, '正文')], 60, false, now);
+        expect(plans[0].endTime).assertEqual(deadline);
+        expect(plans[0].startTime).assertEqual(deadline - EVENT_LENGTH_MINUTES * MINUTE);
       });
 
-      it('提前量为 0 时在截止时刻提醒（仍属未来才登记）', 0, () => {
+      it('提醒分钟数相对**开始时间**，故等于提前量减日程时长', 0, () => {
         const now: number = 1000 * DAY;
-        const entries: ReminderEntry[] = planReminders(
-          [assignment('a', 'c1', now + 10 * MINUTE, false, '正文')], 0, false, now);
-        expect(entries.length).assertEqual(1);
-        expect(entries[0].triggerTime).assertEqual(now + 10 * MINUTE);
+        const plans: CalendarEventPlan[] = planAssignmentEvents(
+          [assignment('a', 'c1', now + 2 * DAY, false, '正文')], 1440, false, now);
+        expect(plans[0].reminderMinutes).assertEqual(1440 - 30);
+      });
+
+      it('提前量为 0 时提醒落在截止时刻（负值＝开始之后）', 0, () => {
+        const now: number = 1000 * DAY;
+        const plans: CalendarEventPlan[] = planAssignmentEvents(
+          [assignment('a', 'c1', now + 2 * HOUR, false, '正文')], 0, false, now);
+        expect(plans[0].reminderMinutes).assertEqual(-30);
+      });
+
+      it('提醒时刻已过去时不设提醒，但日程照写', 0, () => {
+        const now: number = 1000 * DAY;
+        const plans: CalendarEventPlan[] = planAssignmentEvents(
+          [assignment('a', 'c1', now + 30 * MINUTE, false, '正文')], 60, false, now);
+        expect(plans.length).assertEqual(1);
+        expect(plans[0].reminderMinutes).assertEqual(null);
       });
 
       it('截止时间解析不出（0）的不登记', 0, () => {
         const now: number = 1000 * DAY;
-        expect(planReminders([assignment('a', 'c1', 0, false, '正文')], 60, false, now).length)
+        expect(planAssignmentEvents([assignment('a', 'c1', 0, false, '正文')], 60, false, now).length)
           .assertEqual(0);
       });
 
@@ -118,146 +129,132 @@ export default function reminderTest() {
           assignment('done', 'c1', now + DAY, true, '正文'),
           assignment('todo', 'c1', now + DAY, false, '正文')
         ];
-        const withoutFlag: ReminderEntry[] = planReminders(items, 60, false, now);
-        expect(withoutFlag.length).assertEqual(2);
-
-        const withFlag: ReminderEntry[] = planReminders(items, 60, true, now);
+        expect(planAssignmentEvents(items, 60, false, now).length).assertEqual(2);
+        const withFlag: CalendarEventPlan[] = planAssignmentEvents(items, 60, true, now);
         expect(withFlag.length).assertEqual(1);
-        expect(withFlag[0].key).assertEqual('c1:todo');
+        expect(withFlag[0].key).assertEqual(`${EVENT_KEY_PREFIX}c1:todo`);
       });
 
-      it('标题为「作业名 - 课程名」，正文是截止时刻与摘要（不含界面文案）', 0, () => {
+      it('按开始时间升序、同一刻按标识定序（结果稳定）', 0, () => {
+        const now: number = 1000 * DAY;
+        const plans: CalendarEventPlan[] = planAssignmentEvents([
+          assignment('b', 'c1', now + 2 * DAY, false, '正文'),
+          assignment('a', 'c1', now + DAY, false, '正文')
+        ], 60, false, now);
+        expect(plans[0].key).assertEqual(`${EVENT_KEY_PREFIX}c1:a`);
+        expect(plans[1].key).assertEqual(`${EVENT_KEY_PREFIX}c1:b`);
+      });
+
+      it('标题为「作业名 - 课程名」，描述是截止时刻与摘要（不含界面文案）', 0, () => {
         const due: number = new Date(2026, 8, 29, 23, 59).getTime();
         const item: Assignment = assignment('a', 'c1', due, false, '第一章  习题\n第二题');
-        expect(reminderTitleOf(item)).assertEqual('作业a - 课程c1');
-        expect(reminderContentOf(item)).assertEqual('2026-09-29 23:59\n第一章 习题 第二题');
+        expect(eventTitleOf(item)).assertEqual('作业a - 课程c1');
+        expect(eventDescriptionOf(item)).assertEqual('2026-09-29 23:59\n第一章 习题 第二题');
+        // 日程标识带前缀，据此判定"这条日程是不是本应用写的"
+        expect(eventKeyOf(item).startsWith(EVENT_KEY_PREFIX)).assertTrue();
       });
 
-      it('正文为空时只给截止时刻', 0, () => {
+      it('描述为空时只给截止时刻', 0, () => {
         const due: number = new Date(2026, 8, 29, 23, 59).getTime();
-        expect(reminderContentOf(assignment('a', 'c1', due, false, '')))
+        expect(eventDescriptionOf(assignment('a', 'c1', due, false, '')))
           .assertEqual('2026-09-29 23:59');
       });
 
-      it('去重键是「课程 id:作业 id」——不同课程的同一作业 id 不互相顶替', 0, () => {
+      it('不同课程的同一作业 id 不互相顶替（标识是复合键）', 0, () => {
         const now: number = 1000 * DAY;
-        const items: Assignment[] = [
+        const plans: CalendarEventPlan[] = planAssignmentEvents([
           assignment('same', 'c1', now + DAY, false, '正文'),
           assignment('same', 'c2', now + DAY, false, '正文')
-        ];
-        const entries: ReminderEntry[] = planReminders(items, 60, false, now);
-        expect(entries.length).assertEqual(2);
-        expect(reminderKeyOf(items[0])).assertEqual('c1:same');
-        expect(reminderKeyOf(items[1])).assertEqual('c2:same');
-      });
-    });
-
-    describe('条数上限', () => {
-
-      it('超过上限时按触发时刻从近到远截断', 0, () => {
-        const now: number = 1000 * DAY;
-        const items: Assignment[] = [];
-        // 截止时间越往后越远，故意用倒序填充，确认排序不是"按输入顺序"；
-        // 加一小时是为了让 i=1 那条的提醒时刻（截止 − 60 分钟）仍在未来
-        for (let i: number = MAX_REMINDERS + 5; i >= 1; i--) {
-          items.push(assignment(`a${i}`, 'c1', now + (i + 1) * HOUR, false, '正文'));
-        }
-        const entries: ReminderEntry[] = planReminders(items, 60, false, now);
-        expect(entries.length).assertEqual(MAX_REMINDERS);
-        // 最近的一条是 2 小时后截止（提醒在 1 小时后）的那个
-        expect(entries[0].key).assertEqual('c1:a1');
-        // 触发时刻单调不减
-        let previous: number = 0;
-        for (const entry of entries) {
-          expect(entry.triggerTime >= previous).assertTrue();
-          previous = entry.triggerTime;
-        }
-      });
-    });
-
-    describe('时间戳 → 提醒时刻', () => {
-
-      it('按本地时区取年月日时分，月份从 1 起算', 0, () => {
-        const moment: ReminderMoment = momentOf(new Date(2026, 0, 5, 8, 30).getTime());
-        expect(moment.year).assertEqual(2026);
-        expect(moment.month).assertEqual(1);
-        expect(moment.day).assertEqual(5);
-        expect(moment.hour).assertEqual(8);
-        expect(moment.minute).assertEqual(30);
-      });
-
-      it('跨月与跨年边界（12 月 31 日 23:59）', 0, () => {
-        const moment: ReminderMoment = momentOf(new Date(2025, 11, 31, 23, 59).getTime());
-        expect(moment.year).assertEqual(2025);
-        expect(moment.month).assertEqual(12);
-        expect(moment.day).assertEqual(31);
-        expect(moment.hour).assertEqual(23);
-        expect(moment.minute).assertEqual(59);
-      });
-
-      it('同一刻的判定只看这五个字段', 0, () => {
-        const left: ReminderMoment = new ReminderMoment(2026, 1, 1, 0, 0);
-        expect(sameMoment(left, new ReminderMoment(2026, 1, 1, 0, 0))).assertTrue();
-        expect(sameMoment(left, new ReminderMoment(2026, 1, 1, 0, 1))).assertFalse();
-        expect(sameMoment(left, new ReminderMoment(2026, 2, 1, 0, 0))).assertFalse();
-      });
-    });
-
-    describe('差量对齐', () => {
-
-      const now: number = 1000 * DAY;
-
-      it('系统里没有的 → 登记', 0, () => {
-        const desired: ReminderEntry[] = desiredOf([assignment('a', 'c1', now + DAY, false, '正文')], 60, now);
-        const plan: ReminderPlan = reconcile(desired, []);
-        expect(plan.toPublish.length).assertEqual(1);
-        expect(plan.toCancel.length).assertEqual(0);
-      });
-
-      it('不在期望集合里的（已截止 / 已勾选完成不提醒）→ 撤销', 0, () => {
-        const plan: ReminderPlan = reconcile([], [record(7, 'c1:a', momentOf(now + DAY))]);
-        expect(plan.toPublish.length).assertEqual(0);
-        expect(plan.toCancel.length).assertEqual(1);
-        expect(plan.toCancel[0]).assertEqual(7);
-      });
-
-      it('时刻变了（老师改了截止时间）→ 撤销并重登', 0, () => {
-        const desired: ReminderEntry[] = desiredOf([assignment('a', 'c1', now + 2 * DAY, false, '正文')], 60, now);
-        const stale: ReminderRecord[] = [record(9, 'c1:a', momentOf(now + DAY))];
-        const plan: ReminderPlan = reconcile(desired, stale);
-        expect(plan.toCancel.length).assertEqual(1);
-        expect(plan.toCancel[0]).assertEqual(9);
-        expect(plan.toPublish.length).assertEqual(1);
-      });
-
-      it('完全相同 → 空计划（同一份数据连跑两次必须是幂等的）', 0, () => {
-        const desired: ReminderEntry[] = desiredOf([assignment('a', 'c1', now + DAY, false, '正文')], 60, now);
-        const current: ReminderRecord[] = [record(3, desired[0].key, desired[0].moment())];
-        const plan: ReminderPlan = reconcile(desired, current);
-        expect(plan.isEmpty()).assertTrue();
-      });
-
-      it('没有去重键的（不是本功能登记的）不动', 0, () => {
-        const desired: ReminderEntry[] = desiredOf([assignment('a', 'c1', now + DAY, false, '正文')], 60, now);
-        const plan: ReminderPlan = reconcile(desired, [record(11, '', momentOf(now + HOUR))]);
-        expect(plan.toCancel.length).assertEqual(0);
-        expect(plan.toPublish.length).assertEqual(1);
-      });
-
-      it('同一个键在系统里出现两次 → 撤掉后来者，自愈成一条', 0, () => {
-        const desired: ReminderEntry[] = desiredOf([assignment('a', 'c1', now + DAY, false, '正文')], 60, now);
-        const duplicated: ReminderRecord[] = [
-          record(1, desired[0].key, desired[0].moment()),
-          record(2, desired[0].key, desired[0].moment())
-        ];
-        const plan: ReminderPlan = reconcile(desired, duplicated);
-        expect(plan.toCancel.length).assertEqual(1);
-        expect(plan.toCancel[0]).assertEqual(2);
-        expect(plan.toPublish.length).assertEqual(0);
+        ], 60, false, now);
+        expect(plans.length).assertEqual(2);
+        expect(plans[0].key === plans[1].key).assertFalse();
       });
 
       it('默认提前量是 24 小时（对齐上游）', 0, () => {
         expect(DEFAULT_OFFSET_MINUTES).assertEqual(1440);
+      });
+    });
+
+    describe('与日历现状的差量对齐', () => {
+
+      const now: number = 1000 * DAY;
+
+      it('日历里没有的 → 新增', 0, () => {
+        const plan: CalendarAlignPlan = alignCalendarEvents(desiredOf(now + DAY, 60, now), []);
+        expect(plan.toAdd.length).assertEqual(1);
+        expect(plan.toDelete.length).assertEqual(0);
+      });
+
+      it('不在期望里的（已截止 / 已勾选完成不提醒）→ 删除', 0, () => {
+        const plan: CalendarAlignPlan = alignCalendarEvents([],
+          [existing(7, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY, 30)]);
+        expect(plan.toAdd.length).assertEqual(0);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toDelete[0]).assertEqual(7);
+      });
+
+      it('截止时间被改（开始时间变了）→ 删了重建', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + 2 * DAY, 60, now);
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired,
+          [existing(9, desired[0].key, desired[0].title, now + DAY, 30)]);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toDelete[0]).assertEqual(9);
+        expect(plan.toAdd.length).assertEqual(1);
+      });
+
+      it('提前量被改（提醒分钟数变了）→ 删了重建', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + 2 * DAY, 120, now);
+        const stale: ExistingCalendarEvent[] =
+          [existing(4, desired[0].key, desired[0].title, desired[0].startTime, 1440 - 30)];
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, stale);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toAdd.length).assertEqual(1);
+      });
+
+      it('完全相同 → 空计划（同一份数据连跑两次必须幂等）', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
+        const current: ExistingCalendarEvent[] =
+          [existing(3, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes)];
+        expect(alignCalendarEvents(desired, current).isEmpty()).assertTrue();
+      });
+
+      it('"没有提醒"也算一种状态：期望有提醒而现状没有 → 重建', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
+        const current: ExistingCalendarEvent[] =
+          [existing(5, desired[0].key, desired[0].title, desired[0].startTime, null)];
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, current);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toAdd.length).assertEqual(1);
+      });
+
+      it('没有账户标识的日程（不是本应用写的）不动', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
+        const plan: CalendarAlignPlan =
+          alignCalendarEvents(desired, [existing(11, '', '用户自己加的日程', now + HOUR, null)]);
+        expect(plan.toDelete.length).assertEqual(0);
+        expect(plan.toAdd.length).assertEqual(1);
+      });
+
+      it('同一标识在日历里出现两次 → 删掉后来者，自愈成一条', 0, () => {
+        const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
+        const duplicated: ExistingCalendarEvent[] = [
+          existing(1, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes),
+          existing(2, desired[0].key, desired[0].title, desired[0].startTime, desired[0].reminderMinutes)
+        ];
+        const plan: CalendarAlignPlan = alignCalendarEvents(desired, duplicated);
+        expect(plan.toDelete.length).assertEqual(1);
+        expect(plan.toDelete[0]).assertEqual(2);
+        expect(plan.toAdd.length).assertEqual(0);
+      });
+
+      it('取消条数截断后，未过期作业一条都不漏', 0, () => {
+        // 上一版按代理提醒的"API ≤25 上限 30 条"做了截断；日历日程没有这个限制，
+        // 人为截断只会造成"某些作业不写进日历"的隐形缺口
+        const items: Assignment[] = [];
+        for (let i: number = 1; i <= 40; i++) {
+          items.push(assignment(`a${i}`, 'c1', now + i * DAY, false, '正文'));
+        }
+        expect(planAssignmentEvents(items, 60, false, now).length).assertEqual(40);
       });
     });
   });
