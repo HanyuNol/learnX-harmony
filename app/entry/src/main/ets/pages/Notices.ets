@@ -38,8 +38,6 @@ export struct NoticeListTab {
   @State private failedCourses: number = 0;
   @State private totalCourses: number = 0;
   @State private errorReason: FailReason | null = null;
-  /** 只为了"本地已读覆盖变化时重建页面"（见 NoticeState.readVersion 的说明） */
-  @State private readVersion: number = 0;
 
   private store: NoticeStore = NoticeStore.getInstance();
   private courseStore: CourseStore = CourseStore.getInstance();
@@ -47,11 +45,13 @@ export struct NoticeListTab {
 
   private listener: NoticeStateListener = (state: NoticeState) => {
     this.fetching = state.fetching;
-    this.items = state.items;
+    // **赋一个新引用的数组**：`markRead` 只改本地已读覆盖、快照里的 items 仍是同一个数组引用，
+    // 若按原引用赋回，@State 不认为是变化 → 列表不重渲染 → 已读标记不消失
+    // （2026-09-28 代码审查 🟡 M5；此前的 readVersion 计数器只写不读，同样无效）
+    this.items = state.items.slice();
     this.failedCourses = state.failedCourses;
     this.totalCourses = state.totalCourses;
     this.errorReason = state.errorReason;
-    this.readVersion = state.readVersion;
   };
 
   /** 学期变化或课程集变化都要让通知对齐（store 内部有签名比对，不会白拉） */

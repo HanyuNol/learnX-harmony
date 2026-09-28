@@ -8,7 +8,7 @@
  * 我们用 id 查 store，避免路由参数里塞一份可能过期的副本）。
  */
 
-import { CourseStore } from '../viewmodel/courseStore';
+import { CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { TextKeys } from '../common/texts';
 import { NoticeListTab } from './Notices';
 import { AssignmentListTab } from './Assignments';
@@ -49,13 +49,33 @@ export struct CourseDetailView {
   onOpenSearch?: (courseId: string, courseName: string) => void;
 
   @State private activeTab: number = 0;
+  /**
+   * 课程名（放进 @State）。
+   *
+   * 同 m2：build 直接读 store 时，课程列表整表替换后标题不会重算；
+   * 且 `nameOf` 查不到返回空串，原来是**空标题**（注释却写"显示占位符"）——
+   * 现在查不到显示 `—`，与注释一致。
+   */
+  @State private courseName: string = '';
 
   private store: CourseStore = CourseStore.getInstance();
+
+  private listener: CourseStateListener = () => {
+    this.courseName = this.store.nameOf(this.courseId);
+  };
+
+  aboutToAppear(): void {
+    this.store.subscribe(this.listener);
+  }
+
+  aboutToDisappear(): void {
+    this.store.unsubscribe(this.listener);
+  }
 
   build() {
     Column() {
       // 课程基本信息。查不到时只显示占位符，不阻塞页面（课程列表可能刚好在重取）
-      Text(this.store.nameOf(this.courseId))
+      Text(this.courseName.length > 0 ? this.courseName : '—')
         .fontSize(20)
         .fontColor($r('app.color.text_primary'))
         .width('100%')

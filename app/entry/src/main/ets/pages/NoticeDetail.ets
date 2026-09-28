@@ -10,7 +10,7 @@
  */
 
 import { Notice, formatPublishDate, plainText } from '../model/notice';
-import { NoticeStore } from '../viewmodel/noticeStore';
+import { NoticeStateListener, NoticeStore } from '../viewmodel/noticeStore';
 import { TextKeys } from '../common/texts';
 import { emptyView } from '../components/StateView';
 
@@ -31,20 +31,37 @@ export struct NoticeDetailView {
 
   private store: NoticeStore = NoticeStore.getInstance();
 
+  /**
+   * 当前这条通知（放进 @State）。
+   *
+   * 为什么不让 build 直接读 store（2026-09-28 代码审查 m2）：列表整表替换（如切换学期）后，
+   * 只读 store 的渲染路径**不会重算**，详情页会继续显示已经不存在的旧通知。
+   */
+  @State private notice: Notice | null = null;
+
+  private listener: NoticeStateListener = () => {
+    this.notice = this.store.noticeOf(this.noticeId);
+  };
+
   aboutToAppear(): void {
-    const notice: Notice | null = this.store.noticeOf(this.noticeId);
-    if (notice !== null && this.markReadOnOpen) {
-      this.store.markReadByOpening(notice);
+    this.store.subscribe(this.listener);
+    this.notice = this.store.noticeOf(this.noticeId);
+    if (this.notice !== null && this.markReadOnOpen) {
+      this.store.markReadByOpening(this.notice as Notice);
     }
+  }
+
+  aboutToDisappear(): void {
+    this.store.unsubscribe(this.listener);
   }
 
   build() {
     Column() {
-      if (this.store.noticeOf(this.noticeId) === null) {
+      if (this.notice === null) {
         // 通知不在当前列表里（例如列表刚被整表替换）——给它一个可理解的状态，而不是空白
         emptyView()
       } else {
-        this.detail(this.store.noticeOf(this.noticeId) as Notice)
+        this.detail(this.notice as Notice)
       }
     }
     .width('100%')

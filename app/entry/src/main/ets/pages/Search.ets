@@ -19,7 +19,7 @@ import { Assignment } from '../model/assignment';
 import {
   SearchKind, SearchResults, normalizeQuery, searchAll
 } from '../model/search';
-import { CourseStore } from '../viewmodel/courseStore';
+import { CourseState, CourseStore } from '../viewmodel/courseStore';
 import { FileStore, FileState } from '../viewmodel/fileStore';
 import { NoticeStore, NoticeState } from '../viewmodel/noticeStore';
 import { AssignmentStore, AssignmentState } from '../viewmodel/assignmentStore';
@@ -52,8 +52,17 @@ export struct SearchView {
   onOpenResult?: (kind: string, id: string) => void;
 
   @State private query: string = '';
-  /** 结果版本号：store 变化（数据到齐）后据此重算 */
-  @State private dataVersion: number = 0;
+  /**
+   * 四类数据**放进 @State**（各自赋新引用的数组）。
+   *
+   * 为什么不是"一个只写不读的版本号"：2026-09-28 代码审查 🟡 M6——项目在 `OPERATIONS §7.6`
+   * 已记过这条陷阱，而这里又写了一次：版本号在订阅回调里被赋值、渲染路径却从不读它，
+   * 于是数据晚到后结果不重算（用户得再敲一次键才看到结果）。
+   */
+  @State private courses: Course[] = [];
+  @State private files: LearnFile[] = [];
+  @State private notices: Notice[] = [];
+  @State private assignments: Assignment[] = [];
 
   private courseStore: CourseStore = CourseStore.getInstance();
   private fileStore: FileStore = FileStore.getInstance();
@@ -69,26 +78,31 @@ export struct SearchView {
     this.noticeStore.ensureLoadedFor(semester, courses);
     this.fileStore.ensureLoadedFor(semester, courses);
     this.assignmentStore.ensureLoadedFor(semester, courses);
-    // 数据到齐后要重算结果：订阅四类 store（只更新版本号，结果在 build 里现算）
+    // 数据到齐后要重算结果：订阅四类 store（含 courseStore——课程段也要能出现结果）
+    this.courseStore.subscribe(this.courseListener);
     this.noticeStore.subscribe(this.noticeListener);
     this.fileStore.subscribe(this.fileListener);
     this.assignmentStore.subscribe(this.assignmentListener);
   }
 
   aboutToDisappear(): void {
+    this.courseStore.unsubscribe(this.courseListener);
     this.noticeStore.unsubscribe(this.noticeListener);
     this.fileStore.unsubscribe(this.fileListener);
     this.assignmentStore.unsubscribe(this.assignmentListener);
   }
 
+  private courseListener = (state: CourseState) => {
+    this.courses = state.items.slice();
+  };
   private noticeListener = (state: NoticeState) => {
-    this.dataVersion = state.items.length;
+    this.notices = state.items.slice();
   };
   private fileListener = (state: FileState) => {
-    this.dataVersion = state.items.length;
+    this.files = state.items.slice();
   };
   private assignmentListener = (state: AssignmentState) => {
-    this.dataVersion = state.items.length;
+    this.assignments = state.items.slice();
   };
 
   build() {
@@ -131,11 +145,9 @@ export struct SearchView {
     .backgroundColor($r('app.color.bg_page'))
   }
 
-  /** 现算结果：`dataVersion` 与 `query` 都是 @State，变化即重算 */
+  /** 现算结果：入参全是 @State（查询词与四类数据），任一变化都会重算 */
   private results(): SearchResults {
-    return searchAll(this.courseStore.snapshot().items, this.fileStore.snapshot().items,
-      this.noticeStore.snapshot().items, this.assignmentStore.snapshot().items,
-      this.query, this.courseId);
+    return searchAll(this.courses, this.files, this.notices, this.assignments, this.query, this.courseId);
   }
 
   @Builder
