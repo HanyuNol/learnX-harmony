@@ -161,15 +161,21 @@ export struct SettingsView {
     Column() {
       // 搜索入口：与其它标签页一致，是**可见的文字按钮**
       Row({ space: 8 }) {
-        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
-          .fontSize(14)
-          .onClick(() => {
-            const open: (() => void) | undefined = this.onOpenSearch;
-            if (open !== undefined) {
-              open();
-            }
-          })
         Blank()
+        Button() {
+          Image($r('app.media.ic_search'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_primary'))
+        }
+        .backgroundColor(Color.Transparent)
+        .padding(4)
+        .onClick(() => {
+          const open: (() => void) | undefined = this.onOpenSearch;
+          if (open !== undefined) {
+            open();
+          }
+        })
       }
       .width('100%')
       .padding({ top: 8 })

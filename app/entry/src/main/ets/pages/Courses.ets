@@ -54,15 +54,21 @@ export struct CourseListTab {
     Column() {
       // 搜索入口：**可见的文字按钮**（标题栏菜单项在设备上不显示符号，用户实测反馈）
       Row({ space: 8 }) {
-        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
-          .fontSize(14)
-          .onClick(() => {
-            const open: (() => void) | undefined = this.onOpenSearch;
-            if (open !== undefined) {
-              open();
-            }
-          })
         Blank()
+        Button() {
+          Image($r('app.media.ic_search'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_primary'))
+        }
+        .backgroundColor(Color.Transparent)
+        .padding(4)
+        .onClick(() => {
+          const open: (() => void) | undefined = this.onOpenSearch;
+          if (open !== undefined) {
+            open();
+          }
+        })
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })

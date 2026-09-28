@@ -105,28 +105,32 @@ export struct AssignmentListTab {
       })
 
       Row({ space: 8 }) {
+        Blank()
         // 让"点了刷新"有可见反馈：在途时给一行文字（数据没变时界面本来就看不出差别）
         if (this.fetching) {
           Text($r('app.string.' + TextKeys.LIST_REFRESHING))
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
         }
-        // 搜索入口：**可见的文字按钮**（标题栏菜单项在设备上既不显示符号、文字也不进节点树，
-        // 2026-09-28 用户实测反馈"没有符号"）
-        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
-          .fontSize(14)
-          .onClick(() => {
-            const open: (() => void) | undefined = this.onOpenSearch;
-            if (open !== undefined) {
-              open();
-            }
-          })
         Button($r('app.string.' + TextKeys.ASSIGNMENT_REFRESH))
           .fontSize(14)
           .onClick(() => {
             this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
           })
-        Blank()
+        Button() {
+          Image($r('app.media.ic_search'))
+            .width(20)
+            .height(20)
+            .fillColor($r('app.color.text_primary'))
+        }
+        .backgroundColor(Color.Transparent)
+        .padding(4)
+        .onClick(() => {
+          const open: (() => void) | undefined = this.onOpenSearch;
+          if (open !== undefined) {
+            open();
+          }
+        })
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
