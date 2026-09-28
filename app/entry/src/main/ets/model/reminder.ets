@@ -29,10 +29,9 @@ export const OFFSET_MINUTES_MAX: number = 14 * 24 * 60;
 /**
  * 单次登记的提醒条数上限。
  *
- * 系统对单应用的有效提醒数量有限制（超限时 `publishReminder` 报 `1700002`），
- * 故按**触发时刻从近到远**取前这么多条。到点后提醒会从"有效提醒"里消失，
- * 下次对齐自动补上更远的——一次截断不会让后面的作业永久漏掉。
- * 该阈值未经设备实测（超限错误码的具体阈值未查证），若要调整就改这一个常量。
+ * 官方《代理提醒(ArkTS)》约束与限制·个数限制写明：**API ≤ 25 的普通应用有效提醒不超过 30 个**
+ * （API ≥ 26 为 64）。本项目 SDK 锁 API 24，故取 30。多出来的按**触发时刻从近到远**保留——
+ * 到点后提醒会从"有效提醒"里消失，下次对齐自动补上更远的，一次截断不会让后面的作业永久漏掉。
  */
 export const MAX_REMINDERS: number = 30;
 
@@ -68,8 +67,9 @@ export function parseOffsetMinutes(text: string): number | null {
  * 而**"系统里已有的提醒是不是我想要的这一刻"只能比字段**——时间戳比得出来但换不回去，
  * 所以对齐的时候一定需要这份字段化的值。
  *
- * `month` **从 1 起算**（1 = 一月）。系统 d.ts 只写"Value of month"，官方样例的语境不足以定论，
- * 故按人际惯例取 1 起算，并用"真弹一次"的验收项钉住（reminders spec §5 第 11 项）。
+ * `month` **从 1 起算**（1 = 一月）：官方《后台代理提醒》API 参考的 `LocalDateTime` 表写明
+ * `month | 月，取值范围是[1, 12]`（见 `docs/specs/reminders.md` §6 的出处）。
+ * 故这里用 `Date.getMonth() + 1`，**不是** `getMonth()`。
  */
 export class ReminderMoment {
   readonly year: number;
