@@ -16,8 +16,8 @@ import {
   FileReadFilter, FileRow, LearnFile, UNCATEGORIZED_MARKER, buildFileRows, formatUploadDate
 } from '../model/file';
 import { FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
-import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
-import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { CourseStateListener, CourseStore } from '../viewmodel/courseStore';
+import { SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';

@@ -17,7 +17,7 @@ import {
 } from '../model/assignment';
 import { plainText } from '../model/notice';
 import { Attachment } from '../model/attachment';
-import { AssignmentState, AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
+import { AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
 import { TextKeys, textKeyOfRelativeDeadline, textKeyOfCompletionType, textKeyOfSubmissionType, textKeyOfGradeLevel } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';

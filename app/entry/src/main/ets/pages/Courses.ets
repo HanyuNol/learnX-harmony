@@ -12,7 +12,6 @@ import { Course } from '../model/course';
 import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
-import { TextKeys } from '../common/texts';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 @Component

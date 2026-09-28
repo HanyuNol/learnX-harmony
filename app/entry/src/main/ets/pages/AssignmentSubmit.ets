@@ -11,11 +11,10 @@
 
 import { Assignment } from '../model/assignment';
 import { Attachment } from '../model/attachment';
-import { plainText } from '../model/notice';
 import { MultipartFile } from '../network/multipart';
 import { extensionOf } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
-import { AssignmentState, AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
+import { AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';

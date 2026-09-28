@@ -5,7 +5,6 @@
  * （`LearnClient` 与 `localeAdapter`）；`viewmodel` 不直接碰它们（架构不变量 §1、§3）。
  */
 
-import { common } from '@kit.AbilityKit';
 import { Course } from '../model/course';
 import { LearnClient } from '../network/learnClient';
 import { serverLang } from '../native/localeAdapter';

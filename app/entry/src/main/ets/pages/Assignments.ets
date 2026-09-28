@@ -16,8 +16,8 @@ import {
   Assignment, AssignmentFilter, RelativeDeadline, relativeDeadlineOf
 } from '../model/assignment';
 import { AssignmentState, AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
-import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
-import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { CourseStateListener, CourseStore } from '../viewmodel/courseStore';
+import { SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys, textKeyOfRelativeDeadline } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';

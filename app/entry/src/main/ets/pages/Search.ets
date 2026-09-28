@@ -14,7 +14,7 @@
 
 import { Course } from '../model/course';
 import { LearnFile, formatUploadDate } from '../model/file';
-import { Notice, formatPublishDate, summarize } from '../model/notice';
+import { Notice, summarize } from '../model/notice';
 import { Assignment } from '../model/assignment';
 import {
   SearchKind, SearchResults, normalizeQuery, searchAll

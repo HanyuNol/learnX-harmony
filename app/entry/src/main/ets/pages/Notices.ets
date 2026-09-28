@@ -14,8 +14,8 @@
 import { Course } from '../model/course';
 import { Notice, NoticeFilter, formatPublishDate, summarize } from '../model/notice';
 import { NoticeState, NoticeStateListener, NoticeStore } from '../viewmodel/noticeStore';
-import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
-import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
+import { CourseStateListener, CourseStore } from '../viewmodel/courseStore';
+import { SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';

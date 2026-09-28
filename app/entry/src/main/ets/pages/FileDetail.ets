@@ -13,7 +13,7 @@
 
 import { LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, formatUploadDate } from '../model/file';
 import { plainText } from '../model/notice';
-import { DownloadState, FileState, FileStateListener, FileStore } from '../viewmodel/fileStore';
+import { DownloadState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';
@@ -41,6 +41,15 @@ export struct FileDetailView {
    * 状态变量才会触发重渲染**；一个只写不读的计数器不会让页面刷新，
    * 于是下载明明成功了、按钮还停在"下载"（详情页的"后来居上"陷阱，见 OPERATIONS.md §7）。
    */
+  /**
+   * 当前这条文件（放进 @State，且 build 只读它）。
+   *
+   * 与通知/课程详情同一类问题（2026-09-28 第二轮扫描补漏）：原先 build 直接读
+   * `this.store.fileOf(this.fileId)`，而订阅回调只更新**派生状态**（下载状态/进度/已下载）——
+   * 列表整表替换（如切换学期）后，这些派生值往往没变 → @State 无变化 → 不重渲染，
+   * 详情页会继续显示已经不存在的旧文件（本应转成空态）。
+   */
+  @State private file: LearnFile | null = null;
   @State private downloadState: DownloadState = DownloadState.IDLE;
   @State private percent: number = PROGRESS_UNKNOWN;
   @State private downloaded: boolean = false;
@@ -59,10 +68,11 @@ export struct FileDetailView {
   private store: FileStore = FileStore.getInstance();
 
   private listener: FileStateListener = () => {
+    this.file = this.store.fileOf(this.fileId);
     this.downloadState = this.store.downloadStateOf(this.fileId);
     this.percent = this.store.downloadPercentOf(this.fileId);
-    const file: LearnFile | null = this.store.fileOf(this.fileId);
-    this.downloaded = file !== null && this.store.isDownloaded(file, this.context());
+    const current: LearnFile | null = this.file;
+    this.downloaded = current !== null && this.store.isDownloaded(current, this.context());
   };
 
   aboutToAppear(): void {
@@ -86,11 +96,11 @@ export struct FileDetailView {
 
   build() {
     Column() {
-      if (this.store.fileOf(this.fileId) === null) {
+      if (this.file === null) {
         // 文件不在当前列表里（例如列表刚被整表替换）——给一个可理解的状态，而不是空白
         emptyView()
       } else {
-        this.detail(this.store.fileOf(this.fileId) as LearnFile)
+        this.detail(this.file as LearnFile)
       }
     }
     .width('100%')
