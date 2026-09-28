@@ -134,6 +134,29 @@ export struct SettingsView {
 
   build() {
     Column() {
+      // **必须有滚动容器**：设置项多起来会超过一屏，裸 Column 只会把超出的部分裁掉、
+      // 而且滑不动（2026-09-28 用户实测报"设置页无法上下滑动"）
+      Scroll() {
+        Column() {
+          this.content()
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16, bottom: 24 })
+      }
+      .layoutWeight(1)
+      .width('100%')
+      .align(Alignment.Top)
+      .scrollBar(BarState.Auto)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor($r('app.color.bg_page'))
+  }
+
+  /** 设置项（整块放进 Scroll；登出也在这里，跟在内容末尾） */
+  @Builder
+  content() {
+    Column() {
       Text($r('app.string.' + TextKeys.SETTINGS_THEME_TITLE))
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))
@@ -328,19 +351,14 @@ export struct SettingsView {
         }
       })
 
-      Blank()
-
       // 登出：FR-04 的入口（原先挂在入口占位页上，随页签搬到这里）
       Button($r('app.string.' + TextKeys.SETTINGS_LOGOUT))
         .width('100%')
-        .margin({ bottom: 24 })
+        .margin({ top: 24 })
         .onClick(() => {
           this.store.logout();
         })
     }
     .width('100%')
-    .height('100%')
-    .padding({ left: 16, right: 16 })
-    .backgroundColor($r('app.color.bg_page'))
   }
 }
