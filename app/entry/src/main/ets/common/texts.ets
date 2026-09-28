@@ -295,6 +295,16 @@ export class TextKeys {
   static readonly SETTINGS_FOLDER_UNSUPPORTED: string = 'settings_folder_unsupported';
   /** 所选内容不是文件夹 */
   static readonly SETTINGS_FOLDER_NOT_DIR: string = 'settings_folder_not_dir';
+  /** 预览面板标题（文件详情与作业附件共用） */
+  static readonly FILE_PREVIEW_TITLE: string = 'file_preview_title';
+  /** 预览面板：关闭预览 */
+  static readonly FILE_PREVIEW_CLOSE: string = 'file_preview_close';
+  /** 预览面板：正在打开 */
+  static readonly FILE_PREVIEW_LOADING: string = 'file_preview_loading';
+  /** 预览面板：渲染失败的可读提示 */
+  static readonly FILE_PREVIEW_FAILED: string = 'file_preview_failed';
+  /** 预览面板：重试 */
+  static readonly FILE_PREVIEW_RETRY: string = 'file_preview_retry';
   /** 详情：另存为（保存到用户挑选的位置） */
   static readonly FILE_SAVE_AS: string = 'file_save_as';
   /** 另存为成功 */

@@ -787,6 +787,26 @@
     {
       "name": "settings_course_cleared",
       "value": "已清除课程日程"
+    },
+    {
+      "name": "file_preview_title",
+      "value": "预览"
+    },
+    {
+      "name": "file_preview_close",
+      "value": "关闭预览"
+    },
+    {
+      "name": "file_preview_loading",
+      "value": "正在打开…"
+    },
+    {
+      "name": "file_preview_failed",
+      "value": "这个文件没能预览出来，可以重试，或交给其他应用打开"
+    },
+    {
+      "name": "file_preview_retry",
+      "value": "重试"
     }
   ]
 }

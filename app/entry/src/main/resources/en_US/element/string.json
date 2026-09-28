@@ -787,6 +787,26 @@
     {
       "name": "settings_course_cleared",
       "value": "Class events removed"
+    },
+    {
+      "name": "file_preview_title",
+      "value": "Preview"
+    },
+    {
+      "name": "file_preview_close",
+      "value": "Close preview"
+    },
+    {
+      "name": "file_preview_loading",
+      "value": "Opening…"
+    },
+    {
+      "name": "file_preview_failed",
+      "value": "This file could not be previewed. Try again, or open it with another app"
+    },
+    {
+      "name": "file_preview_retry",
+      "value": "Retry"
     }
   ]
 }

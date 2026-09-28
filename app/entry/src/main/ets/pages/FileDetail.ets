@@ -1,9 +1,11 @@
 /**
  * 文件详情页：元信息 + **下载** + **打开**。
  *
+ * 预览：可渲染类型（PDF/图片/文本/音视频）走**应用内预览**（`components/PreviewPane`，
+ * 由 FR-08 交付、FR-21 打磨交互）；其余类型交给系统应用。
+ *
  * 本批刻意不做的事（见 files spec §2）：
  * - 不做进度条（属 FR-10；这里只给"下载中…"文字状态）；
- * - 不做 PDF / 图片原地预览（属 FR-21），也**不建预览适配器**（`scope-discipline` §2 判其为镀金）；
  * - 不做分享（属 FR-23）。
  *
  * 分层：本页只订阅状态、下发意图。下载与打开经 `fileStore` → `fileRepository` → `native.fileAdapter`，
@@ -12,14 +14,13 @@
  */
 
 import { LearnFile, PROGRESS_UNKNOWN, canPreviewInApp, formatUploadDate } from '../model/file';
+import { PreviewPane } from '../components/PreviewPane';
 import { plainText } from '../model/notice';
 import { DownloadState, FileStateListener, FileStore } from '../viewmodel/fileStore';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
 import { emptyView } from '../components/StateView';
 import { common } from '@kit.AbilityKit';
-import { webview } from '@kit.ArkWeb';
-import { Logger } from '../common/logger';
 
 /** 详情目的地的参数载体 */
 export class FileDetailParam {
@@ -63,7 +64,6 @@ export struct FileDetailView {
    * 效果等同它那条 WebView 分支。
    */
   @State private previewUri: string = '';
-  private webController: webview.WebviewController = new webview.WebviewController();
 
   private store: FileStore = FileStore.getInstance();
 
@@ -108,8 +108,34 @@ export struct FileDetailView {
     .backgroundColor($r('app.color.bg_page'))
   }
 
+  /** 预览态：整页只有预览面板（关闭入口在面板里，系统返回键由本页返回行为处理） */
+  @Builder
+  previewOnly(file: LearnFile) {
+    Column() {
+      PreviewPane({
+        uri: this.previewUri,
+        onClose: () => {
+          this.previewUri = '';
+        },
+        onOpenExternal: () => {
+          this.openExternal(file);
+        }
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .padding(16)
+  }
+
   @Builder
   detail(file: LearnFile) {
+    // 预览态**独占页面**：进入预览后收起元信息与动作区，把空间留给文件本身；
+    // 退出预览（关闭/返回）即恢复原布局（不改变任何存储状态）
+    // **不能写 `return`**：ArkUI 的 @Builder 里只允许 UI 语法（构建期报
+    // "Only UI component syntax can be written here"），故用 if/else 分流
+    if (this.previewUri.length > 0) {
+      this.previewOnly(file)
+    } else {
     Scroll() {
       Column({ space: 8 }) {
         Text(file.title)
@@ -245,29 +271,13 @@ export struct FileDetailView {
             .width('100%')
         }
 
-        // 应用内预览（仅在"系统查看器不可用"时出现）
-        if (this.previewUri.length > 0) {
-          Web({ src: this.previewUri, controller: this.webController })
-            .width('100%')
-            .height(720)
-            // **必须显式打开**：API 12 起 `fileAccess` 默认关闭，关闭时 ArkWeb 会拒绝
-            // `file://` 本地文件（实测报 `IsUrlFileExist failed` / `invalidFileUrl`），
-            // 沙箱里的课件就打不开（2026-09-28 真机实测）
-            .fileAccess(true)
-            .onPageEnd((event: OnPageEndEvent) => {
-              // ArkWeb 加载结束：有这条日志才说明本地文件确实被交到渲染器手里
-              Logger.info('filePreview', '预览加载结束');
-            })
-            .onErrorReceive((event: OnErrorReceiveEvent) => {
-              Logger.warn('filePreview', `预览加载出错 code=${event.error.getErrorCode()}`);
-            })
-        }
       }
       .width('100%')
       .padding(16)
     }
     .width('100%')
     .height('100%')
+    }
   }
 
   /** 下载按钮的文案：下载 / 下载中… / 已下载 */

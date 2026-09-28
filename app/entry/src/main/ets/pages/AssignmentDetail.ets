@@ -20,9 +20,9 @@ import { Attachment } from '../model/attachment';
 import { AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';
 import { TextKeys, textKeyOfRelativeDeadline, textKeyOfCompletionType, textKeyOfSubmissionType, textKeyOfGradeLevel } from '../common/texts';
 import { showToast } from '../components/toast';
+import { PreviewPane } from '../components/PreviewPane';
 import { emptyView } from '../components/StateView';
 import { common } from '@kit.AbilityKit';
-import { webview } from '@kit.ArkWeb';
 import { LearnFile, attachmentFileOf, canPreviewInApp } from '../model/file';
 import { FileStore } from '../viewmodel/fileStore';
 import { Logger } from '../common/logger';
@@ -56,11 +56,12 @@ export struct AssignmentDetailView {
    * 应用内预览是"打开附件"唯一可用的路径（附件同样要能看）。
    */
   @State private previewUri: string = '';
+  /** 正在预览的附件（非 null 即处于预览态）；关闭预览时清空 */
+  @State private attachmentOfPreview: Attachment | null = null;
   /** 正在处理的附件 id（用于按钮禁用与"下载中…"文案） */
   @State private busyAttachment: string = '';
   /** 本次会话里已下载成功的附件 id（用于行内"已下载"标记；重启后由文件系统判定） */
   @State private downloadedIds: string[] = [];
-  private webController: webview.WebviewController = new webview.WebviewController();
 
   private store: AssignmentStore = AssignmentStore.getInstance();
 
@@ -90,8 +91,40 @@ export struct AssignmentDetailView {
     .backgroundColor($r('app.color.bg_page'))
   }
 
+  /** 预览态：整页只有预览面板（与文件详情同一套组件与行为，见 docs/specs/pdf-preview.md §2.6） */
+  @Builder
+  previewOnly(attachment: Attachment, assignment: Assignment) {
+    Column() {
+      PreviewPane({
+        uri: this.previewUri,
+        onClose: () => {
+          this.previewUri = '';
+        },
+        onOpenExternal: () => {
+          // 附件已在沙箱（预览前已下载）：直接交给系统应用，失败如实提示
+          const context: common.UIAbilityContext =
+            this.getUIContext().getHostContext() as common.UIAbilityContext;
+          FileStore.getInstance().openAttachment(
+            attachmentFileOf(attachment, assignment.courseId, assignment.courseName,
+              assignment.courseTeacherName), assignment.id, context)
+            .catch(() => {
+              showToast($r('app.string.' + TextKeys.FILE_OPEN_FAILED));
+            });
+        }
+      })
+    }
+    .width('100%')
+    .height('100%')
+    .padding(16)
+  }
+
   @Builder
   detail(assignment: Assignment) {
+    // 预览态**独占页面**：进入预览后收起作业内容，把空间留给文件本身
+    // **不能写 `return`**：ArkUI 的 @Builder 里只允许 UI 语法，故用 if/else 分流
+    if (this.previewUri.length > 0 && this.attachmentOfPreview !== null) {
+      this.previewOnly(this.attachmentOfPreview as Attachment, assignment)
+    } else {
     Scroll() {
       Column({ space: 12 }) {
         Row({ space: 8 }) {
@@ -194,24 +227,13 @@ export struct AssignmentDetailView {
             })
         }
 
-        // 附件/文件的应用内预览（仅在"点开了可预览的附件"时出现）
-        if (this.previewUri.length > 0) {
-          Web({ src: this.previewUri, controller: this.webController })
-            .width('100%')
-            .height(720)
-            // `fileAccess` 必须显式打开（API 12 起默认关闭），否则本地文件被拒，
-            // 见 OPERATIONS §7.7
-            .fileAccess(true)
-            .onErrorReceive((event: OnErrorReceiveEvent) => {
-              Logger.warn('assignmentPreview', `预览加载出错 code=${event.error.getErrorCode()}`);
-            })
-        }
       }
       .width('100%')
       .padding(16)
     }
     .width('100%')
     .height('100%')
+    }
   }
 
   private retryDetail(): void {
@@ -329,6 +351,7 @@ export struct AssignmentDetailView {
       if (canPreviewInApp(file.fileType)) {
         const uri: string = store.previewUriOfAttachment(file, assignment.id, context);
         if (uri.length > 0) {
+          this.attachmentOfPreview = attachment;
           this.previewUri = uri;
           return;
         }
