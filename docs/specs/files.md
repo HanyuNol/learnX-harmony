@@ -115,7 +115,7 @@
 - [x] T4 `native/fileAdapter.ets` + `repository/fileRepository.ets` + `viewmodel/fileStore.ets`
 - [x] T5 `pages/Files.ets` + `FileDetail.ets` + `Main`/`CourseDetail` 接线
 - [x] 文档同步：PRD FR-08 状态、`API.md` §2.4（文件端点与"第三个信封"）、CHANGELOG 未发布段
-- [ ] T6 验收（见 §5）：**自动化部分已过；设备部分尚未做**（原因同 assignments spec §5）
+- [x] T6 验收（见 §5）：**自动化已过；设备项已于 2026-09-28 在模拟器上按真实账号走通**（列表/详情/分类筛选/下载/打开），仍未构造的是错误态与断网面
 
 > 实现期的两处判断，在此留痕：
 > ① "下载"与"打开"做成**两个按钮**（spec §2.3 的两个动作），而不是一个"下载并打开"——
