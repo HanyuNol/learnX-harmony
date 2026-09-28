@@ -49,6 +49,8 @@ export struct SettingsView {
   onOpenAbout?: () => void;
   /** 打开"个人信息"。同上 */
   onOpenProfile?: () => void;
+  /** 打开**全局搜索**（漏传＝点了没反应） */
+  onOpenSearch?: () => void;
 
   /** 当前主题模式。仅本页关心，故用页内状态 */
   @State private themeMode: ThemeMode = ThemeMode.FOLLOW_SYSTEM;
@@ -157,6 +159,21 @@ export struct SettingsView {
   @Builder
   content() {
     Column() {
+      // 搜索入口：与其它标签页一致，是**可见的文字按钮**
+      Row({ space: 8 }) {
+        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
+          .fontSize(14)
+          .onClick(() => {
+            const open: (() => void) | undefined = this.onOpenSearch;
+            if (open !== undefined) {
+              open();
+            }
+          })
+        Blank()
+      }
+      .width('100%')
+      .padding({ top: 8 })
+
       Text($r('app.string.' + TextKeys.SETTINGS_THEME_TITLE))
         .fontSize(14)
         .fontColor($r('app.color.text_secondary'))

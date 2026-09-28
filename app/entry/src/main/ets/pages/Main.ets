@@ -248,22 +248,6 @@ export struct MainView {
     this.routeOf(this.settingsStack, name, param)
   }
 
-  /**
-   * 五个标签页共用的搜索入口（标题栏右侧放大镜）。
-   *
-   * `Navigation.menus` 收的是 **`NavigationMenuItem` 对象数组**（不是组件），故这里构造对象；
-   * 搜索推在**本栈**上，返回即回原页面。
-   */
-  private searchMenuItem(stack: NavPathStack): NavigationMenuItem {
-    return {
-      value: '',
-      icon: $r('sys.symbol.magnifyingglass'),
-      action: () => {
-        stack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
-      }
-    };
-  }
-
   build() {
     Column() {
       // 登出未完成一类错误在此呈报（原先挂在入口占位页上，随页签迁移到这里）
@@ -280,6 +264,9 @@ export struct MainView {
         TabContent() {
           Navigation(this.noticesStack) {
             NoticeListTab({
+              onOpenSearch: () => {
+                this.noticesStack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+              },
               onOpenNotice: (noticeId: string) => {
                 this.noticesStack.pushPath({
                   name: NOTICE_DETAIL_DESTINATION,
@@ -289,7 +276,6 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_NOTICES))
-          .menus([this.searchMenuItem(this.noticesStack)])
           .navDestination(this.noticesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_NOTICES))
@@ -297,6 +283,9 @@ export struct MainView {
         TabContent() {
           Navigation(this.assignmentsStack) {
             AssignmentListTab({
+              onOpenSearch: () => {
+                this.assignmentsStack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+              },
               onOpenAssignment: (assignmentId: string) => {
                 this.assignmentsStack.pushPath({
                   name: ASSIGNMENT_DETAIL_DESTINATION,
@@ -306,7 +295,6 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
-          .menus([this.searchMenuItem(this.assignmentsStack)])
           .navDestination(this.assignmentsDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_ASSIGNMENTS))
@@ -314,6 +302,9 @@ export struct MainView {
         TabContent() {
           Navigation(this.filesStack) {
             FileListTab({
+              onOpenSearch: () => {
+                this.filesStack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+              },
               onOpenFile: (fileId: string) => {
                 this.filesStack.pushPath({
                   name: FILE_DETAIL_DESTINATION,
@@ -323,7 +314,6 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_FILES))
-          .menus([this.searchMenuItem(this.filesStack)])
           .navDestination(this.filesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_FILES))
@@ -331,6 +321,9 @@ export struct MainView {
         TabContent() {
           Navigation(this.coursesStack) {
             CourseListTab({
+              onOpenSearch: () => {
+                this.coursesStack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+              },
               onOpenCourse: (courseId: string) => {
                 this.coursesStack.pushPath({
                   name: COURSE_DETAIL_DESTINATION,
@@ -340,7 +333,6 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_COURSES))
-          .menus([this.searchMenuItem(this.coursesStack)])
           .navDestination(this.coursesDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_COURSES))
@@ -348,6 +340,9 @@ export struct MainView {
         TabContent() {
           Navigation(this.settingsStack) {
             SettingsView({
+              onOpenSearch: () => {
+                this.settingsStack.pushPath({ name: SEARCH_DESTINATION, param: new SearchParam('', '') });
+              },
               onOpenSemesters: () => {
                 this.settingsStack.pushPath({ name: SEMESTER_DESTINATION });
               },
@@ -360,7 +355,6 @@ export struct MainView {
             })
           }
           .title($r('app.string.' + TextKeys.TAB_SETTINGS))
-          .menus([this.searchMenuItem(this.settingsStack)])
           .navDestination(this.settingsDetail)
         }
         .tabBar($r('app.string.' + TextKeys.TAB_SETTINGS))

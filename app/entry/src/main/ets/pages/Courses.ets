@@ -12,12 +12,15 @@ import { Course } from '../model/course';
 import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
+import { TextKeys } from '../common/texts';
 import { emptyView, errorView, loadingView } from '../components/StateView';
 
 @Component
 export struct CourseListTab {
   /** 打开课程详情。由持有课程标签栈的 `Main` 提供——页面不自己造路由栈 */
   onOpenCourse?: (courseId: string) => void;
+  /** 打开**全局搜索**（漏传＝点了没反应） */
+  onOpenSearch?: () => void;
 
   @State private fetching: boolean = false;
   @State private courses: Course[] = [];
@@ -49,6 +52,21 @@ export struct CourseListTab {
 
   build() {
     Column() {
+      // 搜索入口：**可见的文字按钮**（标题栏菜单项在设备上不显示符号，用户实测反馈）
+      Row({ space: 8 }) {
+        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
+          .fontSize(14)
+          .onClick(() => {
+            const open: (() => void) | undefined = this.onOpenSearch;
+            if (open !== undefined) {
+              open();
+            }
+          })
+        Blank()
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+
       if (this.errorReason !== null && this.courses.length === 0) {
         errorView(this.errorReason as FailReason, () => {
           this.store.refresh(this.semesterStore.snapshot().current);

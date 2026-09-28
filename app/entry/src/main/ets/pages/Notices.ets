@@ -28,6 +28,8 @@ export const NOTICE_DETAIL_DESTINATION: string = 'notice-detail';
 export struct NoticeListTab {
   /** 非空时只显示该课程的通知（课程详情的页签用） */
   @Prop courseId: string = '';
+  /** 打开**全局搜索**。由持有本栈的 `Main` 提供（漏传＝点了没反应） */
+  onOpenSearch?: () => void;
   /** 打开通知详情。由持有通知栈的 `Main` 提供 */
   onOpenNotice?: (noticeId: string) => void;
 
@@ -93,27 +95,38 @@ export struct NoticeListTab {
 
   build() {
     Column() {
+      filterBar({
+        choices: this.choices(),
+        selected: this.filter,
+        onSelect: (value: string) => {
+          // 取值就是 `NoticeFilter` 的字面量，故可直接放回（筛选状态留在本页）
+          this.filter = value === NoticeFilter.UNREAD ? NoticeFilter.UNREAD : NoticeFilter.ALL;
+        }
+      })
+
       Row({ space: 8 }) {
-        filterBar({
-          choices: this.choices(),
-          selected: this.filter,
-          onSelect: (value: string) => {
-            // 取值就是 `NoticeFilter` 的字面量，故可直接放回（筛选状态留在本页）
-            this.filter = value === NoticeFilter.UNREAD ? NoticeFilter.UNREAD : NoticeFilter.ALL;
-          }
-        })
-        Blank()
         // 让"点了刷新"有可见反馈：在途时给一行文字（数据没变时界面本来就看不出差别）
         if (this.fetching) {
           Text($r('app.string.' + TextKeys.LIST_REFRESHING))
             .fontSize(12)
             .fontColor($r('app.color.text_secondary'))
         }
+        // 搜索入口：**可见的文字按钮**（标题栏菜单项在设备上既不显示符号、文字也不进节点树，
+        // 2026-09-28 用户实测反馈"没有符号"）
+        Button($r('app.string.' + TextKeys.SEARCH_TITLE))
+          .fontSize(14)
+          .onClick(() => {
+            const open: (() => void) | undefined = this.onOpenSearch;
+            if (open !== undefined) {
+              open();
+            }
+          })
         Button($r('app.string.' + TextKeys.NOTICE_REFRESH))
           .fontSize(14)
           .onClick(() => {
             this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
           })
+        Blank()
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 8, bottom: 8 })
