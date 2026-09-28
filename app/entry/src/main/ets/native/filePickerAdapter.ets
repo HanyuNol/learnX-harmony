@@ -203,3 +203,12 @@ export function existsAt(uri: string): boolean {
     return false;
   }
 }
+
+/** 外部 URI 处文件的字节数；不存在或读不到返回 -1 */
+export function sizeAtUri(uri: string): number {
+  try {
+    return fs.statSync(uri).size;
+  } catch (err) {
+    return -1;
+  }
+}

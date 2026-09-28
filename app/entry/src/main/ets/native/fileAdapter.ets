@@ -173,3 +173,12 @@ export function readAllBytes(path: string): ArrayBuffer {
     fs.closeSync(file);
   }
 }
+
+/** 沙箱文件的字节数；不存在或读不到返回 -1（调用方据此判定"不可复用"） */
+export function sizeOf(path: string): number {
+  try {
+    return fs.statSync(path).size;
+  } catch (err) {
+    return -1;
+  }
+}

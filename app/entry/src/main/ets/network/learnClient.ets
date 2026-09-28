@@ -50,6 +50,7 @@ import { parseNoticeList } from './parseNotice';
 import { parseAssignmentDescription, parseAssignmentList, parseAssignmentAttachments } from './parseAssignment';
 import { parseFileCategoryList, parseFileList } from './parseFile';
 import { MultipartFile, buildMultipartBody } from './multipart';
+import { ReloginPlan, reloginPlan } from './sessionPolicy';
 import { Assignment, AssignmentAttachments } from '../model/assignment';
 import { LearnFile } from '../model/file';
 import { Notice } from '../model/notice';
@@ -615,12 +616,7 @@ export class LearnClient {
       return first;
     }
 
-    const credentials: Credentials | null = this.credentials;
-    if (credentials === null) {
-      throw authFailed('会话已失效，且本地无凭据可自动重登');
-    }
-
-    await this.reloginOnce(credentials);
+    await this.reloginForRetry();
 
     const second: HttpResult = await this.get(url);
     if (this.isExpired(second)) {
@@ -795,12 +791,8 @@ export class LearnClient {
     let data: ArrayBuffer = first.data;
 
     if (status === 403) {
-      const credentials: Credentials | null = this.credentials;
-      if (credentials === null) {
-        throw authFailed('会话已失效，且本地无凭据可自动重登');
-      }
       Logger.info(TAG, '下载遇会话失效，尝试自动重登后重试');
-      await this.reloginOnce(credentials);
+      await this.reloginForRetry();
       const second: ByteResult = await this.getBytes(url, onProgress);
       status = second.status;
       data = second.data;
@@ -906,6 +898,27 @@ export class LearnClient {
       throw fromStatusCode(result.status, '获取当前学期');
     }
     return parseCurrentSemesterId(result.body);
+  }
+
+  /**
+   * 会话失效后"重登一次再重试本次请求"的统一入口。
+   *
+   * **先看在途、再看凭据**（次序见 `network/sessionPolicy`）：重登流程会把
+   * `this.credentials` 清空，若先判凭据，并发的其它请求会在重登窗口里误判成"无凭据可重登"
+   * 而直接失败（2026-09-28 代码审查 🟡 M2）。
+   */
+  private async reloginForRetry(): Promise<void> {
+    const plan: ReloginPlan = reloginPlan(this.reloginInFlight !== null, this.credentials !== null);
+    if (plan === ReloginPlan.JOIN_IN_FLIGHT) {
+      Logger.info(TAG, '已有重登在途，等它完成后重试本次请求');
+      await this.reloginInFlight;
+      return;
+    }
+    if (plan === ReloginPlan.START) {
+      await this.reloginOnce(this.credentials as Credentials);
+      return;
+    }
+    throw authFailed('会话已失效，且本地无凭据可自动重登');
   }
 
   /** 自动重登：并发下共享同一次登录（见 `reloginInFlight` 的说明） */

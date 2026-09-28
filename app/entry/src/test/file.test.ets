@@ -8,7 +8,8 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
   FileReadFilter, LearnFile, PROGRESS_UNKNOWN, attachmentFileOf, canPreviewInApp, downloadFileName,
-  extensionOf, filterByRead, percentOf, sanitizePathSegment, sortFiles, titleOfFileName
+  canReuseExisting, extensionOf, filterByRead, percentOf, sanitizePathSegment, sortFiles,
+  titleOfFileName
 } from '../main/ets/model/file';
 import { Attachment } from '../main/ets/model/attachment';
 import { mimeOfExtension } from '../main/ets/common/mime';
@@ -162,6 +163,19 @@ export default function fileTest() {
 
       it('负数已收视为未知，不显示负进度', 0, () => {
         expect(percentOf(-5, 1000)).assertEqual(PROGRESS_UNKNOWN);
+      });
+    });
+
+    describe('已存在文件能否复用', () => {
+
+      it('体积一致才算"同一份"；体积未知一律不复用', 0, () => {
+        // 自定义下载目录是平铺的、路径里没有文件 id：不同课程的同名文件会撞到同一路径，
+        // 只看"存在与否"会把别人的文件当自己的复用（审查 🟡 M3）
+        expect(canReuseExisting(1024, 1024)).assertTrue();
+        expect(canReuseExisting(1024, 2048)).assertFalse();
+        // 体积未知（如作业附件 rawSize=0）：不猜，宁可不复用
+        expect(canReuseExisting(1024, 0)).assertFalse();
+        expect(canReuseExisting(0, 0)).assertFalse();
       });
     });
 

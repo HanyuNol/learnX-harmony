@@ -10,11 +10,14 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
+import { LearnFile, canReuseExisting, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
-import { ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, writeBytes, readAllBytes, removeFile, decodePrefix, openFile, describeError } from '../native/fileAdapter';
-import { existsAt, removeAtUri, saveAs, writeIntoFolder } from '../native/filePickerAdapter';
+import {
+  ensureDir, ensureFilesRoot, filesRoot, filesRoots, fileExists, sizeOf, writeBytes, readAllBytes,
+  removeFile, decodePrefix, openFile, describeError
+} from '../native/fileAdapter';
+import { existsAt, removeAtUri, saveAs, sizeAtUri, writeIntoFolder } from '../native/filePickerAdapter';
 import { readCustomDownloadDir, readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
 import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
@@ -163,15 +166,21 @@ export class FileRepository {
       // 用户选了自定义目录：**平铺**放进去，不建子目录——外部目录不保证允许建目录，
       // 平铺也正是用户在"下载"里期待的样子
       path = `${customDir}/${encodeURIComponent(fileName)}`;
-      if (!forceRefresh && existsAt(path)) {
-        Logger.info(TAG, `文件已在自定义目录，直接复用 id=${file.id}`);
+      // 平铺意味着路径里**没有文件 id**：同名不同文件会撞到同一路径，故复用前必须
+      // 能证明"这就是同一份"（体积一致），否则重下覆盖（见 model/file.canReuseExisting 的说明）
+      if (!forceRefresh && canReuseExisting(sizeAtUri(path), file.rawSize)) {
+        Logger.info(TAG, `文件已在自定义目录且体积一致，直接复用 id=${file.id}`);
         return path;
+      }
+      if (!forceRefresh && existsAt(path)) {
+        Logger.warn(TAG, `自定义目录已有同名文件但体积不符（文件 id=${file.id}），重下覆盖`);
       }
     } else {
       const root: string = ensureFilesRoot(context, readUseDocumentDir(context));
       const directory: string = `${root}/${relativeDir}`;
       ensureDir(directory);
       path = `${directory}/${fileName}`;
+      // 沙箱路径含文件 id 目录，同名不会撞车，存在即可复用
       if (!forceRefresh && fileExists(path)) {
         Logger.info(TAG, `文件已在本地，直接复用 id=${file.id}`);
         return path;
@@ -199,11 +208,19 @@ export class FileRepository {
       throw authFailed('下载端点返回了跳转页面（会话可能已失效）');
     }
 
-    if (customDir.length > 0) {
-      // 外部目录用被授权 URI 写（`writeIntoFolder` 会拼子路径），不能走沙箱的 fs 路径写法
-      writeIntoFolder(customDir, fileName, data);
-    } else {
-      writeBytes(path, data);
+    try {
+      if (customDir.length > 0) {
+        // 外部目录用被授权 URI 写（`writeIntoFolder` 会拼子路径），不能走沙箱的 fs 路径写法
+        writeIntoFolder(customDir, fileName, data);
+      } else {
+        writeBytes(path, data);
+      }
+    } catch (err) {
+      // **写失败要清理**：留下的 0 字节/半截文件会被下次的"存在即复用"当成好东西
+      // （2026-09-28 代码审查 🟡 M4）
+      FileRepository.removeAt(customDir, path);
+      Logger.warn(TAG, `写盘失败，已清理半截文件 id=${file.id} ${describeError(err)}`);
+      throw normalize(err, '写入下载文件');
     }
     Logger.info(TAG, `${kind}已下载 id=${file.id} 字节=${data.byteLength} 路径长度=${path.length}`);
     return path;
@@ -218,16 +235,25 @@ export class FileRepository {
     }
   }
 
-  /** 该文件在**自定义目录**里的路径（未设置自定义目录返回空串） */
+  /**
+   * 该文件在**自定义目录**里的路径（未设置自定义目录返回空串）。
+   *
+   * **两种命名都看**（与沙箱侧一致）：用户切换过"省略课程名前缀"后，旧文件仍按旧命名存在，
+   * 只看当前命名会误判成"未下载"（2026-09-28 代码审查 🟡 M10）。
+   */
   static customPathOf(file: LearnFile, context: common.Context): string {
     const customDir: string = readCustomDownloadDir(context);
     if (customDir.length === 0) {
       return '';
     }
-    const name: string = downloadFileName(file.courseName, file.title, file.fileType,
-      readOmitCourseName(context));
-    const path: string = `${customDir}/${encodeURIComponent(name)}`;
-    return existsAt(path) ? path : '';
+    for (const omit of [readOmitCourseName(context), !readOmitCourseName(context)]) {
+      const name: string = downloadFileName(file.courseName, file.title, file.fileType, omit);
+      const path: string = `${customDir}/${encodeURIComponent(name)}`;
+      if (existsAt(path)) {
+        return path;
+      }
+    }
+    return '';
   }
 
   /** 沙箱里的文件路径（按**当前偏好**算，不下载；判定"已下载"用 `isDownloaded`） */

@@ -314,3 +314,15 @@ export function buildFileRows(files: LearnFile[], grouped: boolean): FileRow[] {
 
 /** 未分类分组的占位标题（界面据此换成"未分类"文案；用哨兵避免与真实分类名撞车） */
 export const UNCATEGORIZED_MARKER: string = '__uncategorized__';
+
+/**
+ * "已存在的那份能不能直接复用"的判据。
+ *
+ * 为什么不能只看"路径上有没有文件"（2026-09-28 代码审查 🟡 M3）：自定义下载目录是**平铺**的，
+ * 路径里没有文件 id，于是不同课程的同名文件会落到同一路径——只看存在与否，就会把**别人的文件**
+ * 当成自己的复用（用户拿到错误内容）或静默覆盖。这里要求**体积对得上**才算同一份；
+ * 体积未知（`expectedSize <= 0`，例如作业附件）时**一律不复用**，宁可重下一遍。
+ */
+export function canReuseExisting(existingSize: number, expectedSize: number): boolean {
+  return expectedSize > 0 && existingSize === expectedSize;
+}
