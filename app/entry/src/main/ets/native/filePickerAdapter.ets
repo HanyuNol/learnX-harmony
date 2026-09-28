@@ -69,8 +69,10 @@ export async function pickFile(context: common.UIAbilityContext): Promise<Picked
     Logger.info(TAG, '打开文件选择器');
     uris = await new picker.DocumentViewPicker(context).select(options);
   } catch (err) {
-    // 取消会走到这里（错误码 13900020 一类），不是失败
-    Logger.info(TAG, `选择文件未完成 ${(err as BusinessError).code}`);
+    // 选择器的 SDK 文档**没有定义"用户取消"的错误码**，无法据此区分取消与真实故障，
+    // 故仍按"未选择"返回（避免把取消弹成错误）；但日志提到 WARN 并留错误码，
+    // 真故障时至少**可追溯**而不是彻底静默（2026-09-28 代码审查 M8 的部分处置）
+    Logger.warn(TAG, `选择文件未完成或失败 code=${(err as BusinessError).code}`);
     return null;
   }
   if (uris.length === 0) {
@@ -100,7 +102,7 @@ export async function pickFolder(context: common.UIAbilityContext): Promise<stri
     Logger.info(TAG, '打开目录选择器');
     uris = await new picker.DocumentViewPicker(context).select(options);
   } catch (err) {
-    Logger.info(TAG, `选择目录未完成 ${(err as BusinessError).code}`);
+    Logger.warn(TAG, `选择目录未完成或失败 code=${(err as BusinessError).code}`);
     return null;
   }
   if (uris.length === 0) {
@@ -173,7 +175,7 @@ export async function saveAs(suggestedName: string, data: ArrayBuffer,
   try {
     uris = await new picker.DocumentViewPicker(context).save(options);
   } catch (err) {
-    Logger.info(TAG, `另存为未完成 ${(err as BusinessError).code}`);
+    Logger.warn(TAG, `另存为未完成或失败 code=${(err as BusinessError).code}`);
     return false;
   }
   if (uris.length === 0) {

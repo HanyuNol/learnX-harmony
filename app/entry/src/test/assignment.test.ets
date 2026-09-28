@@ -112,6 +112,13 @@ export default function assignmentTest() {
         expect(requireRelative(deadline, deadline).past).assertFalse();
       });
 
+      it('恰好到点时报 0（不再多报"还剩 1 分钟"）', 0, () => {
+        const deadline: number = 5000;
+        const atDeadline: RelativeDeadline = requireRelative(deadline, deadline);
+        expect(atDeadline.past).assertFalse();
+        expect(atDeadline.value).assertEqual(0);
+      });
+
       it('时间未知（0）返回 null —— 不猜', 0, () => {
         expect(relativeDeadlineOf(0, 999999) === null).assertTrue();
       });

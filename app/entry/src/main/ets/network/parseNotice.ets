@@ -28,6 +28,23 @@ function str(field: Object | undefined): string {
 }
 
 /**
+ * 取数字字段；非数字退让为 `fallback`。
+ *
+ * `sfqd`（重要标记）在学生形态是**数字**、教师形态是字符串，故必须用 `Number` 归一——
+ * 按字符串读会得到空串、标记恒为 false（2026-09-28 代码审查 m1）。
+ */
+function num(field: Object | undefined, fallback: number): number {
+  if (typeof field === 'number') {
+    return field;
+  }
+  if (typeof field === 'string' && field.trim().length > 0) {
+    const parsed: number = Number(field);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+  return fallback;
+}
+
+/**
  * 解 Base64 正文。
  *
  * 解不出来时**退回原串**而不是空串：宁可显示一串噪声，也不要让用户以为"这条通知没有正文"——
@@ -112,7 +129,9 @@ export function parseNoticeList(body: string, courseId: string, courseName: stri
       decodeHtmlEntities(str(raw['bt'])),
       decodeHtmlEntities(decodeBase64(str(raw['ggnr']))),
       str(raw['sfyd']) === READ_MARKER,
-      Number(str(raw['sfqd'])) === 1,
+      // **必须用 num**：`sfqd` 在学生形态是**数字**，`str()` 会把它变成空串 → 恒 false
+      // （2026-09-28 代码审查 m1；同文件 parseFile 用的就是 num）
+      num(raw['sfqd'], 0) === 1,
       parsePublishTime(publishTimeOf(raw)),
       str(raw['fbrxm']),
       learnNoticeDetailUrl(courseId, str(raw['ggid'])),

@@ -21,6 +21,26 @@ function notice(id: string, publishTime: number, hasRead: boolean): Notice {
 export default function noticeTest() {
   describe('notice', () => {
 
+    describe('重要标记的两种字段形态', () => {
+
+      it('sfqd 为数字（学生形态）也要认出来——按字符串读会恒为 false', 0, () => {
+        // 2026-09-28 代码审查 m1：原实现 `Number(str(sfqd)) === 1`，遇到数字形态得到
+        // Number('') === 0 → 标记恒 false；而夹具里恰好写的是字符串 "1"，把缺陷遮住了
+        const numeric: string = '{"result":"success","object":{"aaData":[{'
+          + '"ggid":"n1","bt":"通知","ggnr":"","sfyd":"否","sfqd":1,"fbsj":"2026-09-01 10:00:00"}]}}';
+        const asNumber: Notice[] = parseNoticeList(numeric, 'c1', '课程甲');
+        expect(asNumber[0].markedImportant).assertTrue();
+
+        const textual: string = '{"result":"success","object":{"aaData":[{'
+          + '"ggid":"n2","bt":"通知","ggnr":"","sfyd":"否","sfqd":"1","fbsj":"2026-09-01 10:00:00"}]}}';
+        expect(parseNoticeList(textual, 'c1', '课程甲')[0].markedImportant).assertTrue();
+
+        const notImportant: string = '{"result":"success","object":{"aaData":[{'
+          + '"ggid":"n3","bt":"通知","ggnr":"","sfyd":"否","sfqd":0,"fbsj":"2026-09-01 10:00:00"}]}}';
+        expect(parseNoticeList(notImportant, 'c1', '课程甲')[0].markedImportant).assertFalse();
+      });
+    });
+
     describe('排序', () => {
 
       it('应按发布时间倒序，同一时间按 id 倒序', 0, () => {

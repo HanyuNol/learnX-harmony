@@ -251,8 +251,10 @@ export function relativeDeadlineOf(deadlineTime: number, now: number): RelativeD
     unit = RelativeUnit.YEAR;
     span = YEAR_MS;
   }
-  // 向下取整：说"还剩"时不能多报，说"已过"时也不能夸大
-  const value: number = Math.max(1, Math.floor(delta / span));
+  // 向下取整：说"还剩"时不能多报，说"已过"时也不能夸大。
+  // **恰好到点（delta === 0）报 0**：原先 `Math.max(1, …)` 会显示成"还剩 1 分钟"，
+  // 与 isPast"等于截止不算过期"的口径合起来读像是"还有一分钟"（2026-09-28 审查 m9）
+  const value: number = delta === 0 ? 0 : Math.max(1, Math.floor(delta / span));
   return new RelativeDeadline(past, value, unit);
 }
 

@@ -140,22 +140,34 @@ async function generateFingerPrint(): Promise<string> {
 
 export class CredentialStore {
   /**
-   * 保存凭据。`rememberPassword` 为 false 时只保存学号与指纹，
-   * 下次启动需要用户重新输入密码。
+   * 保存凭据。`rememberPassword` 为 false 时只保存学号与指纹，下次启动需用户重新输入密码。
+   *
+   * **次序是 fail-closed**（2026-09-28 代码审查 🟡 M7）：先删掉"不该留的"密码，再写其余。
+   * 原先是"先写学号+指纹、最后才处理密码"——若密码那一步失败（存储故障/配额），
+   * 会留下**与用户选择相悖**的状态：未勾选"记住密码"却仍有旧密码残留（下次启动被静默复用），
+   * 或"新学号 + 旧密码"。现在任何失败路径都不允许密码残留。
    */
   static async save(credentials: Credentials, rememberPassword: boolean): Promise<void> {
     try {
+      if (!rememberPassword) {
+        // 先删：这一步失败就直接失败，绝不进入"已写学号但密码还在"的中间态
+        await removeIfPresent(ALIAS_PASSWORD);
+      }
       await upsert(ALIAS_USERNAME, credentials.username);
       await upsert(ALIAS_FINGER_PRINT, credentials.fingerPrint);
       if (rememberPassword) {
         await upsert(ALIAS_PASSWORD, credentials.password);
-      } else {
-        await removeIfPresent(ALIAS_PASSWORD);
       }
       // 只记存在性：学号同样不进日志（审查 R-11）
       Logger.info(TAG, `已保存学号 len=${credentials.username.length}`);
       Logger.info(TAG, `保存凭据完成 rememberPassword=${rememberPassword}`);
     } catch (err) {
+      // 补偿：无论哪一步失败，都不留下可能与当前学号不匹配的密码
+      try {
+        await removeIfPresent(ALIAS_PASSWORD);
+      } catch (cleanupErr) {
+        Logger.error(TAG, '保存失败后的密码清理也失败：凭据可能残留，需重试或登出');
+      }
       throw normalize(err, '保存凭据');
     }
   }

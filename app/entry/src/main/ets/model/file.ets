@@ -245,8 +245,9 @@ export function titleOfFileName(name: string): string {
  */
 export function attachmentFileOf(attachment: Attachment, courseId: string, courseName: string,
                                  courseTeacherName: string): LearnFile {
+  // 分类名留空：`model` 不带文案（原先是中文魔法串 '附件'，英文界面/搜索会漏出中文）
   return new LearnFile(attachment.fileId, attachment.fileId, courseId, courseName, courseTeacherName,
-    titleOfFileName(attachment.name), '', '', 0, '', 0, extensionOf(attachment.name), '附件', false, false);
+    titleOfFileName(attachment.name), '', '', 0, '', 0, extensionOf(attachment.name), '', false, false);
 }
 
 /**

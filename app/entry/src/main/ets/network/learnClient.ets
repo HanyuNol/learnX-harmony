@@ -672,7 +672,7 @@ export class LearnClient {
     // 与上游一致的形态：aoData 是一个 JSON 数组的字符串（multipart 表单字段）
     fields.set('aoData', JSON.stringify([{ name: 'wlkcid', value: courseId }]));
 
-    const result: HttpResult = await this.postMultipart(learnNoticeList(expired), fields);
+    const result: HttpResult = await this.postMultipartReadWithAuth(learnNoticeList(expired), fields);
     if (result.status !== 200) {
       throw fromStatusCode(result.status, '获取通知列表');
     }
@@ -698,7 +698,7 @@ export class LearnClient {
                                      kind: number, submitted: boolean, graded: boolean): Promise<Assignment[]> {
     const fields: Map<string, string> = new Map();
     fields.set('aoData', JSON.stringify([{ name: 'wlkcid', value: courseId }]));
-    const result: HttpResult = await this.postMultipart(learnAssignmentList(kind), fields);
+    const result: HttpResult = await this.postMultipartReadWithAuth(learnAssignmentList(kind), fields);
     if (result.status !== 200) {
       throw fromStatusCode(result.status, '获取作业列表');
     }
@@ -712,7 +712,7 @@ export class LearnClient {
   async fetchAssignmentDescription(baseId: string): Promise<string> {
     const fields: Map<string, string> = new Map();
     fields.set('id', baseId);
-    const result: HttpResult = await this.postMultipart(LEARN_HOMEWORK_DETAIL, fields);
+    const result: HttpResult = await this.postMultipartReadWithAuth(LEARN_HOMEWORK_DETAIL, fields);
     if (result.status !== 200) {
       throw fromStatusCode(result.status, '获取作业详情');
     }
@@ -802,6 +802,25 @@ export class LearnClient {
       throw fromStatusCode(status, '下载文件');
     }
     return data;
+  }
+
+  /**
+   * **只读类** POST 的会话失效处置：403 时自动重登一次再重放（与 `getWithAuth` 对称）。
+   *
+   * 为什么需要它（2026-09-28 代码审查 M9）：通知/作业的列表与正文都是 POST，而原先只有 GET 路径
+   * 会重登——"作业详情重试"这类不经 GET 的路径在会话过期时直接报认证失败，而不是透明重登。
+   *
+   * **提交作业（写操作）刻意不走这里**：重放一次写请求有重复提交的风险，
+   * 宁可让用户看到"提交失败，请重试"，由他自己决定是否再提交。
+   */
+  private async postMultipartReadWithAuth(url: string, fields: Map<string, string>): Promise<HttpResult> {
+    const first: HttpResult = await this.postMultipart(url, fields);
+    if (first.status !== 403) {
+      return first;
+    }
+    Logger.info(TAG, 'POST 遇会话失效，尝试自动重登后重放');
+    await this.reloginForRetry();
+    return this.postMultipart(url, fields);
   }
 
   /**
