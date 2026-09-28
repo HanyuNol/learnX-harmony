@@ -11,6 +11,7 @@
 import { common } from '@kit.AbilityKit';
 import { AuthStore } from '../viewmodel/authStore';
 import { AssignmentStore } from '../viewmodel/assignmentStore';
+import { AssignmentState } from '../viewmodel/assignmentStore';
 import {
   assignmentReminderOffsetMax, changeAssignmentReminder, changeAssignmentReminderNoIfComplete,
   changeAssignmentReminderOffset, changeCustomDownloadDir, changeOmitCourseName, changeThemeMode,
@@ -82,6 +83,8 @@ export struct SettingsView {
   @State private reminderNotificationOn: boolean = true;
   /** 正在对齐系统提醒（含为对齐而补拉作业数据） */
   @State private reminderAligning: boolean = false;
+  /** 上一次对齐**没能把提醒登记进系统**（如系统通知被关、设备不支持）——常驻提示，不是一闪而过的 Toast */
+  @State private reminderFailed: boolean = false;
 
   private store: AuthStore = AuthStore.getInstance();
   /** 对齐提醒要用到"当前已知的作业"；没有数据时要先把作业拉起来（见 `alignReminders`） */
@@ -236,19 +239,27 @@ export struct SettingsView {
   private alignReminders(): void {
     const context: common.ApplicationContext = this.appContext();
     this.reminderAligning = true;
+    this.reminderFailed = false;
     this.assignmentStore.ensureLoadedFor(this.semesterStore.snapshot().current,
       this.courseStore.snapshot().items)
-      .then(() => syncAssignmentReminders(context, this.assignmentStore.snapshot().items))
+      .then(() => {
+        // "完整"=当前学期每门课都取到了；不完整时 syncAssignmentReminders 会一条也不动
+        const state: AssignmentState = this.assignmentStore.snapshot();
+        const complete: boolean = state.totalCourses > 0 && state.failedCourses === 0;
+        return syncAssignmentReminders(context, state.items, complete);
+      })
       .then((result: ReminderSyncResult) => {
         this.reminderAligning = false;
-        // 登记可能因"系统通知被关掉"而失败，顺带刷新这一提示行
+        // 登记可能因"系统通知被关掉 / 系统拒绝登记"而失败，顺带刷新这一提示行
         this.reminderNotificationOn = reminderNotificationsEnabled();
+        this.reminderFailed = result.failed;
         if (result.failed) {
           showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED));
         }
       })
       .catch(() => {
         this.reminderAligning = false;
+        this.reminderFailed = true;
         showToast($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED));
       });
   }
@@ -509,6 +520,17 @@ export struct SettingsView {
         // 系统通知被关掉时**如实说**：提醒登记得上，但弹不出来，用户不该以为"设置好了"
         if (!this.reminderNotificationOn) {
           Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_NOTIFICATION_OFF))
+            .fontSize(12)
+            .fontColor($r('app.color.danger'))
+            .width('100%')
+            .padding({ left: 16, right: 16, top: 4 })
+        }
+
+        // 上一次**没能登记进系统**时也留在界面上（Toast 一闪就没了，
+        // 而"提醒其实没登记上"是用户必须知道的状态——2026-09-28 模拟器实测：
+        // 该模拟器的提醒服务拒绝一切登记，正是靠这条才看得出来）
+        if (this.reminderFailed) {
+          Text($r('app.string.' + TextKeys.SETTINGS_REMINDER_FAILED))
             .fontSize(12)
             .fontColor($r('app.color.danger'))
             .width('100%')

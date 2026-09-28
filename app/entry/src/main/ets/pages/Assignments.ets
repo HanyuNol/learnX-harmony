@@ -82,7 +82,11 @@ export struct AssignmentListTab {
     if (!finished || state.errorReason !== null || state.items.length === 0) {
       return;
     }
-    requestAssignmentReminderSync(this.appContext(), state.items);
+    // "完整"=当前学期**每门课**都取到了（totalCourses 是本次请求的课程数）。
+    // 部分课程失败时传 false：对齐会一条也不动，宁可这份数据晚点生效，
+    // 也不能因为一次部分失败就把用户已登记的提醒撤掉。
+    const complete: boolean = state.totalCourses > 0 && state.failedCourses === 0;
+    requestAssignmentReminderSync(this.appContext(), state.items, complete);
   }
 
   /** 学期变化或课程集变化都要让作业对齐（store 内部有签名比对，不会白拉） */

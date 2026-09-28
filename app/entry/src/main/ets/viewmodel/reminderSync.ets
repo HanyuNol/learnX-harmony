@@ -57,13 +57,16 @@ let chain: Promise<void> = Promise.resolve();
 /**
  * 对齐作业提醒（可 await 的版本）。
  *
- * @param assignments 当前**已知的**作业（`AssignmentStore` 的当前快照）。为空是合法的：
- *   开关关着时正该把已登记的撤干净；开关开着但作业还没加载出来时，则什么也不做
- *   （期望集合为空 → 只撤不留，见 §3.3 第 5 条"关闭即清"的同一逻辑）。
+ * @param assignments 当前**已知的**作业（`AssignmentStore` 的当前快照）。
+ * @param dataComplete 这份作业列表是否**完整可信**（= 当前学期全部课程都取到了）。
+ *   ⚠️ 这一位必须如实传：对齐是"以期望集合为准，多则撤"，而**空集合等于"一条提醒都不要"**。
+ *   数据还没加载、或部分课程请求失败时若照传，会把已登记的提醒**成批撤掉**——
+ *   用户不会看到任何提示，只是提醒突然不响了。故这种情形下**一条也不动**（见 `runSync`）。
+ *   关闭开关是例外：那时"空集合"正是用户的意思，照撤。
  */
-export function syncAssignmentReminders(context: common.Context,
-                                        assignments: Assignment[]): Promise<ReminderSyncResult> {
-  const next: Promise<ReminderSyncResult> = chain.then(() => runSync(context, assignments));
+export function syncAssignmentReminders(context: common.Context, assignments: Assignment[],
+                                        dataComplete: boolean): Promise<ReminderSyncResult> {
+  const next: Promise<ReminderSyncResult> = chain.then(() => runSync(context, assignments, dataComplete));
   chain = next.then((): void => {
   }).catch((): void => {
   });
@@ -76,9 +79,9 @@ export function syncAssignmentReminders(context: common.Context,
  * 作业页只需要"数据落地了，顺手对齐一次"，没有任何 UI 依赖结果，故不返回 Promise——
  * 免得调用方以为该 await 它（await 会把列表渲染卡在系统调用上）。
  */
-export function requestAssignmentReminderSync(context: common.Context,
-                                             assignments: Assignment[]): void {
-  syncAssignmentReminders(context, assignments).catch((err: Error) => {
+export function requestAssignmentReminderSync(context: common.Context, assignments: Assignment[],
+                                              dataComplete: boolean): void {
+  syncAssignmentReminders(context, assignments, dataComplete).catch((err: Error) => {
     Logger.warn(TAG, `提醒对齐未完成 err=${err.message}`);
   });
 }
@@ -88,10 +91,20 @@ export function reminderNotificationsEnabled(): boolean {
   return notificationsEnabled();
 }
 
-async function runSync(context: common.Context, assignments: Assignment[]): Promise<ReminderSyncResult> {
+async function runSync(context: common.Context, assignments: Assignment[],
+                       dataComplete: boolean): Promise<ReminderSyncResult> {
   const enabled: boolean = readAssignmentReminder(context);
   const offsetMinutes: number = readAssignmentReminderOffset(context);
   const noRemindIfComplete: boolean = readAssignmentReminderNoIfComplete(context);
+
+  // 开关开着、但这份作业列表不是"当前学期的全貌"（还没加载出来，或部分课程请求失败）：
+  // **一条也不动**。否则期望集合为空 → 差量会把已登记的提醒成批撤掉，而用户毫不知情
+  // （2026-09-28 推演出的缺陷：部分课程失败是应用明确容忍的常态，见 notices spec §5.2）。
+  // 关闭开关时不走这条路：那时"空集合"正是用户的意思。
+  if (enabled && !dataComplete) {
+    Logger.info(TAG, '作业数据不完整（未加载或部分课程失败），本次不动系统提醒');
+    return new ReminderSyncResult(enabled, 0, 0, false);
+  }
 
   const desired: ReminderEntry[] = enabled
     ? planReminders(assignments, offsetMinutes, noRemindIfComplete, Date.now())
