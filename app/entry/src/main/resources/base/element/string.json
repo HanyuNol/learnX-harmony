@@ -465,6 +465,22 @@
       "value": "下载文件名省略课程名前缀"
     },
     {
+      "name": "settings_changelog",
+      "value": "更新日志"
+    },
+    {
+      "name": "settings_check_update",
+      "value": "检查更新"
+    },
+    {
+      "name": "changelog_empty",
+      "value": "读不到更新日志（打包资源缺失）"
+    },
+    {
+      "name": "update_check_failed",
+      "value": "打不开浏览器，请手动访问项目发布页"
+    },
+    {
       "name": "settings_about",
       "value": "关于与帮助"
     },

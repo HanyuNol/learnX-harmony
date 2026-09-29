@@ -46,6 +46,14 @@ export struct RichTextView {
   raw: string = '';
   /** 相对地址的基址（默认学堂首页） */
   baseUrl: string = LEARN_BASE;
+  /**
+   * 长文档模式：**撑满可用高度、由 Web 内部滚动**，不再按内容量高度（FR-28 的更新日志页用）。
+   *
+   * 为什么要分开：默认的自动高度有上限（`MAX_HEIGHT`），超过就变成"内层 Web 滚动"——
+   * 那个 Web 若又嵌在页面的 `Scroll` 里，会出现内外两层滚动条（很难用）。
+   * 长文档页的用法是"这一页就是这篇文档"，故让它独占高度、自己滚。
+   */
+  fillHeight: boolean = false;
 
   @State private bodyHeight: number = MIN_HEIGHT;
   private controller: webview.WebviewController = new webview.WebviewController();
@@ -167,6 +175,10 @@ ${autoRender}`;
         if (!Number.isFinite(measured) || measured <= 0) {
           return;
         }
+        if (this.fillHeight) {
+          // 长文档模式：高度由页面给（100%），这里只留上面那行日志作为"渲染完成"的证据
+          return;
+        }
         this.bodyHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, measured + 4));
       }).catch((err: Error) => {
       Logger.warn(TAG, `量正文高度失败，用默认高度：${err.message}`);
@@ -181,7 +193,7 @@ ${autoRender}`;
       } else {
         Web({ src: '', controller: this.controller })
           .width('100%')
-          .height(this.bodyHeight)
+          .height(this.fillHeight ? '100%' : this.bodyHeight)
           .backgroundColor(Color.Transparent)
           // 正文只需要图片与排版：脚本由 CSP 与本组件的使用方式共同约束，
           // 打开它是为了 `runJavaScript` 量高度（应用侧注入不受文档 CSP 限制）

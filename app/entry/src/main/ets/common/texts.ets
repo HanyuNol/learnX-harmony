@@ -385,6 +385,14 @@ export class TextKeys {
   static readonly SETTINGS_ABOUT: string = 'settings_about';
   /** 设置页入口：个人信息 */
   static readonly SETTINGS_PROFILE: string = 'settings_profile';
+  /** 设置页入口 / 更新日志页标题：更新日志（FR-28） */
+  static readonly SETTINGS_CHANGELOG: string = 'settings_changelog';
+  /** 设置页入口：检查更新（打开项目的发布页） */
+  static readonly SETTINGS_CHECK_UPDATE: string = 'settings_check_update';
+  /** 更新日志页：资源读不到时的空态 */
+  static readonly CHANGELOG_EMPTY: string = 'changelog_empty';
+  /** 检查更新：打不开浏览器时的提示（含手动访问的指引） */
+  static readonly UPDATE_CHECK_FAILED: string = 'update_check_failed';
   /** 个人信息页：姓名与院系的标题 */
   static readonly PROFILE_ACCOUNT_TITLE: string = 'profile_account_title';
   /** 个人信息页：下载位置小节标题 */

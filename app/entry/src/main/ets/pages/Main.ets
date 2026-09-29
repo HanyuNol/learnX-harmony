@@ -16,6 +16,7 @@
 import { TextKeys } from '../common/texts';
 import { SettingsView } from './Settings';
 import { AboutView, ABOUT_DESTINATION } from './About';
+import { ChangelogView, CHANGELOG_DESTINATION } from './Changelog';
 import { PROFILE_DESTINATION, ProfileView } from './Profile';
 import { SEARCH_DESTINATION, SearchParam, SearchView } from './Search';
 import { SearchKind } from '../model/search';
@@ -201,6 +202,11 @@ export struct MainView {
         AboutView()
       }
       .title($r('app.string.' + TextKeys.SETTINGS_ABOUT))
+    } else if (name === CHANGELOG_DESTINATION) {
+      NavDestination() {
+        ChangelogView()
+      }
+      .title($r('app.string.' + TextKeys.SETTINGS_CHANGELOG))
     } else if (name === PROFILE_DESTINATION) {
       NavDestination() {
         ProfileView()
@@ -365,6 +371,9 @@ export struct MainView {
               },
               onOpenAbout: () => {
                 this.settingsStack.pushPath({ name: ABOUT_DESTINATION });
+              },
+              onOpenChangelog: () => {
+                this.settingsStack.pushPath({ name: CHANGELOG_DESTINATION });
               },
               onOpenProfile: () => {
                 this.settingsStack.pushPath({ name: PROFILE_DESTINATION });

@@ -30,6 +30,7 @@ import { SemesterStore } from '../viewmodel/semesterStore';
 import { CourseStore } from '../viewmodel/courseStore';
 import { pickFolder } from '../native/filePickerAdapter';
 import { supportsFolderSelection } from '../native/deviceAdapter';
+import { openReleasesPage } from '../native/updateAdapter';
 import { ThemeMode } from '../common/theme';
 import { TextKeys } from '../common/texts';
 import { showToast } from '../components/toast';
@@ -61,6 +62,8 @@ export struct SettingsView {
   onOpenSemesters?: () => void;
   /** 打开"关于与帮助"。同上 */
   onOpenAbout?: () => void;
+  /** 打开"更新日志"（FR-28）。同上 */
+  onOpenChangelog?: () => void;
   /** 打开"个人信息"。同上 */
   onOpenProfile?: () => void;
   /** 打开**全局搜索**（漏传＝点了没反应） */
@@ -167,6 +170,21 @@ export struct SettingsView {
     }
     const cut: number = this.customDir.lastIndexOf('/');
     return cut >= 0 ? decodeURIComponent(this.customDir.substring(cut + 1)) : this.customDir;
+  }
+
+  /**
+   * 检查更新（FR-28）：把项目发布页交给系统浏览器。
+   *
+   * 为什么不是应用内比对版本：仓库是 **private**，匿名查 releases 只会拿到 404
+   * （实测），要能查就得把仓库公开或往包里塞令牌（后者是凭据进产物，不做）。
+   * 浏览器里用户通常已登录，看得见有没有新版本。详见 `docs/specs/update-check.md`。
+   */
+  private checkUpdate(): void {
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    openReleasesPage(context).catch(() => {
+      // 设备上没有能打开链接的应用（模拟器上就是这种）：如实提示，并把地址给出来
+      showToast($r('app.string.' + TextKeys.UPDATE_CHECK_FAILED));
+    });
   }
 
   private chooseFolder(): void {
@@ -896,6 +914,45 @@ export struct SettingsView {
         if (open !== undefined) {
           open();
         }
+      })
+
+      // 更新日志（FR-28）：包内那份 CHANGELOG.md 渲染出来的可读页面
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_CHANGELOG))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.chevron_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        const open: (() => void) | undefined = this.onOpenChangelog;
+        if (open !== undefined) {
+          open();
+        }
+      })
+
+      // 检查更新（FR-28）：把发布页交给系统浏览器——仓库是 private，应用内匿名比对版本取不到数据
+      Row() {
+        Text($r('app.string.' + TextKeys.SETTINGS_CHECK_UPDATE))
+          .fontSize(16)
+          .fontColor($r('app.color.text_primary'))
+          .layoutWeight(1)
+        SymbolGlyph($r('sys.symbol.arrow_up_right'))
+          .fontSize(20)
+          .fontColor([$r('app.color.text_secondary')])
+      }
+      .width('100%')
+      .height(56)
+      .padding({ left: 16, right: 16 })
+      .backgroundColor($r('app.color.bg_card'))
+      .onClick(() => {
+        this.checkUpdate();
       })
 
       // 登出：FR-04 的入口（原先挂在入口占位页上，随页签搬到这里）

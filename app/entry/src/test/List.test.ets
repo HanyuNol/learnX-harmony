@@ -30,6 +30,7 @@ import mathTextTest from './mathText.test';
 import scriptResultTest from './scriptResult.test';
 import fileUtdTest from './fileUtd.test';
 import prefetchTest from './prefetch.test';
+import markdownTest from './markdown.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -57,4 +58,5 @@ export default function testsuite() {
   scriptResultTest();
   fileUtdTest();
   prefetchTest();
+  markdownTest();
 }

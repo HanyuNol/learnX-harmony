@@ -244,6 +244,18 @@ node scripts/check-sso-inject.mjs
 并**主动调用被覆盖的 `XMLHttpRequest.prototype.send`**（含 `saveFinger` 路径），
 断言请求体被改写为 `radioVal=是`。已验证它能抓住上述那类缺陷。
 
+### 7.4b 变更日志同步（发版 / 改 CHANGELOG 后必跑）
+
+```bash
+node scripts/sync-changelog.mjs
+```
+
+"更新日志"页（FR-28）读的是**包内**那一份 `resources/rawfile/CHANGELOG.md`——它能离线显示
+"这个版本改了什么"，而仓库对匿名用户不可见（private），联网取根本取不到。
+于是仓库根那份是唯一真源、rawfile 里那份是**构建产物**，必须由这个脚本对齐；
+**漏跑不报错，只表现为"日志里少了刚发的这一段"**（很难注意到），故与 `sync-version.mjs`
+同列。脚本会把换行统一成 LF（`\r` 会让 Markdown 的标题/围栏判定多出尾字符）。
+
 ### 7.5 验收时的三个"看不见"陷阱
 
 - **Toast 不在应用窗口的 UI 节点树里**：它由 ArkUI 挂在 overlay 根节点上，`devecocli ui layout`

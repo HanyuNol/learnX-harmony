@@ -465,6 +465,22 @@
       "value": "Omit course name in downloaded file names"
     },
     {
+      "name": "settings_changelog",
+      "value": "Changelog"
+    },
+    {
+      "name": "settings_check_update",
+      "value": "Check for updates"
+    },
+    {
+      "name": "changelog_empty",
+      "value": "Changelog unavailable (bundled resource missing)"
+    },
+    {
+      "name": "update_check_failed",
+      "value": "Could not open a browser. Please visit the releases page manually."
+    },
+    {
       "name": "settings_about",
       "value": "About & help"
     },
