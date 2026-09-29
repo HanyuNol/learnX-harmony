@@ -11,7 +11,7 @@ export default function shareTextTest() {
   describe('shareText', () => {
 
     it('标题与正文之间空一行', 0, () => {
-      expect(composeShareText('换教室', '这周改到 6A-201')).assertEqual('换教室\n\n这周改到 6A-201');
+      expect(composeShareText('换教室', '这周改到 B-305')).assertEqual('换教室\n\n这周改到 B-305');
     });
 
     it('只有标题或只有正文时不留下孤零零的空行', 0, () => {

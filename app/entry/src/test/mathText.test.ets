@@ -22,7 +22,7 @@ export default function mathTextTest() {
 
       it('纯文本与空串不算有公式', 0, () => {
         expect(containsMath('')).assertFalse();
-        expect(containsMath('这个课换到六教 6A-201')).assertFalse();
+        expect(containsMath('这个课换到示例教学楼 A201')).assertFalse();
       });
 
       it('报出用到的定界符（诊断"是不是定界符没匹配上"）', 0, () => {

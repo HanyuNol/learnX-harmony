@@ -42,7 +42,7 @@ export default function searchTest() {
     });
 
     it('空关键词不命中任何东西（否则等于"全命中"）', 0, () => {
-      const results: SearchResults = searchAll([course('c1', '生物化学', '李珍')],
+      const results: SearchResults = searchAll([course('c1', '示例课程丙', '示例教师甲')],
         [file('f1', 'c1', '讲义')], [notice('n1', 'c1', '通知')], [assignment('a1', 'c1', '作业')],
         '', '');
       expect(results.isEmpty()).assertTrue();
@@ -50,11 +50,11 @@ export default function searchTest() {
     });
 
     it('大小写不敏感，且标题/描述/课程名/教师名任一命中即算', 0, () => {
-      const courses: Course[] = [course('c1', 'Biochemistry', '李珍'), course('c2', '大学物理', '李渭')];
-      expect(searchCourses(courses, 'bio').length).assertEqual(1);
-      expect(searchCourses(courses, 'BIO').length).assertEqual(1);
+      const courses: Course[] = [course('c1', 'SampleCourse', '示例教师甲'), course('c2', '示例课程乙', '示例教师乙')];
+      expect(searchCourses(courses, 'sample').length).assertEqual(1);
+      expect(searchCourses(courses, 'SAMPLE').length).assertEqual(1);
       // 教师名也参与匹配
-      expect(searchCourses(courses, '李渭').length).assertEqual(1);
+      expect(searchCourses(courses, '示例教师乙').length).assertEqual(1);
       expect(searchCourses(courses, '不存在').length).assertEqual(0);
     });
 
@@ -80,11 +80,11 @@ export default function searchTest() {
 
     it('课程内搜索：只出现该课程的条目，且不返回课程结果', 0, () => {
       const results: SearchResults = searchAll(
-        [course('c1', '大学物理B(2)', '李渭')],
-        [file('f1', 'c1', '第五次课'), file('f2', 'c2', '第五次课')],
-        [notice('n1', 'c1', '第五次课调课'), notice('n2', 'c2', '第五次课调课')],
-        [assignment('a1', 'c1', '第五次课作业'), assignment('a2', 'c2', '第五次课作业')],
-        '第五次课', 'c1');
+        [course('c1', '示例课程乙(2)', '示例教师乙')],
+        [file('f1', 'c1', '示例讲义'), file('f2', 'c2', '示例讲义')],
+        [notice('n1', 'c1', '示例讲义调课'), notice('n2', 'c2', '示例讲义调课')],
+        [assignment('a1', 'c1', '示例讲义作业'), assignment('a2', 'c2', '示例讲义作业')],
+        '示例讲义', 'c1');
       expect(results.courses.length).assertEqual(0);
       expect(results.files.length).assertEqual(1);
       expect(results.files[0].id).assertEqual('f1');

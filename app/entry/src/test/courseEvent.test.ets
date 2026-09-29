@@ -80,11 +80,11 @@ export default function courseEventTest() {
 
       it('标题是课程名、起止是这次课的时间、地点照给', 0, () => {
         const plans: CalendarEventPlan[] = planCourseEvents(
-          [session('高等数学', '20260929', '0800', '0950', '六教6A101')], 15, now);
+          [session('示例课程甲', '20260929', '0800', '0950', '示例教学楼A101')], 15, now);
         expect(plans.length).assertEqual(1);
-        expect(plans[0].title).assertEqual('高等数学');
-        expect(plans[0].description).assertEqual('六教6A101');
-        expect(plans[0].location).assertEqual('六教6A101');
+        expect(plans[0].title).assertEqual('示例课程甲');
+        expect(plans[0].description).assertEqual('示例教学楼A101');
+        expect(plans[0].location).assertEqual('示例教学楼A101');
         expect(plans[0].startTime).assertEqual(beijingTimeOf('20260929', '0800'));
         expect(plans[0].endTime).assertEqual(beijingTimeOf('20260929', '0950'));
         expect(plans[0].reminderMinutes).assertEqual(15);
@@ -92,7 +92,7 @@ export default function courseEventTest() {
 
       it('上课提醒关着时不给提醒（null），但日程照写', 0, () => {
         const plans: CalendarEventPlan[] = planCourseEvents(
-          [session('高等数学', '20260929', '0800', '0950', '')], null, now);
+          [session('示例课程甲', '20260929', '0800', '0950', '')], null, now);
         expect(plans.length).assertEqual(1);
         expect(plans[0].reminderMinutes).assertEqual(null);
       });
@@ -100,13 +100,13 @@ export default function courseEventTest() {
       it('已经结束的课不写（结束时刻不晚于当前）', 0, () => {
         const after: number = beijingTimeOf('20260929', '1000');
         const plans: CalendarEventPlan[] = planCourseEvents(
-          [session('高等数学', '20260929', '0800', '0950', '')], 15, after);
+          [session('示例课程甲', '20260929', '0800', '0950', '')], 15, after);
         expect(plans.length).assertEqual(0);
       });
 
       it('日期或时间解析不出的条目跳过（不整批失败）', 0, () => {
         const plans: CalendarEventPlan[] = planCourseEvents([
-          session('高等数学', '20260929', '0800', '0950', ''),
+          session('示例课程甲', '20260929', '0800', '0950', ''),
           session('坏数据', '2026092', '0800', '0950', ''),
           session('坏时间', '20260930', '9999', '0950', '')
         ], 15, now);
@@ -123,10 +123,10 @@ export default function courseEventTest() {
       });
 
       it('键带课程前缀，且同一门课同一天同一时刻只算一条', 0, () => {
-        const first: CourseSession = session('高等数学', '20260929', '0800', '0950', '');
+        const first: CourseSession = session('示例课程甲', '20260929', '0800', '0950', '');
         expect(courseEventKeyOf(first).startsWith(COURSE_KEY_PREFIX)).assertTrue();
         expect(courseEventKeyOf(first)).assertEqual(courseEventKeyOf(
-          session('高等数学', '20260929', '0800', '1005', '')));
+          session('示例课程甲', '20260929', '0800', '1005', '')));
         // 课程前缀与作业前缀不重叠：分属两族，对齐时互不越界
         expect(courseEventKeyOf(first).startsWith(EVENT_KEY_PREFIX)).assertFalse();
       });
@@ -136,13 +136,13 @@ export default function courseEventTest() {
 
       it('取出括号内的数组并映射字段', 0, () => {
         const body: string = jsonpOf(
-          '[{"nr":"高等数学","nq":"20260929","kssj":"0800","jssj":"0950","dd":"六教6A101","fl":"1"}]');
+          '[{"nr":"示例课程甲","nq":"20260929","kssj":"0800","jssj":"0950","dd":"示例教学楼A101","fl":"1"}]');
         const result: ScheduleParseResult = parseScheduleJsonp(body);
         expect(result.rawCount).assertEqual(1);
         expect(result.sessions.length).assertEqual(1);
-        expect(result.sessions[0].courseName).assertEqual('高等数学');
+        expect(result.sessions[0].courseName).assertEqual('示例课程甲');
         expect(result.sessions[0].date).assertEqual('20260929');
-        expect(result.sessions[0].location).assertEqual('六教6A101');
+        expect(result.sessions[0].location).assertEqual('示例教学楼A101');
       });
 
       it('空数组是合法结果', 0, () => {
@@ -153,7 +153,7 @@ export default function courseEventTest() {
 
       it('缺字段的条目跳过，但原始条数如实带出（用于发现"在悄悄丢数据"）', 0, () => {
         const body: string = jsonpOf(
-          '[{"nr":"高等数学","nq":"20260929","kssj":"0800","jssj":"0950"},'
+          '[{"nr":"示例课程甲","nq":"20260929","kssj":"0800","jssj":"0950"},'
           + '{"nr":"缺时间","nq":"20260929","kssj":"","jssj":""},'
           + '{"nr":"","nq":"20260929","kssj":"0800","jssj":"0950"}]');
         const result: ScheduleParseResult = parseScheduleJsonp(body);
@@ -174,7 +174,7 @@ export default function courseEventTest() {
 
       it('课程对齐不碰作业日程（前缀作用域的反向验收）', 0, () => {
         const desired: CalendarEventPlan[] = planCourseEvents(
-          [session('高等数学', '20260929', '0800', '0950', '')], 15, now);
+          [session('示例课程甲', '20260929', '0800', '0950', '')], 15, now);
         const existing: ExistingCalendarEvent[] = [
           existingAssignment(1, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY)
         ];
@@ -187,8 +187,8 @@ export default function courseEventTest() {
       it('作业对齐不碰课程日程', 0, () => {
         // 日历里只有课程日程，作业侧期望为空：只该删"作业族"的，课程族一条都不许删
         const courseEvents: ExistingCalendarEvent[] = [
-          new ExistingCalendarEvent(51, `${COURSE_KEY_PREFIX}202609290800:高等数学`,
-            '高等数学', '六教6A101', now + DAY, 15)
+          new ExistingCalendarEvent(51, `${COURSE_KEY_PREFIX}202609290800:示例课程甲`,
+            '示例课程甲', '示例教学楼A101', now + DAY, 15)
         ];
         const plan: CalendarAlignPlan = alignCalendarEvents([], courseEvents, EVENT_KEY_PREFIX);
         expect(plan.toDelete.length).assertEqual(0);

@@ -252,7 +252,7 @@ export default function reminderTest() {
         const desired: CalendarEventPlan[] = desiredOf(now + DAY, 60, now);
         const otherFamily: ExistingCalendarEvent[] = [
           // 课程日程（另一族）：期望里没有它，但**不属于**作业族，不许删
-          existing(31, 'learnx-course:202609290800:高等数学', '高等数学', now + DAY, 60),
+          existing(31, 'learnx-course:202609290800:示例课程甲', '示例课程甲', now + DAY, 60),
           // 没有标识的（用户自己加的）：同样不碰
           existing(32, '', '用户自己加的日程', now + HOUR, null)
         ];
@@ -265,7 +265,7 @@ export default function reminderTest() {
       it('期望为空时只清本族（作业族清空不碰课程日程）', 0, () => {
         const existingEvents: ExistingCalendarEvent[] = [
           existing(41, `${EVENT_KEY_PREFIX}c1:a`, '作业a - 课程c1', now + DAY, 30),
-          existing(42, 'learnx-course:202609290800:高等数学', '高等数学', now + DAY, 60)
+          existing(42, 'learnx-course:202609290800:示例课程甲', '示例课程甲', now + DAY, 60)
         ];
         const plan: CalendarAlignPlan =
           alignCalendarEvents([], existingEvents, EVENT_KEY_PREFIX);
