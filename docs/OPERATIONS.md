@@ -462,25 +462,51 @@ DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huaw
 > 触发场景：把应用装到**别人的设备**上（自己用 `devecocli run` 装本机不算，见 §8）。
 > **未签名产物装不上别人的机器**——这是 HarmonyOS 的硬约束，不是配置疏漏。
 
-### 9.1 现状（2026-09-28）
+### 9.1 现状
 
-仓库**没有配置签名**：`devecocli build` 会打印
+仓库**不保存签名配置**（`app/build-profile.json5` 里的 `signingConfigs` 保持为空）：
+`devecocli build` 会打印
 `WARN: Will skip sign 'hos_hap'. No signingConfigs profile is configured`，
-产物是**未签名 HAP**，只有在开发者模式下、用同一调试证书的设备才装得上（即 §8 的本机流程）。
+产物是**未签名 HAP**。实测：**模拟器接受未签名包**（§8 的流程一直可用），
+但**真机不行**——真机要的是"账号签发的调试证书 + 把你设备 UDID 写进调试 Profile"的签名包。
 要分发给他人，必须先走下面的签名流程。
+
+> **2026-09-30 实测（本机走通了一次完整的调试签名）**，几个和文档旧说法不同的地方：
+> 1. **前置条件：账号必须完成实名认证**。未实名时 `devecocli signature generate` 直接报
+>    `Users without real-name verification are not supported. Complete real-name verification in AppGallery Connect.`
+>    ——**应用侧无法绕过**（DevEco 图形界面的"自动生成签名"调的是同一套检查）。注意该错误在
+>    "字段缺失"与"明确未实名"两种情况下都会报，故它在 CLI 里无法区分。
+> 2. **命令要在 `app/` 下跑**（工程级 `build-profile.json5` 在那里）。在仓库根跑会报
+>    `Not in a valid project directory (project-level build-profile.json5 not found)`。
+> 3. **它会改写被 git 跟踪的 `app/build-profile.json5`**：写入 `signingConfigs`（证书/Profile 路径
+>    与密钥口令，材料落在 `~/.ohos/config/`）。**这份配置不要提交**（个人签名材料 + 会整篇重排格式）；
+>    做法：出完包 `git checkout app/build-profile.json5` 还原，下次出包再跑一次 `signature generate`
+>    （材料已缓存，几秒钟）。
+> 4. **生成的 Profile 是"按 UDID 白名单"绑定的，且 `type: debug`**：实测白名单里**只有执行
+>    `signature generate` 时连着的那一台设备**（本次是模拟器）。**所以那个签名包只能装那一台设备**——
+>    要让别人装，必须先把他手机的 UDID 加进 AGC 的调试 Profile，再重新生成 + 重新构建。
+> 5. **Profile 有效期实测 365 天**（不是早先写的"约 90 天"；从生成的 Profile 里读出的
+>    `not-before`/`not-after` 相差整 365 天）。
+> 6. **"包真的签上了"有客观判据**：用 SDK 自带的验签工具
+>    `java -jar <SDK>/default/openharmony/toolchains/lib/hap-sign-tool.jar verify-app -inFile <hap> -outCertChain <cer> -outProfile <p7b>`
+>    ——签名包报 `Digest verify result: true, DigestAlgorithm: SHA-256` + `verify-app success`；
+>    未签名包报 `signature not found / No Hap Signing Block before ZIP Central Directory`。
+>    （**别靠"文件名里有 -signed"或"体积变大"判断**：本次两份包体积差异其实来自两次构建的输入不同。）
 
 ### 9.2 方案一：调试签名 + 登记对方设备（人数少、最快）
 
 适用：你自己 + 少数几台设备（分享给同学、同事）。
 约束：**调试证书的有效设备数量有限**（华为开发者账号下可登记的调试设备通常在百台量级），
-调试 Profile **有效期约 90 天**，到期需重新生成并重装。对方也需在手机上打开
-"开发者模式"并允许"通过 USB 安装"。
+调试 Profile **按 UDID 绑定**（白名单外的设备装不上），**有效期实测 365 天**（见 §9.1 注）。
+对方也需在手机上打开"开发者模式"并允许"通过 USB 安装"。
 
 1. 用华为开发者账号登录：`devecocli auth login`（会拉起浏览器授权）；
 2. 连上**自己的**设备生成调试签名材料：`devecocli signature generate`
    （生成调试证书/Profile 并写入工程签名配置）；
 3. 把**对方的设备**登记为调试设备：在 AppGallery Connect 控制台按设备的 **UDID** 添加
-   （手机上看 UDID：设置 → 关于本机，或 `hdc shell bm get -u`），然后重新下载/更新 Profile；
+   （手机上看 UDID：设置 → 关于本机，或 `hdc shell bm get -u`——命令行读 UDID 已验证可用），
+   然后**重新跑一次 `devecocli signature generate`**（它会重新拉取含新设备白名单的 Profile）
+   并重新构建；只加设备不重新生成，包还是装不上对方那台；
 4. 重新构建：`cd app && devecocli build`（此时 `SignHap` 不再跳过）；
 5. 交付产物：把签名后的 HAP 发给对方，他用自己的手机安装（或在开发者模式下用
    `hdc install` 装）。**注意**：调试 Profile 里登记的是特定设备，未登记的设备装不上。
