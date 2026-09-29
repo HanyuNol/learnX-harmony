@@ -483,8 +483,12 @@ DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huaw
 >    做法：出完包 `git checkout app/build-profile.json5` 还原，下次出包再跑一次 `signature generate`
 >    （材料已缓存，几秒钟）。
 > 4. **生成的 Profile 是"按 UDID 白名单"绑定的，且 `type: debug`**：实测白名单里**只有执行
->    `signature generate` 时连着的那一台设备**（本次是模拟器）。**所以那个签名包只能装那一台设备**——
->    要让别人装，必须先把他手机的 UDID 加进 AGC 的调试 Profile，再重新生成 + 重新构建。
+>    `signature generate` 时连着的那一台设备**（本次是模拟器）。**所以那个签名包只能装那一台设备。**
+>    **好消息是登记是自动的**：`signature generate` 会枚举**当前连接的所有设备**、逐个读 UDID
+>    （内部就是 `hdc -t <设备> shell bm get -u`）、再自动 POST 到 AGC 的设备列表
+>    （`DEVICE_ADD_PATH`，设备名形如 `auto_sign_device_No.<随机>`）——**不需要去控制台手工添加**。
+>    故"发给别人"的完整动作是：**把目标手机用 USB 连上（开开发者模式 + USB 调试）→ 重新跑
+>    `signature generate` → 重新 build → 把新的签名 HAP 发出去**。
 > 5. **Profile 有效期实测 365 天**（不是早先写的"约 90 天"；从生成的 Profile 里读出的
 >    `not-before`/`not-after` 相差整 365 天）。
 > 6. **"包真的签上了"有客观判据**：用 SDK 自带的验签工具
@@ -503,10 +507,12 @@ DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huaw
 1. 用华为开发者账号登录：`devecocli auth login`（会拉起浏览器授权）；
 2. 连上**自己的**设备生成调试签名材料：`devecocli signature generate`
    （生成调试证书/Profile 并写入工程签名配置）；
-3. 把**对方的设备**登记为调试设备：在 AppGallery Connect 控制台按设备的 **UDID** 添加
-   （手机上看 UDID：设置 → 关于本机，或 `hdc shell bm get -u`——命令行读 UDID 已验证可用），
-   然后**重新跑一次 `devecocli signature generate`**（它会重新拉取含新设备白名单的 Profile）
-   并重新构建；只加设备不重新生成，包还是装不上对方那台；
+3. **把对方的设备连上这台电脑**（开开发者模式 + USB 调试），然后**重新跑一次
+   `cd app && devecocli signature generate`**：它会把**当前连接的**设备自动登记进账号的调试设备
+   列表（内部枚举 UDID 并 POST 到 AGC，见 §9.1 注 4），然后**重新 `devecocli build`**——
+   只加设备不重新生成，包还是装不上对方那台。
+   备选（不想把对方手机插到这台电脑时）：在 AppGallery Connect 控制台按其 **UDID** 手工添加
+   （UDID 可用 `hdc shell "bm get -u"` 从任意已连接设备读出，该命令已验证），再重新生成 + 重建；
 4. 重新构建：`cd app && devecocli build`（此时 `SignHap` 不再跳过）；
 5. 交付产物：把签名后的 HAP 发给对方，他用自己的手机安装（或在开发者模式下用
    `hdc install` 装）。**注意**：调试 Profile 里登记的是特定设备，未登记的设备装不上。
