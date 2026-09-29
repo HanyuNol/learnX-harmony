@@ -689,11 +689,11 @@
       "value": "Could not save. Please try again."
     },
     {
-      "name": "file_share",
+      "name": "share",
       "value": "Share"
     },
     {
-      "name": "file_share_failed",
+      "name": "share_failed",
       "value": "Could not share. Please try again."
     },
     {

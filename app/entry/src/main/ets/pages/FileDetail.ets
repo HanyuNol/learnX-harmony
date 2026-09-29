@@ -262,7 +262,7 @@ export struct FileDetailView {
               this.saveAsFile(file);
             })
           // **分享**：交给系统分享面板（发给别人/存到网盘）——另存为出不了这台设备
-          Button($r('app.string.' + TextKeys.FILE_SHARE))
+          Button($r('app.string.' + TextKeys.SHARE))
             .fontSize(16)
             .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
@@ -340,7 +340,7 @@ export struct FileDetailView {
    */
   private shareFile(file: LearnFile): void {
     this.store.share(file, this.context()).catch(() => {
-      showToast($r('app.string.' + TextKeys.FILE_SHARE_FAILED));
+      showToast($r('app.string.' + TextKeys.SHARE_FAILED));
     });
   }
 

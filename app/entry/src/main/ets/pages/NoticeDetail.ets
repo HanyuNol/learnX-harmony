@@ -9,10 +9,14 @@
  * 让列表的未读标记立刻消失；下次刷新以服务端为准（notices spec §3.3 第 7 条）。
  */
 
-import { Notice, formatPublishDate } from '../model/notice';
+import { common } from '@kit.AbilityKit';
+import { Notice, formatPublishDate, plainText } from '../model/notice';
 import { NoticeStateListener, NoticeStore } from '../viewmodel/noticeStore';
 import { TextKeys } from '../common/texts';
+import { composeShareText } from '../common/shareText';
+import { shareText } from '../native/shareAdapter';
 import { emptyView } from '../components/StateView';
+import { showToast } from '../components/toast';
 import { RichTextView } from '../components/RichTextView';
 
 /** 详情目的地的参数载体 */
@@ -70,6 +74,25 @@ export struct NoticeDetailView {
     .backgroundColor($r('app.color.bg_page'))
   }
 
+  /**
+   * 分享这条通知的正文（FR-23）。
+   *
+   * 正文走 `plainText`（把服务端 HTML 剥成纯文本）——分享出去的必须是**对方能直接读的东西**，
+   * 而不是带标签的 HTML；组装与截断规则在 `common/shareText`（纯函数、有单测）。
+   * 清洗后的正文一个字都没有时不发（分享一条空白没有意义）。
+   */
+  private shareNotice(notice: Notice): void {
+    const text: string = composeShareText(notice.title, plainText(notice.content));
+    if (text.length === 0) {
+      return;
+    }
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    shareText(context, text, notice.title).catch(() => {
+      // 面板起不来（或用户在系统侧取消不了的那类错误）：如实提示；取消不算失败故不提示
+      showToast($r('app.string.' + TextKeys.SHARE_FAILED));
+    });
+  }
+
   @Builder
   detail(notice: Notice) {
     Scroll() {
@@ -91,6 +114,14 @@ export struct NoticeDetailView {
 
         // 正文按**清洗后的富文本**渲染（含图片；脚本/事件属性/危险链接已在清洗层丢掉）
         RichTextView({ raw: notice.content })
+
+        // 分享正文（FR-23 的文本一半）：把"标题 + 正文纯文本"交给系统分享面板。
+        // 用**文字按钮**而不是标题栏图标：图标不进 UI 节点树，看不见就等于没验过（陷阱 8）。
+        Button($r('app.string.' + TextKeys.SHARE))
+          .fontSize(14)
+          .onClick(() => {
+            this.shareNotice(notice);
+          })
 
         if (notice.attachmentName.length > 0) {
           Row({ space: 8 }) {

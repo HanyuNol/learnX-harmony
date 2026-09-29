@@ -24,6 +24,9 @@ import { RichTextView } from '../components/RichTextView';
 import { emptyView } from '../components/StateView';
 import { common } from '@kit.AbilityKit';
 import { LearnFile, attachmentFileOf, canPreviewInApp } from '../model/file';
+import { plainText } from '../model/notice';
+import { composeShareText } from '../common/shareText';
+import { shareText } from '../native/shareAdapter';
 import { FileStore } from '../viewmodel/fileStore';
 import { Logger } from '../common/logger';
 
@@ -199,6 +202,14 @@ export struct AssignmentDetailView {
             .width('100%')
         }
 
+        // 分享作业正文（FR-23 的文本一半）：把"标题 + 描述纯文本"交给系统分享面板。
+        // 用文字按钮而不是标题栏图标：图标不进 UI 节点树，看不见就等于没验过（陷阱 8）。
+        Button($r('app.string.' + TextKeys.SHARE))
+          .fontSize(14)
+          .onClick(() => {
+            this.shareAssignment(assignment);
+          })
+
         this.teacherAttachment(assignment)
 
         if (assignment.submitted) {
@@ -301,7 +312,7 @@ export struct AssignmentDetailView {
             this.downloadAttachment(attachment, assignment);
           })
         // 分享：与文件详情页同一个出口（先确保落盘，再交给系统分享面板）
-        Button($r('app.string.' + TextKeys.FILE_SHARE))
+        Button($r('app.string.' + TextKeys.SHARE))
           .fontSize(14)
           .enabled(this.busyAttachment.length === 0)
           .onClick(() => {
@@ -332,7 +343,24 @@ export struct AssignmentDetailView {
       }
     }).catch(() => {
       this.busyAttachment = '';
-      showToast($r('app.string.' + TextKeys.FILE_SHARE_FAILED));
+      showToast($r('app.string.' + TextKeys.SHARE_FAILED));
+    });
+  }
+
+  /**
+   * 分享这条作业的正文（FR-23）。
+   *
+   * 描述走 `plainText`（把服务端 HTML 剥成纯文本）——分享出去的必须是对方能直接读的东西；
+   * 组装与截断规则在 `common/shareText`（纯函数、有单测）。描述为空时不发。
+   */
+  private shareAssignment(assignment: Assignment): void {
+    const text: string = composeShareText(assignment.title, plainText(assignment.description));
+    if (text.length === 0) {
+      return;
+    }
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    shareText(context, text, assignment.title).catch(() => {
+      showToast($r('app.string.' + TextKeys.SHARE_FAILED));
     });
   }
 

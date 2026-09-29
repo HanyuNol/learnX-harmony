@@ -18,6 +18,9 @@ import { systemShare } from '@kit.ShareKit';
 import { isFileUri } from '../model/file';
 import { utdOfExtension } from '../common/fileUtd';
 
+/** 纯文本记录的 UTD（`UniformDataType.PLAIN_TEXT`） */
+const UTD_PLAIN_TEXT: string = 'general.plain-text';
+
 /**
  * 把一个文件交给系统分享面板。
  *
@@ -40,5 +43,25 @@ export async function shareFile(context: common.UIAbilityContext, pathOrUri: str
   const data: systemShare.SharedData = new systemShare.SharedData(record);
   const controller: systemShare.ShareController = new systemShare.ShareController(data);
   // 单选模式：本应用每次只分享一个文件，多选模式只支持批量文件记录（官方错误码 1003702001）
+  await controller.show(context, { selectionMode: systemShare.SelectionMode.SINGLE });
+}
+
+/**
+ * 把一段**纯文本**交给系统分享面板（FR-23 的文本一半：通知/作业的正文）。
+ *
+ * 文本走 `content` 而不是 `uri`——它不是文件；`utd` 如实写 `general.plain-text`
+ * （面板据此挑能收文字的接收方）。
+ *
+ * 文本的组装与截断在 `common/shareText`（纯函数、有单测），本层只负责交给系统。
+ */
+export async function shareText(context: common.UIAbilityContext, text: string,
+                               title: string): Promise<void> {
+  const record: systemShare.SharedRecord = {
+    utd: UTD_PLAIN_TEXT,
+    content: text,
+    title: title
+  };
+  const data: systemShare.SharedData = new systemShare.SharedData(record);
+  const controller: systemShare.ShareController = new systemShare.ShareController(data);
   await controller.show(context, { selectionMode: systemShare.SelectionMode.SINGLE });
 }

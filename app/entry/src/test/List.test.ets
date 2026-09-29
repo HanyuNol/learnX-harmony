@@ -32,6 +32,7 @@ import fileUtdTest from './fileUtd.test';
 import prefetchTest from './prefetch.test';
 import markdownTest from './markdown.test';
 import biometricGateTest from './biometricGate.test';
+import shareTextTest from './shareText.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -61,4 +62,5 @@ export default function testsuite() {
   prefetchTest();
   markdownTest();
   biometricGateTest();
+  shareTextTest();
 }
