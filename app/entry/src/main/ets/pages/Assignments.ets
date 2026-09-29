@@ -24,7 +24,8 @@ import { common } from '@kit.AbilityKit';
 import { FailReason } from '../model/auth';
 import { TextKeys, textKeyOfRelativeDeadline } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';
-import { emptyView, errorView, loadingView } from '../components/StateView';
+import { emptyView, errorView } from '../components/StateView';
+import { SkeletonList } from '../components/Skeleton';
 
 /** 作业详情在作业栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
 export const ASSIGNMENT_DETAIL_DESTINATION: string = 'assignment-detail';
@@ -191,7 +192,8 @@ export struct AssignmentListTab {
           this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
         })
       } else if (this.fetching && this.items.length === 0) {
-        loadingView()
+        // 列表加载态给骨架（FR-29）：转圈说不出"马上会出现一列内容"
+        SkeletonList({ rows: 6 })
       } else if (this.visible().length === 0) {
         // 可能没有作业、或本课程没有作业、或学期/课程未就绪、或筛完没有——都属空态，不是错误
         emptyView()

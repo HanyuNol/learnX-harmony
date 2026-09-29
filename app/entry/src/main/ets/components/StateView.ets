@@ -15,7 +15,13 @@
 import { FailReason } from '../model/auth';
 import { TextKeys, textKeyOfFailReason } from '../common/texts';
 
-/** 加载态：居中进度指示 */
+/**
+ * 加载态：居中进度指示。
+ *
+ * **列表页不要用这个**——内容列表的加载态用 `components/Skeleton.ets` 的 `SkeletonList`
+ * （FR-29：骨架才说得出"马上会出现一列内容"）。这里留给详情页、学期选择页这类
+ * "一次一个动作"的等待。
+ */
 @Builder
 export function loadingView() {
   Column({ space: 12 }) {

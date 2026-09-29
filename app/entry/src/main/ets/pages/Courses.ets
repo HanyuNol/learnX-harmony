@@ -13,7 +13,8 @@ import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/cour
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
-import { emptyView, errorView, loadingView } from '../components/StateView';
+import { emptyView, errorView } from '../components/StateView';
+import { SkeletonList } from '../components/Skeleton';
 
 @Component
 export struct CourseListTab {
@@ -78,7 +79,8 @@ export struct CourseListTab {
           this.store.refresh(this.semesterStore.snapshot().current);
         })
       } else if (this.fetching && this.courses.length === 0) {
-        loadingView()
+        // 列表加载态给骨架（FR-29）：转圈说不出"马上会出现一列内容"
+        SkeletonList()
       } else if (this.courses.length === 0) {
         // 注意：这里也可能是"学期未就绪"，不是失败——故呈空态而不是错误态
         emptyView()

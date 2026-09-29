@@ -19,7 +19,8 @@ import { SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore
 import { FailReason } from '../model/auth';
 import { TextKeys } from '../common/texts';
 import { FilterChoice, filterBar } from '../components/FilterBar';
-import { emptyView, errorView, loadingView } from '../components/StateView';
+import { emptyView, errorView } from '../components/StateView';
+import { SkeletonList } from '../components/Skeleton';
 
 /** 通知详情在通知栈里的目的地名（`Main` 的 `navDestination` 用它分派） */
 export const NOTICE_DETAIL_DESTINATION: string = 'notice-detail';
@@ -149,7 +150,8 @@ export struct NoticeListTab {
           this.store.refresh(this.semesterStore.snapshot().current, this.scopedCourses());
         })
       } else if (this.fetching && this.items.length === 0) {
-        loadingView()
+        // 列表加载态给骨架（FR-29）：转圈说不出"马上会出现一列内容"
+        SkeletonList()
       } else if (this.visible().length === 0) {
         // 可能没有通知、或本课程没有通知、或学期/课程未就绪——都属空态，不是错误
         // 可能是"学期未就绪""课程为空"或"筛完没有"——都属空态，不是错误

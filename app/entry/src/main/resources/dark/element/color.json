@@ -31,6 +31,10 @@
     {
       "name": "danger",
       "value": "#FF6B5B"
+    },
+    {
+      "name": "skeleton",
+      "value": "#2E2E2E"
     }
   ]
 }

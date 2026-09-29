@@ -35,6 +35,9 @@ import { StartupSync } from '../viewmodel/startupSync';
 import { applicationContextOf } from '../native/contextAdapter';
 import { common } from '@kit.AbilityKit';
 
+/** 底部标签切换的过渡时长（毫秒）。取值理由见 `build()` 里 `Tabs` 上的注释 */
+const TAB_SWITCH_MS: number = 200;
+
 @Component
 export struct MainView {
   /** 当前标签索引。由 `Index` 持有：返回键逻辑在页面级（`onBackPress`） */
@@ -376,6 +379,12 @@ export struct MainView {
       .barMode(BarMode.Fixed)
       .layoutWeight(1)
       .width('100%')
+      // 切标签的过渡（FR-29）：`animationDuration` 不设时平台默认是 **0**，也就是硬切
+      // （见 tabs.d.ts 该属性的说明），故显式给 200ms——与系统其他过渡同量级。
+      // `CONTENT_FIRST` 是平台默认值，这里写出来是为了让"先备好内容再过渡"这个意图留在代码里
+      // （避免滑过去先看到一片空白）。
+      .animationDuration(TAB_SWITCH_MS)
+      .animationMode(AnimationMode.CONTENT_FIRST)
       .onChange((index: number) => {
         this.currentTabIndex = index;
       })
