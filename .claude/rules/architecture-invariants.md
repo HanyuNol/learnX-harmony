@@ -28,6 +28,9 @@ pages → viewmodel → repository → network / storage / native
 - **禁止多模块（HSP/HAR）拆分**：单 `entry` 模块，当前阶段拆分收益不抵成本。
 
 > 需要引入上列任一能力时：**先停止、先走 ADR、经确认后**再引。
+>
+> **已确认的例外（唯一一条）**：KaTeX（JS + CSS + 字体，约 1MB）——只用于**正文里的公式渲染**，
+> 见 [ADR-0012](../docs/adr/0012-katex-for-math-rendering.md)。不得据此再引其它 JS 资源。
 
 ## 3. 真源与一致性
 
