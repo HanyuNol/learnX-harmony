@@ -145,6 +145,36 @@ export default function sanitizeHtmlTest() {
       });
     });
 
+    describe('无闭合标签的丢弃元素不得吞掉后文（审查 R-02）', () => {
+
+      it('void 元素（input/meta/link/base）：只丢标签，**前后文都要留**', 0, () => {
+        expect(sanitizeHtml('甲<input type="x">乙', BASE)).assertEqual('甲乙');
+        expect(sanitizeHtml('甲<meta charset="utf-8">乙', BASE)).assertEqual('甲乙');
+        expect(sanitizeHtml('甲<link rel="stylesheet">乙', BASE)).assertEqual('甲乙');
+        expect(sanitizeHtml('甲<base href="/x">乙', BASE)).assertEqual('甲乙');
+      });
+
+      it('自闭合写法（`<svg/>`）同样只丢标签本身', 0, () => {
+        expect(sanitizeHtml('甲<svg/>乙', BASE)).assertEqual('甲乙');
+        expect(sanitizeHtml('甲<iframe/>乙', BASE)).assertEqual('甲乙');
+      });
+
+      it('成对写法仍然连内容一起丢（对照：这条一直是对的）', 0, () => {
+        expect(sanitizeHtml('甲<iframe>里面的脚本</iframe>乙', BASE)).assertEqual('甲乙');
+        expect(sanitizeHtml('甲<svg><circle r="1"/></svg>乙', BASE)).assertEqual('甲乙');
+      });
+
+      it('自闭合的丢弃元素不会把后续**成对**的丢弃子树放出来', 0, () => {
+        // `<script/>` 只丢自己；后面那个 `<script>…</script>` 仍要连内容丢
+        expect(sanitizeHtml('甲<script/>乙<script>bad()</script>丙', BASE)).assertEqual('甲乙丙');
+      });
+
+      it('合法标签的自闭合形态照常保留（既有行为会把 `<br/>` 规范成 `<br>`，不影响渲染）', 0, () => {
+        expect(sanitizeHtml('甲<br/>乙', BASE)).assertEqual('甲<br>乙');
+        expect(sanitizeHtml('甲<hr/>乙', BASE)).assertEqual('甲<hr>乙');
+      });
+    });
+
     describe('地址补全', () => {
 
       it('已是绝对的、锚点、mailto 原样返回', 0, () => {

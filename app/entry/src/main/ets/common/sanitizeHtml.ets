@@ -30,6 +30,19 @@ const ALLOWED_TAGS: string[] = [
   'a', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th', 'caption', 'figure', 'figcaption'
 ];
 
+/**
+ * **没有闭合标签**的元素（HTML 的 void 元素）。它们的"内容"概念不存在，
+ * 故遇到时**只丢这个标签本身**，绝不进入"丢弃子树"态——否则丢弃深度永远不会归零，
+ * 该标签之后的正文会被静默丢光（2026-09-29 审查 R-02）。
+ */
+const VOID_TAGS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+/** 该标签是否不需要闭合标签（void 元素） */
+function isVoidTag(tag: string): boolean {
+  return VOID_TAGS.includes(tag);
+}
+
 /** 这些标签**连同内容一起丢**：它们的内容不是"正文"，留下只会变成乱文本或可执行片段 */
 const DROPPED_WITH_CONTENT: string[] = [
   'script', 'style', 'iframe', 'object', 'embed', 'noscript', 'template', 'svg', 'math',
@@ -143,11 +156,14 @@ class TagToken {
   readonly name: string;
   readonly attrs: Map<string, string>;
   readonly closing: boolean;
+  /** 自闭合写法（`<svg/>`）。只有"连内容一起丢"的判定会用它 */
+  readonly selfClosing: boolean;
 
-  constructor(name: string, attrs: Map<string, string>, closing: boolean) {
+  constructor(name: string, attrs: Map<string, string>, closing: boolean, selfClosing: boolean) {
     this.name = name;
     this.attrs = attrs;
     this.closing = closing;
+    this.selfClosing = selfClosing;
   }
 }
 
@@ -229,7 +245,7 @@ function parseTag(raw: string): TagToken | null {
       attrs.set(key, value);
     }
   }
-  return new TagToken(name, attrs, closing);
+  return new TagToken(name, attrs, closing, !closing && trimmed.endsWith('/'));
 }
 
 /** 把标签重新拼成安全的 HTML 片段（只输出白名单里的标签与属性） */
@@ -338,7 +354,12 @@ export function sanitizeHtml(raw: string, baseUrl: string): string {
     }
 
     if (isDroppedWithContent(token.name)) {
-      if (!token.closing) {
+      // 只有"**成对**且未闭合"的写法才进入丢弃子树；void 元素（input/link/meta/base…）
+      // 与自闭合写法（`<svg/>`）本来就没有内容，只丢标签本身。
+      // 不区分的话 `dropDepth` 永远不归零，该标签之后的正文会被**静默丢光**（审查 R-02）。
+      // 注：真正未闭合的成对元素（`<svg …>` 没有 `</svg>`）仍按"丢到文末"处理——
+      // 那是唯一安全的解释（不能把脚本内容当正文放出来）。
+      if (!token.closing && !token.selfClosing && !isVoidTag(token.name)) {
         dropDepth = 1;
         dropTag = token.name;
       }
