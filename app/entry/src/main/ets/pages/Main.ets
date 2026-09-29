@@ -30,7 +30,8 @@ import { FILE_DETAIL_DESTINATION, FileListTab } from './Files';
 import { FileDetailParam, FileDetailView } from './FileDetail';
 import { COURSE_DETAIL_DESTINATION, CourseDetailParam, CourseDetailView } from './CourseDetail';
 import { SemesterState, SemesterStateListener, SemesterStore } from '../viewmodel/semesterStore';
-import { CourseStore } from '../viewmodel/courseStore';
+import { CourseState, CourseStateListener, CourseStore } from '../viewmodel/courseStore';
+import { StartupSync } from '../viewmodel/startupSync';
 import { applicationContextOf } from '../native/contextAdapter';
 import { common } from '@kit.AbilityKit';
 
@@ -65,15 +66,28 @@ export struct MainView {
     this.courseStore.ensureLoadedFor(state.current);
   };
 
+  /**
+   * 课程就绪即**预载通知与文件**（FR-25）。
+   *
+   * 这两个维度原先只在用户切到对应标签时才拉，切过去先看到转圈。预载是后台动作：
+   * 不阻塞、不提示、失败只进日志（`docs/specs/startup-sync.md`）。
+   * 判断"该不该预载、按什么顺序"在 `common/prefetch`（纯逻辑），编排在 `viewmodel`。
+   */
+  private coursesListener: CourseStateListener = (state: CourseState) => {
+    StartupSync.getInstance().run(state.semesterId, state.items);
+  };
+
   aboutToAppear(): void {
     const context: common.ApplicationContext =
       applicationContextOf(this.getUIContext().getHostContext() as common.Context);
     this.semesterStore.subscribe(this.semesterListener);
+    this.courseStore.subscribe(this.coursesListener);
     this.semesterStore.ensureLoaded(context);
   }
 
   aboutToDisappear(): void {
     this.semesterStore.unsubscribe(this.semesterListener);
+    this.courseStore.unsubscribe(this.coursesListener);
   }
 
   private noticesStack: NavPathStack = new NavPathStack();
