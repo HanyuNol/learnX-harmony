@@ -14,6 +14,7 @@ import { util } from '@kit.ArkTS';
 import { common, wantConstant, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { isFileUri } from '../model/file';
+import { readFully } from '../common/bytes';
 
 /** 沙箱内放下载文件的目录名 */
 const FILES_DIR_NAME: string = 'learnX-files';
@@ -164,24 +165,22 @@ export function previewUrlOf(path: string): string {
   return `file://${path}`;
 }
 
-/** 读取沙箱文件的全部字节（另存为要把它交给系统保存对话框） */
+/**
+ * 读取沙箱文件的全部字节（"另存为"要把它交给系统保存对话框、附件上传要把它发出去）。
+ *
+ * **循环读满**（单次 `readSync` 对大文件可能**短读**）这件事本身在 `common/bytes.readFully` 里，
+ * 本函数只把"把 chunk 交给 `readSync`"接上去——组装与截断是纯逻辑，因此可测。
+ *
+ * 历史教训（2026-09-29 审查 R-01）：这里原先写成
+ * `const chunk = buffer.slice(offset); fs.readSync(fd, chunk)` —— `slice` 是**拷贝**，
+ * 字节读进了拷贝、`buffer` 始终全零，于是"另存为"写出**全零文件**、附件上传传**全零字节**，
+ * 而且毫无报错。**别再把结果缓冲区的拷贝当成读取目标。**
+ */
 export function readAllBytes(path: string): ArrayBuffer {
   const file: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
   try {
     const size: number = fs.statSync(file.fd).size;
-    const buffer: ArrayBuffer = new ArrayBuffer(size);
-    // **循环读满**：单次 `readSync` 对大文件可能**短读**，剩下的字节会是 0（零填充），
-    // 于是"另存为"会写出一份**尾部损坏**却毫无报错的文件（2026-09-28 审查 Q2）
-    let offset: number = 0;
-    while (offset < size) {
-      const chunk: ArrayBuffer = buffer.slice(offset);
-      const read: number = fs.readSync(file.fd, chunk);
-      if (read <= 0) {
-        break;
-      }
-      offset += read;
-    }
-    return new Uint8Array(buffer, 0, offset).buffer as ArrayBuffer;
+    return readFully(size, (chunk: ArrayBuffer) => fs.readSync(file.fd, chunk));
   } finally {
     fs.closeSync(file);
   }

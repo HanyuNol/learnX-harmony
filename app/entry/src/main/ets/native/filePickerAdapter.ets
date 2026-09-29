@@ -11,6 +11,7 @@
  */
 
 import { common } from '@kit.AbilityKit';
+import { readAllBytes } from './fileAdapter';
 import { picker } from '@kit.CoreFileKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { fileShare } from '@kit.CoreFileKit';
@@ -37,27 +38,6 @@ function nameOfUri(uri: string): string {
   const slash: number = clean.lastIndexOf('/');
   const name: string = slash >= 0 ? clean.substring(slash + 1) : clean;
   return name.length > 0 ? decodeURIComponent(name) : 'file';
-}
-
-/** 读取一个 URI 的全部字节（**循环读满**，单次 readSync 可能短读导致尾部零填充） */
-function readAll(uri: string): ArrayBuffer {
-  const file: fs.File = fs.openSync(uri, fs.OpenMode.READ_ONLY);
-  try {
-    const size: number = fs.statSync(file.fd).size;
-    const buffer: ArrayBuffer = new ArrayBuffer(size);
-    let offset: number = 0;
-    while (offset < size) {
-      const chunk: ArrayBuffer = buffer.slice(offset);
-      const read: number = fs.readSync(file.fd, chunk);
-      if (read <= 0) {
-        break;
-      }
-      offset += read;
-    }
-    return new Uint8Array(buffer, 0, offset).buffer as ArrayBuffer;
-  } finally {
-    fs.closeSync(file);
-  }
 }
 
 /**
@@ -88,7 +68,7 @@ export async function pickFile(context: common.UIAbilityContext): Promise<Picked
   }
   const uri: string = uris[0];
   try {
-    const data: ArrayBuffer = readAll(uri);
+    const data: ArrayBuffer = readAllBytes(uri);
     Logger.info(TAG, `已选文件 字节=${data.byteLength}`);
     return new PickedFile(nameOfUri(uri), data);
   } catch (err) {

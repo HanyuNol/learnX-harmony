@@ -5,7 +5,22 @@
 
 ## 未发布
 
-（尚无未发布的改动）
+### 修复
+
+- **"另存为"会写出全零文件、作业附件会上传全零字节（审查 R-01）**：`native/fileAdapter.readAllBytes`
+  与 `native/filePickerAdapter.readAll` 的"循环读满"写成
+  `const chunk = buffer.slice(offset); fs.readSync(fd, chunk)` —— `ArrayBuffer.slice` 是**拷贝**
+  （不是视图），字节读进了那份拷贝、结果缓冲区**始终全零**；再加上 `new Uint8Array(buffer,0,offset).buffer`
+  拿到的是整个（未裁剪的）缓冲区，于是读回的是"长度正确、内容全零"的一段。
+  后果是**静默**的：用户看到"保存成功 / 提交成功"，交出去的却是空内容。
+  - **修法**：把"反复读、组装、按实际读到的长度收尾"抽成纯函数 `common/bytes.readFully`，
+    平台侧只剩一句"把 chunk 交给 `readSync`"；`filePickerAdapter` 里那份**重复实现**删掉、
+    与 `fileAdapter.readAllBytes` 合一（正是两份拷贝让这个错法活了下来）。
+  - **回归防线**：`bytes.test.ets` 用注入的假 reader 钉住三条——一次读满、**短读**（3+3+2）、
+    **中途 EOF 按实际长度收尾**。先按原算法跑了一遍确认**红**（`expect 0 equals 1`、
+    `expect 10 equals 3`），再换正确实现转**绿**。
+  - **端到端复验**：宿主侧真建文件（写入 `11,22,33,44,55`）后走 `readAllBytes`，读回字节**逐一相符**；
+    修复前同一探针读回的是全零。
 
 ## 0.7.0（2026-09-29）
 

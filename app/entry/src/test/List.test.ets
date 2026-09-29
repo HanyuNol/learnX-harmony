@@ -36,6 +36,7 @@ import shareTextTest from './shareText.test';
 import subscriptionsTest from './subscriptions.test';
 import fanoutTest from './fanout.test';
 import devicePolicyTest from './devicePolicy.test';
+import bytesTest from './bytes.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -69,4 +70,5 @@ export default function testsuite() {
   subscriptionsTest();
   fanoutTest();
   devicePolicyTest();
+  bytesTest();
 }
