@@ -337,6 +337,33 @@ node scripts/check-l10n.mjs
 > 键 → 资源名的取用一律写成 `$r('app.string.' + key)`（**全名**）。
 > 传裸键 `$r(key)` 会静默不渲染——这是本项目踩过的坑，见 `common/texts.ets` 的说明。
 
+### 7.11 往 ArkWeb 里塞一段 HTML：三个都会让页面**静默不工作**的坑
+
+`components/RichTextView.ets`（正文富文本 + 公式）踩齐了三个，全在 2026-09-29 的同一次排查里
+抓出来，共同症状是**"节点树里能看到内容、但什么都没发生"**：
+
+1. **HTML 字符串不能从 `src` 传**。`src` 是**资源地址**（文档原文：*Web resource address*），
+   喂一整个 HTML 文档进去会被当 URL 解析，hilog 里只有一句
+   `[nweb_delegate.cc] [WebNavigation] LoadUrl message:invalidUrl`——
+   **页面从不加载，`onPageBegin`/`onPageEnd` 一次都不触发**。必须
+   `Web({ src: '' })` + `onControllerAttached` 里 `controller.loadData(html, 'text/html', 'utf-8', baseUrl)`。
+   `loadData` 内部走的是 `LoadWithDataAndBaseUrl`（hilog 可见）；`baseUrl` 给站点根，
+   相对地址可解析，文档 origin 也落在该域名上。
+2. **`onLoadIntercept` 对主框架加载同样触发，返回 `true` 就是"拦下不放行"**。
+   为了"正文里的链接不在这一小块 Web 里跳转"而无脑 `return true`，会把**文档自身的加载**也拦掉，
+   hilog 表现为 `OnLoadError errorCode:ERR_ABORTED(-3) mainFrame:1 url:data:text/html;base64,…`
+   ——整页白屏。**只在 `http(s)` 时返回 `true`**（那才是"点链接"），其余放行。
+3. **`runJavaScript` 的回传值被 JSON 编码过**。脚本返回字符串时拿到的是**带引号的**
+   `"74|2"`，直接 `Number(parts[0])` 得 `NaN`——本项目的高度因此被静默丢弃、组件一直停在
+   最小高度（"自动高度"形同没做，且不报任何错）。解码走 `common/scriptResult.ets`
+   的 `unwrapScriptResult`（纯函数 + 单测）。
+4. **页面里的 `console` 默认不进 hilog**（只有 Chromium 自己的日志进），
+   所以"注入的脚本到底跑没跑"光看 hilog 是看不出来的。加 `.onConsole()` 把页面 console
+   转进本组件日志，失败才有据可查。
+
+排查手法（都用过，比猜快）：往注入脚本里塞 `console.log` + 上面第 4 条的 `onConsole`；
+`devecocli ui layout` 里**出现 `mathMLIdentifier`/`mathMLOperator` 这类节点**＝MathML 真的排出来了。
+
 ## 8. 本地模拟器
 
 ### 8.1 镜像默认下载到 C 盘（必须重定向）

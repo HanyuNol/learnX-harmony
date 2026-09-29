@@ -25,6 +25,7 @@ import { webview } from '@kit.ArkWeb';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { sanitizeHtml } from '../common/sanitizeHtml';
 import { containsMath, delimitersPresent, normalizeMathText } from '../common/mathText';
+import { unwrapScriptResult } from '../common/scriptResult';
 import { readRawFileText } from '../native/resourceAdapter';
 import { openExternalUrl } from '../native/linkAdapter';
 import { Logger } from '../common/logger';
@@ -148,7 +149,7 @@ ${autoRender}`;
   private katexTag(): string {
     return `<script>${this.katexScript()}</script>`
       + `<script>try{renderMathInElement(document.body,{throwOnError:false,output:'mathml'})}`
-      + `catch(e){}</script>`;
+      + `catch(e){console.error('[katex] 渲染失败: ' + (e && e.message))}</script>`;
   }
 
   /** 量出正文真实高度并套到组件上（量不到就保持默认高度，由 Web 内部滚动兜底） */
@@ -158,7 +159,7 @@ ${autoRender}`;
     this.controller.runJavaScript(
       `document.body.scrollHeight + '|' + document.querySelectorAll('math').length`)
       .then((value: string) => {
-        const parts: string[] = value.split('|');
+        const parts: string[] = unwrapScriptResult(value).split('|');
         const measured: number = Number(parts[0]);
         const mathCount: number = parts.length > 1 ? Number(parts[1]) : 0;
         Logger.info(TAG, `正文渲染完成 高度=${parts[0]} 公式数=${mathCount}`
@@ -178,7 +179,7 @@ ${autoRender}`;
         // 清洗后没有内容（全是被丢的危险片段）：**什么都不显示**，不给用户看脚本源码
         Text('')
       } else {
-        Web({ src: this.document, controller: this.controller })
+        Web({ src: '', controller: this.controller })
           .width('100%')
           .height(this.bodyHeight)
           .backgroundColor(Color.Transparent)
@@ -188,13 +189,31 @@ ${autoRender}`;
           .fileAccess(false)
           .imageAccess(true)
           .darkMode(WebDarkMode.Off)
+          // 文档**不能经 `src` 传入**：`src` 是资源地址，喂 HTML 字符串会被当 URL 解析失败
+          // （hilog 里 `[WebNavigation] LoadUrl message:invalidUrl`），页面根本不加载，
+          // `onPageEnd` 不触发、高度量不到、注入的脚本也不执行。必须走 `loadData`。
+          // baseUrl 给学堂首页：相对地址可解析，且文档 origin 落在学堂域上，图片才带得上会话 Cookie。
+          .onControllerAttached(() => {
+            this.controller.loadData(this.document, 'text/html', 'utf-8', this.baseUrl);
+          })
           .onPageEnd((event: OnPageEndEvent) => {
             this.measure();
+          })
+          // 页面里的 console 默认不进 hilog，静默的失败（CSP 拦截、KaTeX 报错）就查不到；
+          // 把它转进本组件日志，让"公式没渲染出来"这类问题有据可查。
+          .onConsole((event: OnConsoleEvent) => {
+            Logger.info(TAG, `页面console: ${event.message.getMessage()}`);
+            return false;
           })
           .onErrorReceive((event: OnErrorReceiveEvent) => {
             Logger.warn(TAG, `正文渲染出错 code=${event.error.getErrorCode()}`);
           })
           // 正文里的链接不在这一小块 Web 里跳转（那样会失去返回路径、把详情页变成浏览器）
+          //
+          // 注意：`onLoadIntercept` 对**主框架加载**同样触发，返回 `true` 就是"拦下不放行"。
+          // 无脑返回 `true` 会把**文档自身的加载**也拦掉（hilog 表现为
+          // `OnLoadError errorCode:ERR_ABORTED(-3) mainFrame:1`，页面永远白屏）。
+          // 因此这里只拦 http(s)——那才是"点链接"；文档自身走 `loadData`（`data:` URL）放行。
           .onLoadIntercept((event: OnLoadInterceptEvent) => {
             const url: string = event.data.getRequestUrl();
             if (url.startsWith('http://') || url.startsWith('https://')) {
@@ -203,8 +222,9 @@ ${autoRender}`;
               openExternalUrl(context, url).catch((err: BusinessError) => {
                 Logger.warn(TAG, `交给系统打开链接失败 code=${err.code}`);
               });
+              return true;
             }
-            return true;
+            return false;
           })
       }
     }

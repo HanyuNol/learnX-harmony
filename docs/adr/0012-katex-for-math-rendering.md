@@ -2,7 +2,7 @@
 
 ## 状态
 
-已接受（2026-09-29 用户选择，见 PRD FR-22；**实现尚未开始**）
+已接受（2026-09-29 用户选择，见 PRD FR-22；**已实现并在设备上验收通过**，见文末「实现结果」）
 
 ## 背景
 
@@ -56,21 +56,29 @@ PRD FR-22 的原文是"富文本正文渲染与数学公式（**KaTeX**）显示
 - 公式在应用内呈现为排版好的数学式，而不是 `\frac{...}` 源码；与上游观感一致。
 - 影响面被限制在"正文渲染"一处，可单独回退（回退即"公式显示源码"，其余功能不受影响）。
 
-## 待办（实现清单，供下个会话直接执行）
+## 实现结果（2026-09-29，替代原先的"待办清单"）
 
-1. **取资源**：下载 KaTeX 发行包（`katex.min.js`、`katex.min.css`、`fonts/*.woff2`），
-   放进 `app/entry/src/main/resources/rawfile/katex/`。**优先只带 woff2**（体积最小），
-   记录来源版本号（上游用 0.18.7）。
-2. **模板改造**（`components/RichTextView.ets`）：
-   - CSS 与字体改为从 rawfile 引用（ArkWeb 加载 `resource://rawfile/…` 或把 CSS 内联、
-     字体重写到 rawfile 路径——**先做一个最小实验确认哪种能加载**，别一次写完再试）；
-   - 追加 `<script>`：KaTeX JS + `renderMathInElement(document.body, {throwOnError:false,
-     delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},
-     {left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}]})`；
-   - 沿用上游那条 `\mbox` → `\text` 替换（KaTeX 不支持 `\mbox`）；
-   - 把 `\mbox` 替换与 delimiters 这类**可枚举的规则**做成纯函数（`common/mathText.ets`）并加单测。
-3. **CSP**：`script-src 'unsafe-inline'`，同时确认 `runJavaScript`（量高度）仍可用。
-4. **验收**：构造一条含 `$E=mc^2$`、`$$\int_0^1 x dx$$`、`\mbox` 的正文，确认渲染成公式、
-   不支持的宏退回源码、**正文里没有任何脚本被服务端内容执行**（用 `<img onerror>` 一类探针验证
-   清洗器仍在拦）。
-5. 文档同步：`SECURITY.md` §3、架构不变量 §2 的例外条目、PRD FR-22 状态、CHANGELOG。
+**与上文预案的三处偏差**（都是"更省"的选择）：
+
+1. **不带字体、不用 CSS**：用 `output:'mathml'`，数学排版交给 Chromium 自带的 MathML，
+   于是**既不引 `katex.min.css` 也不引 `fonts/*.woff2`**——包体只增 **279KB**（`katex.min.js`
+   0.16.11 + `auto-render.min.js`），而非原文预估的约 1MB。两个 JS 内联进正文文档
+   （`resources/rawfile/`，与 SSO 注入脚本同一处）。
+2. **定界符用 auto-render 的默认集**（`$$`、`\(`、`\[`，**不含单 `$`**），与上游一致；
+   没有像预案那样显式传 `delimiters`。要开单 `$` 只改 `common/mathText.ets` 的 `DELIMITERS` 一处。
+3. **"按需开脚本"落在文档级**：只有 `containsMath()` 为真的正文档才把 CSP 写成
+   `script-src 'unsafe-inline'` 并注入脚本；其余正文的 CSP 仍是禁一切脚本。
+
+**验收证据（模拟器 learnx，真实账号，2026-09-29）**：注入的两个全局可用
+（`typeof katex=object`、`typeof renderMathInElement=function`）；含 `\(x^2\)` 与
+`$$\int_0^1 x\,dx$$` 的正文报 `公式数=2`；`devecocli ui layout` 的节点树里出现
+`mathMLIdentifier`/`mathMLNumber`/`mathMLOperator`（MathML 真的排出来了）。
+`\mbox`→`\text` 与定界符规则由 `common/mathText.ets` 的 8 例单测钉住。
+
+**顺带修掉的真缺陷**（与 KaTeX 无关，但让"公式渲染"看起来失败）：
+HTML 经 Web 组件的 `src` 传入根本不会加载、`onLoadIntercept` 无脑返回 `true` 会拦掉主框架加载、
+`runJavaScript` 的回传值没脱 JSON 引号致自动高度恒为 `NaN`。
+三条都记在 `docs/specs/rich-text.md` §3.4 与 `docs/OPERATIONS.md` §7.11。
+
+**文档同步（已完成）**：`SECURITY.md` §3、`ARCHITECTURE.md` 不变量的例外条目、
+PRD FR-22、`docs/specs/rich-text.md`、CHANGELOG。

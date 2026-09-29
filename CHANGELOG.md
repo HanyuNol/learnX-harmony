@@ -5,6 +5,30 @@
 
 ## 未发布
 
+### 修复
+
+- **富文本正文此前根本没渲染出来，公式（KaTeX）随之全部失效（FR-22）**：为"验公式渲染"而在设备上
+  复验时，顺藤摸出**三个叠加的缺陷**，症状统一是"节点树里看得到内容、但什么都没发生"：
+  - **HTML 不能经 Web 组件的 `src` 传入**：`src` 是资源地址，整篇 HTML 会被当 URL 解析失败
+    （hilog：`[WebNavigation] LoadUrl message:invalidUrl`），**页面从不加载**，
+    `onPageBegin`/`onPageEnd` 一次都不触发——注入的 KaTeX 自然不执行，高度也量不到。
+    改用 `Web({ src: '' })` + `onControllerAttached` →
+    `controller.loadData(html, 'text/html', 'utf-8', baseUrl)`。
+  - **`onLoadIntercept` 无脑返回 `true` 会连文档自身的加载一起拦掉**：该回调对**主框架**同样触发，
+    hilog 表现为 `OnLoadError errorCode:ERR_ABORTED(-3) mainFrame:1`（整页白屏）。
+    改为**只对 `http(s)` 返回 `true`**（那才是"点链接"），其余放行。
+  - **`runJavaScript` 的回传值是 JSON 编码的**：脚本返回字符串时拿到的是带引号的 `"74|2"`，
+    直接 `Number(parts[0])` 得 `NaN`——高度被静默丢弃，**"自动高度"其实从未生效**，
+    组件一直停在最小高度 60vp。解码抽成纯函数 `common/scriptResult.ets`（+ 5 例单测）。
+  - 另加 `.onConsole()` 把页面 console 转进本组件日志：页面日志默认**不进 hilog**，
+    否则"注入的脚本到底跑没跑"完全无从判断。
+  - 安全边界不变：**只有确含公式的文档**才放开内联脚本（ADR-0012），其余正文仍是禁一切脚本。
+  - **设备验收（模拟器 learnx / 真实账号，2026-09-29）**：`typeof katex=object`、
+    `typeof renderMathInElement=function`；含 `\(x^2\)` 与 `$$\int_0^1 x\,dx$$` 的正文报
+    `正文渲染完成 高度=74 公式数=2`；`devecocli ui layout` 的节点树里出现 `mathMLIdentifier` /
+    `mathMLNumber` / `mathMLOperator`（MathML 确实排出来了）。通知详情页同样渲染
+    （`高度=51 公式数=0`）。**仍未构造验证**：正文里的图片加载与链接点击（真实数据里两者都没出现）。
+
 ### 新增
 
 - **作业截止提醒：写进系统日历 + 提前提醒（FR-18）**：设置页新增「提醒」组——总开关、
