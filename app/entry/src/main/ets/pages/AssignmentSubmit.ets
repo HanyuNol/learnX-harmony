@@ -11,7 +11,7 @@
 
 import { Assignment } from '../model/assignment';
 import { Attachment } from '../model/attachment';
-import { MultipartFile } from '../network/multipart';
+import { MultipartFile } from '../model/multipart';
 import { extensionOf } from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { AssignmentStateListener, AssignmentStore } from '../viewmodel/assignmentStore';

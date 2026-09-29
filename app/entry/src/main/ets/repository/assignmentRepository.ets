@@ -10,9 +10,10 @@
  */
 
 import { Course } from '../model/course';
+import { FANOUT_LIMIT, chunksOf } from '../common/fanout';
 import { Assignment, AssignmentAttachments, sortAssignments } from '../model/assignment';
 import { LearnClient } from '../network/learnClient';
-import { MultipartFile } from '../network/multipart';
+import { MultipartFile } from '../model/multipart';
 import { AuthError } from '../model/auth';
 import { firstFailure, normalize } from '../common/errors';
 import { Logger } from '../common/logger';
@@ -20,7 +21,6 @@ import { Logger } from '../common/logger';
 const TAG: string = 'assignmentRepository';
 
 /** 同时在飞的课程数上限（沿用通知那套工程判断，spec §6 已登记） */
-const FANOUT_LIMIT: number = 4;
 /** 同时在飞的详情请求数上限（每条作业 1 个请求） */
 const DETAIL_LIMIT: number = 4;
 
@@ -65,8 +65,7 @@ export class AssignmentRepository {
     const failures: AuthError[] = [];
     let failed: number = 0;
 
-    for (let i = 0; i < courses.length; i += FANOUT_LIMIT) {
-      const chunk: Course[] = courses.slice(i, i + FANOUT_LIMIT);
+    for (const chunk of chunksOf(courses, FANOUT_LIMIT)) {
       const settled: Array<CourseAssignmentResult> = await Promise.all(
         chunk.map((course: Course) => AssignmentRepository.loadOneCourse(course)));
       for (const entry of settled) {

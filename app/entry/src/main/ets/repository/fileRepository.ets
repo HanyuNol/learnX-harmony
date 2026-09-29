@@ -10,6 +10,7 @@
  */
 
 import { Course } from '../model/course';
+import { FANOUT_LIMIT, chunksOf } from '../common/fanout';
 import {
   LearnFile, basenameOf, canReuseExisting, downloadFileName, sanitizePathSegment, sortFiles
 } from '../model/file';
@@ -34,7 +35,6 @@ const TAG: string = 'fileRepository';
 const ATTACHMENT_KIND: string = '作业附件';
 
 /** 同时在飞的课程数上限（沿用通知那套工程判断） */
-const FANOUT_LIMIT: number = 4;
 
 /** 内容嗅探的字节数：跳转桩是极小的 HTML，看开头这点就够 */
 const SNIFF_BYTES: number = 512;
@@ -81,8 +81,7 @@ export class FileRepository {
     const failures: AuthError[] = [];
     let failed: number = 0;
 
-    for (let i = 0; i < courses.length; i += FANOUT_LIMIT) {
-      const chunk: Course[] = courses.slice(i, i + FANOUT_LIMIT);
+    for (const chunk of chunksOf(courses, FANOUT_LIMIT)) {
       const settled: Array<CourseFileResult> = await Promise.all(
         chunk.map((course: Course) => FileRepository.loadOneCourse(course)));
       for (const entry of settled) {

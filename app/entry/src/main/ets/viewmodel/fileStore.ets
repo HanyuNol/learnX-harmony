@@ -16,6 +16,7 @@ import { AuthError, FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 import { common } from '@kit.AbilityKit';
 
 const TAG: string = 'fileStore';
@@ -80,7 +81,8 @@ export class FileStore {
     return FileStore.instance;
   }
 
-  private listeners: FileStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<FileStateListener> = new SubscriptionRegistry<FileStateListener>();
   private fetching: boolean = false;
   private items: LearnFile[] = [];
   private failedCourses: number = 0;
@@ -95,21 +97,16 @@ export class FileStore {
   private downloadVersion: number = 0;
 
   subscribe(listener: FileStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: FileStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   snapshot(): FileState {
@@ -163,6 +160,15 @@ export class FileStore {
     if (this.fetching) {
       Logger.info(TAG, '文件请求在途，改记为待补拉');
       return;
+    }
+
+    // 目标**变了**（切学期/课程集）就把下载状态裁掉：那些键属于上一批文件，
+    // 留着只增不减（审查 m14），而且"已下载"标记本该由文件系统重新判定。
+    // 只在签名变化时裁，同一学期的下拉刷新不动它（否则正在下载的进度会被清掉）。
+    if (signature !== this.loadedSignature) {
+      this.downloadStates.clear();
+      this.downloadPercents.clear();
+      this.downloadVersion++;
     }
 
     this.fetching = true;
@@ -351,13 +357,11 @@ export class FileStore {
 
   private notify(): void {
     const snapshot: FileState = this.snapshot();
-    const current: FileStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, '订阅回调抛错，已隔离');
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: FileStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, '订阅回调抛错，已隔离');
+    });
   }
 }

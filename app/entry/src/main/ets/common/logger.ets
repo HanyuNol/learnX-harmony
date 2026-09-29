@@ -2,8 +2,10 @@
  * 分级日志。**内置凭据脱敏**——任何可能承载敏感值的输出必须经 redact()。
  *
  * 为什么单独包一层而不用裸 hilog：SECURITY.md 要求凭据与 Cookie 不得入日志，
- * 而"别把密码打到日志里"这种约束靠自觉守不住。这里把脱敏做成唯一入口，
- * 使泄漏需要主动绕过而非疏忽（见 spec §5 第 5 项验收）。
+ * 而"别把密码打到日志里"这种约束靠自觉守不住；统一入口（`redact`）至少让
+ * "脱敏有唯一实现"成为可检查的事。**注意**：本项目实际做法是"敏感值只记长度、
+ * 不记内容"——`redact` 保留首字符，而首字符 + 精确长度本身就是可用信息，
+ * 故它只适合"必须看到值的一部分"的场景（见 `network/sm2` 的注释）。
  */
 
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -51,13 +53,4 @@ export class Logger {
     hilog.error(DOMAIN, TAG, '[%{public}s] %{public}s', tag, message);
   }
 
-  /**
-   * 记录一个敏感值的存在性与长度，**不记录其内容**。
-   *
-   * 需要确认"某个凭据拿到了没有"时用它，而不是把值拼进 message。
-   */
-  static secret(tag: string, label: string, value: string): void {
-    hilog.debug(DOMAIN, TAG, '[%{public}s] %{public}s=%{public}s (len=%{public}d)',
-      tag, label, redact(value), value.length);
-  }
 }

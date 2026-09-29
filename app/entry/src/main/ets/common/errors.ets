@@ -94,7 +94,8 @@ export function normalize(err: Object, context: string): AuthError {
     if (NETWORK_UNREACHABLE_CODES.includes(code)) {
       return networkUnreachable(`${context} (code=${code})`);
     }
-    Logger.warn(TAG, `${context} 未归类的平台错误码 code=${code}`);
+    // **不在这里记日志**：`common` 的函数必须无副作用（架构不变量 §1）。
+    // 错误码已带在返回值的文案里（`(code=NNN)`），记录由调用方（各 repository）负责。
     return apiChanged(`${context} (code=${code})`);
   }
 

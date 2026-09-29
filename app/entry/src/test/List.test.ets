@@ -33,6 +33,9 @@ import prefetchTest from './prefetch.test';
 import markdownTest from './markdown.test';
 import biometricGateTest from './biometricGate.test';
 import shareTextTest from './shareText.test';
+import subscriptionsTest from './subscriptions.test';
+import fanoutTest from './fanout.test';
+import devicePolicyTest from './devicePolicy.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -63,4 +66,7 @@ export default function testsuite() {
   markdownTest();
   biometricGateTest();
   shareTextTest();
+  subscriptionsTest();
+  fanoutTest();
+  devicePolicyTest();
 }

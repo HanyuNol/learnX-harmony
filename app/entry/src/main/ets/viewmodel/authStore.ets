@@ -16,6 +16,7 @@ import { AuthError, FailReason, LoginStatus, LogoutResult, SsoInjection, UserInf
 import { AuthRepository } from '../repository/authRepository';
 import { SsoFormBody } from '../network/ssoForm';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
@@ -48,7 +49,8 @@ export class AuthStore {
   private userInfo: UserInfo | null = null;
   private errorReason: FailReason | null = null;
   private errorTextKey: string = '';
-  private listeners: AuthStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<AuthStateListener> = new SubscriptionRegistry<AuthStateListener>();
 
   /**
    * 待注入 WebView 的取值（含密码明文）。
@@ -69,22 +71,17 @@ export class AuthStore {
 
   /** 订阅状态变化。**调用方必须在销毁时反订阅** */
   subscribe(listener: AuthStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: AuthStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   /** 当前订阅者数量。供测试断言无泄漏 */
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   getState(): AuthState {
@@ -97,16 +94,12 @@ export class AuthStore {
 
   private notify(): void {
     const snapshot: AuthState = this.snapshot();
-    // 遍历副本：回调里自行 subscribe/unsubscribe 会改动 this.listeners，
-    // 直接遍历原数组会跳过或重复回调；单个回调抛错也不得让其余订阅者收不到通知。
-    const current: AuthStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, `订阅回调抛错，已隔离 code=${(err as BusinessError).code}`);
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: AuthStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, `订阅回调抛错，已隔离 code=${(err as BusinessError).code}`);
+    });
   }
 
   private setLoggedIn(userInfo: UserInfo): void {

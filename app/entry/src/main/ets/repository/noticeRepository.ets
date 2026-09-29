@@ -9,6 +9,7 @@
  */
 
 import { Course } from '../model/course';
+import { FANOUT_LIMIT, chunksOf } from '../common/fanout';
 import { Notice, NoticeBatch, mergeNoticeBatches } from '../model/notice';
 import { AuthError } from '../model/auth';
 import { LearnClient } from '../network/learnClient';
@@ -18,7 +19,6 @@ import { normalize } from '../common/errors';
 const TAG: string = 'noticeRepository';
 
 /** 同时在飞的课程数上限。取值是工程判断（spec §6 已登记），以实测失败率/耗时为定 */
-const FANOUT_LIMIT: number = 4;
 
 /** 单门课的取数结果：`notices` 为 null 表示失败，`error` 带回失败原因 */
 class CourseNoticeResult {
@@ -42,8 +42,7 @@ export class NoticeRepository {
   static async loadAll(courses: Course[]): Promise<NoticeBatch> {
     const batches: Array<Notice[] | null> = [];
     let firstError: AuthError | null = null;
-    for (let i = 0; i < courses.length; i += FANOUT_LIMIT) {
-      const chunk: Course[] = courses.slice(i, i + FANOUT_LIMIT);
+    for (const chunk of chunksOf(courses, FANOUT_LIMIT)) {
       const settled: Array<CourseNoticeResult> =
         await Promise.all(chunk.map((course: Course) => NoticeRepository.loadOne(course)));
       for (const item of settled) {

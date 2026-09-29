@@ -9,11 +9,12 @@
 import { Course } from '../model/course';
 import { Assignment, AssignmentFilter, filterAssignments, sortAssignments } from '../model/assignment';
 import { AssignmentBatch, AssignmentRepository } from '../repository/assignmentRepository';
-import { MultipartFile } from '../network/multipart';
+import { MultipartFile } from '../model/multipart';
 import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 
 const TAG: string = 'assignmentStore';
 
@@ -62,7 +63,8 @@ export class AssignmentStore {
     return AssignmentStore.instance;
   }
 
-  private listeners: AssignmentStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<AssignmentStateListener> = new SubscriptionRegistry<AssignmentStateListener>();
   private fetching: boolean = false;
   private items: Assignment[] = [];
   private failedCourses: number = 0;
@@ -73,21 +75,16 @@ export class AssignmentStore {
   private requested: AssignmentRequest | null = null;
 
   subscribe(listener: AssignmentStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: AssignmentStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   snapshot(): AssignmentState {
@@ -206,13 +203,11 @@ export class AssignmentStore {
 
   private notify(): void {
     const snapshot: AssignmentState = this.snapshot();
-    const current: AssignmentStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, '订阅回调抛错，已隔离');
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: AssignmentStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, '订阅回调抛错，已隔离');
+    });
   }
 }

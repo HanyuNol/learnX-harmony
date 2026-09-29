@@ -7,6 +7,7 @@
  */
 
 import { deviceInfo } from '@kit.BasicServicesKit';
+import { supportsFolderSelectionOn } from '../common/devicePolicy';
 
 /**
  * 设备标识串：优先"外部产品系列"（如 `HUAWEI Mate 60 Pro`，最易辨认），
@@ -34,12 +35,9 @@ export function deviceType(): string {
 /**
  * 本设备是否支持**选择文件夹**。
  *
- * 依据系统文档：`DocumentSelectOptions.selectMode = FOLDER` 标注
- * "**Only 2-in-1 devices are supported**"，默认值是 `FILE`——也就是说**手机上调用它会退化成选文件**，
- * 用户看到的会是"选文件"而不是"选目录"（2026-09-28 用户实测反馈）。
- * 故这里显式判断设备类型，不支持时不去调它、也不给这个按钮，免得给出一个必然失败或
- * 语义错误的入口。
+ * 判断本身是**策略**，已移到 `common/devicePolicy`（纯函数、有单测）；这里只负责
+ * "取设备类型"这一件系统调用，两者拼起来就是答案。
  */
 export function supportsFolderSelection(): boolean {
-  return deviceInfo.deviceType === '2in1';
+  return supportsFolderSelectionOn(deviceInfo.deviceType);
 }

@@ -19,6 +19,7 @@ import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 
 const TAG: string = 'courseStore';
 
@@ -53,7 +54,8 @@ export class CourseStore {
     return CourseStore.instance;
   }
 
-  private listeners: CourseStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<CourseStateListener> = new SubscriptionRegistry<CourseStateListener>();
   private fetching: boolean = false;
   private items: Course[] = [];
   private loadedSemesterId: string = '';
@@ -66,22 +68,17 @@ export class CourseStore {
   private errorTextKey: string = '';
 
   subscribe(listener: CourseStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: CourseStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   /** 当前订阅者数量。供页面/测试断言无泄漏 */
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   snapshot(): CourseState {
@@ -175,13 +172,11 @@ export class CourseStore {
 
   private notify(): void {
     const snapshot: CourseState = this.snapshot();
-    const current: CourseStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, '订阅回调抛错，已隔离');
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: CourseStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, '订阅回调抛错，已隔离');
+    });
   }
 }

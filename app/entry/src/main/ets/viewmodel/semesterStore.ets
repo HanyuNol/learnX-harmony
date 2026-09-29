@@ -19,6 +19,7 @@ import { SemesterSnapshot, SemesterRepository } from '../repository/semesterRepo
 import { normalize } from '../common/errors';
 import { TextKeys, textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 
 const TAG: string = 'semesterStore';
 
@@ -53,7 +54,8 @@ export class SemesterStore {
     return SemesterStore.instance;
   }
 
-  private listeners: SemesterStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<SemesterStateListener> = new SubscriptionRegistry<SemesterStateListener>();
   private fetching: boolean = false;
   private items: string[] = [];
   private current: string = '';
@@ -61,22 +63,17 @@ export class SemesterStore {
   private errorTextKey: string = '';
 
   subscribe(listener: SemesterStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: SemesterStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   /** 当前订阅者数量。供页面/测试断言无泄漏 */
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   snapshot(): SemesterState {
@@ -149,14 +146,11 @@ export class SemesterStore {
 
   private notify(): void {
     const snapshot: SemesterState = this.snapshot();
-    // 遍历副本 + 单回调隔离（同 authStore：回调内改订阅数组会跳过或重复回调）
-    const current: SemesterStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, '订阅回调抛错，已隔离');
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: SemesterStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, '订阅回调抛错，已隔离');
+    });
   }
 }

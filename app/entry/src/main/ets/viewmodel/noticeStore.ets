@@ -18,6 +18,7 @@ import { FailReason } from '../model/auth';
 import { normalize } from '../common/errors';
 import { textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
+import { SubscriptionRegistry } from '../common/subscriptions';
 
 const TAG: string = 'noticeStore';
 
@@ -77,7 +78,8 @@ export class NoticeStore {
     return NoticeStore.instance;
   }
 
-  private listeners: NoticeStateListener[] = [];
+  /** 订阅注册表（纯类，见 `common/subscriptions`）：去重/反订阅/计数/隔离通知都在那里 */
+  private subscriptions: SubscriptionRegistry<NoticeStateListener> = new SubscriptionRegistry<NoticeStateListener>();
   private fetching: boolean = false;
   private items: Notice[] = [];
   private failedCourses: number = 0;
@@ -95,22 +97,17 @@ export class NoticeStore {
   private readVersion: number = 0;
 
   subscribe(listener: NoticeStateListener): void {
-    if (!this.listeners.includes(listener)) {
-      this.listeners.push(listener);
-    }
+    this.subscriptions.subscribe(listener);
     listener(this.snapshot());
   }
 
   unsubscribe(listener: NoticeStateListener): void {
-    const index: number = this.listeners.indexOf(listener);
-    if (index >= 0) {
-      this.listeners.splice(index, 1);
-    }
+    this.subscriptions.unsubscribe(listener);
   }
 
   /** 当前订阅者数量。供页面/测试断言无泄漏 */
   listenerCount(): number {
-    return this.listeners.length;
+    return this.subscriptions.listenerCount();
   }
 
   snapshot(): NoticeState {
@@ -210,6 +207,13 @@ export class NoticeStore {
       return;
     }
 
+    // 目标变了（切学期/课程集）就清掉本地已读覆盖：那些通知 id 不属于这一批了，
+    // 留着只增不减（审查 m14）；已读与否仍以服务端字段为准。
+    if (signature !== this.loadedSignature) {
+      this.readOverrides = [];
+      this.readVersion++;
+    }
+
     this.fetching = true;
     this.requested = new NoticeRequest(semesterId, courses);
     this.errorReason = null;
@@ -244,13 +248,11 @@ export class NoticeStore {
 
   private notify(): void {
     const snapshot: NoticeState = this.snapshot();
-    const current: NoticeStateListener[] = this.listeners.slice();
-    for (const listener of current) {
-      try {
-        listener(snapshot);
-      } catch (err) {
-        Logger.warn(TAG, '订阅回调抛错，已隔离');
-      }
-    }
+    // 遍历副本与单回调隔离都在注册表里（原先六个 Store 各写一份）
+    this.subscriptions.notifyEach((listener: NoticeStateListener) => {
+      listener(snapshot);
+    }, (err: Object) => {
+      Logger.warn(TAG, '订阅回调抛错，已隔离');
+    });
   }
 }

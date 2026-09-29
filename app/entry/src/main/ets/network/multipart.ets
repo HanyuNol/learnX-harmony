@@ -10,24 +10,7 @@
  */
 
 import { util } from '@kit.ArkTS';
-
-/** 一个要上传的文件部分 */
-export class MultipartFile {
-  /** 表单字段名（如 `fileupload`） */
-  readonly fieldName: string;
-  /** 传给服务端的文件名 */
-  readonly fileName: string;
-  /** MIME 类型；未知时用 `application/octet-stream` */
-  readonly contentType: string;
-  readonly data: ArrayBuffer;
-
-  constructor(fieldName: string, fileName: string, contentType: string, data: ArrayBuffer) {
-    this.fieldName = fieldName;
-    this.fileName = fileName;
-    this.contentType = contentType;
-    this.data = data;
-  }
-}
+import { MultipartFile } from '../model/multipart';
 
 function utf8(text: string): Uint8Array {
   return new util.TextEncoder().encodeInto(text);
