@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from '@ohos/hypium';
+import { calendarApplyVerdict } from '../main/ets/model/reminder';
 import {
   Assignment, AssignmentAttachments, HomeworkCompletionType, HomeworkSubmissionType
 } from '../main/ets/model/assignment';
@@ -281,6 +282,35 @@ export default function reminderTest() {
           items.push(assignment(`a${i}`, 'c1', now + i * DAY, false, '正文'));
         }
         expect(planAssignmentEvents(items, 60, false, now).length).assertEqual(40);
+      });
+    });
+
+    describe('对齐的结论：有失败就不算成功（审查 R-04）', () => {
+
+      it('一条都没失败 → 成功，且记录"上次同步时间"', 0, () => {
+        const verdict = calendarApplyVerdict(0, true);
+        expect(verdict.ok).assertTrue();
+        expect(verdict.recordSyncTime).assertTrue();
+      });
+
+      it('**有失败就不算成功**，也不许记时间（否则界面会谎报"已同步"）', 0, () => {
+        const one = calendarApplyVerdict(1, true);
+        expect(one.ok).assertFalse();
+        expect(one.recordSyncTime).assertFalse();
+
+        const many = calendarApplyVerdict(7, true);
+        expect(many.ok).assertFalse();
+        expect(many.recordSyncTime).assertFalse();
+      });
+
+      it('清除操作（countAsSync=false）本来就不记时间，成功与否仍看失败数', 0, () => {
+        const clean = calendarApplyVerdict(0, false);
+        expect(clean.ok).assertTrue();
+        expect(clean.recordSyncTime).assertFalse();
+
+        const dirty = calendarApplyVerdict(2, false);
+        expect(dirty.ok).assertFalse();
+        expect(dirty.recordSyncTime).assertFalse();
       });
     });
   });

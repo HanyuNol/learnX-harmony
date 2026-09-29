@@ -485,6 +485,10 @@
       "value": "Verify your identity to continue"
     },
     {
+      "name": "settings_course_partial",
+      "value": "Some class events could not be written to the system calendar. Please try again later."
+    },
+    {
       "name": "settings_about",
       "value": "About & help"
     },

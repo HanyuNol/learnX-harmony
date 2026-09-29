@@ -381,6 +381,8 @@ export class TextKeys {
   static readonly SETTINGS_COURSE_CLEARED: string = 'settings_course_cleared';
   /** 显示项：下载文件名省略课程名前缀 */
   static readonly SETTINGS_OMIT_COURSE_NAME: string = 'settings_omit_course_name';
+  /** 课程表：部分日程未能写入系统日历（逐条失败，结论不算成功） */
+  static readonly SETTINGS_COURSE_PARTIAL: string = 'settings_course_partial';
   /** 设置页入口：关于与帮助 */
   static readonly SETTINGS_ABOUT: string = 'settings_about';
   /** 设置页入口：个人信息 */

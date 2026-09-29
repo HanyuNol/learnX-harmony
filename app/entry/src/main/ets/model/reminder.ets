@@ -261,6 +261,34 @@ function sameEvent(plan: CalendarEventPlan, existing: ExistingCalendarEvent): bo
  * 为什么要"变了就删了重建"而不是更新：更新需要拿日程 id 去改，而 id 只存在于"刚读回来的那份"
  * 里——重建用的是我们自己的期望值，来源单一、不会出现"改了一半"的中间态。
  */
+/**
+ * 一次日历对齐的**结论**。
+ *
+ * 为什么要有它（2026-09-29 审查 R-04）：对齐是"读现有 → 算差量 → 逐条写/删"，
+ * 逐条失败原先**只记日志**，结论照样是"成功"，于是设置页会把"期望 N 条"当成
+ * "已同步 N 条"报给用户、还会记下"上次同步时间"——**谎报成功**。
+ * 判据收在这里（纯函数、可测）：**只要有一条写入/删除失败就不算成功，也不记时间**。
+ */
+export class CalendarApplyVerdict {
+  readonly ok: boolean;
+  readonly recordSyncTime: boolean;
+
+  constructor(ok: boolean, recordSyncTime: boolean) {
+    this.ok = ok;
+    this.recordSyncTime = recordSyncTime;
+  }
+}
+
+/**
+ * 由"失败条数"与"本次算不算一次同步"给出结论。
+ *
+ * `countAsSync=false`（清除操作）时本来就不记时间——清除不算"同步过"。
+ */
+export function calendarApplyVerdict(failedCount: number, countAsSync: boolean): CalendarApplyVerdict {
+  const ok: boolean = failedCount === 0;
+  return new CalendarApplyVerdict(ok, ok && countAsSync);
+}
+
 export function alignCalendarEvents(desired: CalendarEventPlan[], existing: ExistingCalendarEvent[],
                                     keyPrefix: string): CalendarAlignPlan {
   const desiredByKey: Map<string, CalendarEventPlan> = new Map();

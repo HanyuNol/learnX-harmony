@@ -15,7 +15,10 @@
 import { common } from '@kit.AbilityKit';
 import { calendarManager } from '@kit.CalendarKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { CalendarAlignPlan, CalendarEventPlan, ExistingCalendarEvent, alignCalendarEvents } from '../model/reminder';
+import {
+  CalendarAlignPlan, CalendarApplyVerdict, CalendarEventPlan, ExistingCalendarEvent,
+  alignCalendarEvents, calendarApplyVerdict
+} from '../model/reminder';
 import { COURSE_KEY_PREFIX, ScheduleRange, planCourseEvents, scheduleRangeOf } from '../model/courseEvent';
 import { ScheduleBatch, ScheduleRepository } from '../repository/scheduleRepository';
 import {
@@ -26,7 +29,7 @@ import {
 } from '../storage/preferenceStore';
 import { AuthError } from '../model/auth';
 import { normalize } from '../common/errors';
-import { textKeyOfFailReason } from '../common/texts';
+import { TextKeys, textKeyOfFailReason } from '../common/texts';
 import { Logger } from '../common/logger';
 
 const TAG: string = 'courseCalendarSync';
@@ -127,11 +130,15 @@ async function runApply(context: common.UIAbilityContext, desired: CalendarEvent
   const plan: CalendarAlignPlan = alignCalendarEvents(desired, existing, COURSE_KEY_PREFIX);
   if (!plan.isEmpty()) {
     let deleted: number = 0;
+    let failed: number = 0;
     for (const eventId of plan.toDelete) {
       try {
         await deleteEvent(calendar, eventId);
         deleted++;
       } catch (err) {
+        // 失败要**计数**：删不掉的日程会让"现状"与"期望"长期不一致，结论里必须体现
+        // （审查 R-04：原先只记日志，于是照样报"成功"、还照记"上次同步时间"）
+        failed++;
         Logger.warn(TAG, `删除日程失败 id=${eventId} code=${(err as BusinessError).code}`);
       }
     }
@@ -141,18 +148,22 @@ async function runApply(context: common.UIAbilityContext, desired: CalendarEvent
         await addEvent(calendar, entry);
         added++;
       } catch (err) {
+        failed++;
         Logger.warn(TAG, `写入日程失败 key=${entry.key} code=${(err as BusinessError).code}`);
       }
     }
-    Logger.info(TAG, `课程日程对齐完成 新增=${added} 删除=${deleted} 期望=${desired.length}`);
-    if (countAsSync) {
+    const verdict: CalendarApplyVerdict = calendarApplyVerdict(failed, countAsSync);
+    Logger.info(TAG, `课程日程对齐完成 新增=${added} 删除=${deleted} 失败=${failed}`
+      + ` 期望=${desired.length} 算成功=${verdict.ok}`);
+    if (verdict.recordSyncTime) {
       writeLastCourseSyncAt(context, Date.now());
     }
-    return new CourseSyncResult(true, added, deleted, desired.length, false, '');
+    return new CourseSyncResult(verdict.ok, added, deleted, desired.length, false,
+      verdict.ok ? '' : TextKeys.SETTINGS_COURSE_PARTIAL);
   }
 
   Logger.info(TAG, `课程日程已是最新，无需变更 期望=${desired.length}`);
-  if (countAsSync) {
+  if (calendarApplyVerdict(0, countAsSync).recordSyncTime) {
     writeLastCourseSyncAt(context, Date.now());
   }
   return new CourseSyncResult(true, 0, 0, desired.length, false, '');

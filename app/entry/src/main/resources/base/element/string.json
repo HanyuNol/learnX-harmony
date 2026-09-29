@@ -485,6 +485,10 @@
       "value": "请验证身份以继续"
     },
     {
+      "name": "settings_course_partial",
+      "value": "部分日程未能写入系统日历，请稍后重试"
+    },
+    {
       "name": "settings_about",
       "value": "关于与帮助"
     },
