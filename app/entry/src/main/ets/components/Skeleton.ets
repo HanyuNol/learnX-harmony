@@ -12,6 +12,8 @@
  * 宽度只是"文字长短的示意"，不追求像素级还原（见 `docs/specs/motion-skeleton.md` §2）。
  */
 
+import { TextKeys } from '../common/texts';
+
 /** 呼吸时长（单程）。与上游 500ms 一来一回同量级 */
 const BREATHE_MS: number = 500;
 
@@ -29,6 +31,8 @@ function bar(width: string, height: number) {
     .height(height)
     .borderRadius(height / 2)
     .backgroundColor($r('app.color.skeleton'))
+    // 装饰：灰条本身没有信息（它代表还没到的内容），整块由下面的容器统一报"正在加载"
+    .accessibilityLevel('no')
 }
 
 /** 一行占位：标题 / 摘要 / 元信息 */
@@ -86,5 +90,9 @@ export struct SkeletonList {
     .padding({ left: 16, right: 16 })
     .opacity(this.dimmed ? DIM_OPACITY : 1)
     .id(SKELETON_ID)
+    // 读屏侧：整块报"正在加载"。视觉上是灰块，无障碍里不能是一片沉默——
+    // 沉默会让读屏用户以为界面是空的（而不是"正在来"）。
+    .accessibilityText($r('app.string.' + TextKeys.STATE_LOADING))
+    .accessibilityLevel('yes')
   }
 }

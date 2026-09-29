@@ -167,7 +167,10 @@ export struct AssignmentListTab {
             .fillColor($r('app.color.text_primary'))
         }
         .backgroundColor(Color.Transparent)
-        .padding(4)
+        // 触摸目标 40vp（20 图标 + 2×10 内边距）：原先 4 只有约 28vp，低于无障碍建议的下限
+        .padding(10)
+        // 纯图标按钮读屏念不出名字，补一个（用既有文案键，不新增翻译）
+        .accessibilityText($r('app.string.' + TextKeys.SEARCH_TITLE))
         .onClick(() => {
           const open: (() => void) | undefined = this.onOpenSearch;
           if (open !== undefined) {

@@ -122,10 +122,12 @@ export struct SemesterSelectionView {
         SymbolGlyph($r('sys.symbol.checkmark'))
           .fontSize(20)
           .fontColor([$r('app.color.accent')])
+          // 装饰：同一行已有文字说明"当前学期"，勾只是个视觉标记
+          .accessibilityLevel('no')
       }
     }
     .width('100%')
-    .height(56)
+    .constraintSize({ minHeight: 56 })
     .onClick(() => {
       this.store.switchTo(this.appContext(), id);
     })

@@ -45,6 +45,8 @@ export function emptyView() {
     SymbolGlyph($r('sys.symbol.checkmark_circle'))
       .fontSize(48)
       .fontColor([$r('app.color.icon_empty')])
+      // 装饰：真正的信息在下面那行文字里（空态/错误分类），图标念出来只是噪音
+      .accessibilityLevel('no')
     Text($r('app.string.' + TextKeys.STATE_EMPTY))
       .fontSize(14)
       .fontColor($r('app.color.text_secondary'))
@@ -66,6 +68,8 @@ export function errorView(reason: FailReason, onRetry?: () => void) {
     SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
       .fontSize(48)
       .fontColor([$r('app.color.danger')])
+      // 装饰：真正的信息在下面那行文字里（空态/错误分类），图标念出来只是噪音
+      .accessibilityLevel('no')
     Text($r('app.string.' + textKeyOfFailReason(reason)))
       .fontSize(14)
       .fontColor($r('app.color.text_primary'))

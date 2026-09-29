@@ -46,7 +46,7 @@ export struct ProfileView {
               .layoutWeight(1)
           }
           .width('100%')
-          .height(56)
+          .constraintSize({ minHeight: 56 })
           .padding({ left: 16, right: 16 })
           .backgroundColor($r('app.color.bg_card'))
 

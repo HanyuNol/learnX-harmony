@@ -480,7 +480,10 @@ export struct SettingsView {
             .fillColor($r('app.color.text_primary'))
         }
         .backgroundColor(Color.Transparent)
-        .padding(4)
+        // 触摸目标 40vp（20 图标 + 2×10 内边距）：原先 4 只有约 28vp，低于无障碍建议的下限
+        .padding(10)
+        // 纯图标按钮读屏念不出名字，补一个（用既有文案键，不新增翻译）
+        .accessibilityText($r('app.string.' + TextKeys.SEARCH_TITLE))
         .onClick(() => {
           const open: (() => void) | undefined = this.onOpenSearch;
           if (open !== undefined) {
@@ -512,7 +515,7 @@ export struct SettingsView {
             })
         }
         .width('100%')
-        .height(56)
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }, (mode: ThemeMode) => mode)
@@ -539,7 +542,7 @@ export struct SettingsView {
             })
         }
         .width('100%')
-        .height(56)
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }, (option: boolean) => option ? 'files' : 'cache')
@@ -618,7 +621,7 @@ export struct SettingsView {
           })
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
 
@@ -646,7 +649,7 @@ export struct SettingsView {
           })
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
 
@@ -673,7 +676,7 @@ export struct SettingsView {
             })
         }
         .width('100%')
-        .height(56)
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
 
@@ -688,7 +691,7 @@ export struct SettingsView {
             })
         }
         .width('100%')
-        .height(56)
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
 
@@ -739,9 +742,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -759,7 +764,7 @@ export struct SettingsView {
           })
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
 
@@ -774,7 +779,7 @@ export struct SettingsView {
           })
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
 
@@ -800,7 +805,7 @@ export struct SettingsView {
             })
         }
         .width('100%')
-        .height(56)
+        .constraintSize({ minHeight: 56 })
         .padding({ left: 16, right: 16 })
         .backgroundColor($r('app.color.bg_card'))
       }
@@ -813,9 +818,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -862,9 +869,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -883,9 +892,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -904,9 +915,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -925,9 +938,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.chevron_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它不承载信息（要不要点由整行的可点性表达），念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
@@ -946,9 +961,11 @@ export struct SettingsView {
         SymbolGlyph($r('sys.symbol.arrow_up_right'))
           .fontSize(20)
           .fontColor([$r('app.color.text_secondary')])
+          // 装饰：它在说"这条会跳出去"，但同一行的文字已经说明了 —— 念出来只是噪音
+          .accessibilityLevel('no')
       }
       .width('100%')
-      .height(56)
+      .constraintSize({ minHeight: 56 })
       .padding({ left: 16, right: 16 })
       .backgroundColor($r('app.color.bg_card'))
       .onClick(() => {
