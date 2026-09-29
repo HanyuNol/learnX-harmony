@@ -88,7 +88,8 @@
 - [x] T2 `components/RichTextView.ets`（清洗 + CSP 模板 + 自动高度 + 导航拦截）
 - [x] T3 `native/linkAdapter.ets`
 - [x] T4 三处正文接线（通知正文 / 作业描述与评语 / 文件说明）+ 清掉未用导入
-- [ ] T5 数学公式：**未做**（见 §2「不做」与 §6）
+- [x] T5 数学公式：**已按 ADR-0012 实现**（KaTeX 内联注入 + MathML 输出 + `\mbox`→`	ext`），
+      **但设备上未取得"公式确实渲染出来"的证据**，见 §5 第 8 项
 - [x] 文档同步：PRD FR-22 状态、CHANGELOG、本 spec
 
 ## 5. 验收标准
@@ -114,6 +115,14 @@
 6. ⚠️ **图片加载**：本轮构造的正文里没有图片（真实数据里才有），**未验证**——
    机理上依赖 ArkWeb 与 API 共用会话 Cookie（ADR-0008），下次遇到带图的通知再确认；
 7. ⚠️ **链接点击**：本轮未点（正文里没有链接）；`onLoadIntercept` 的行为**未验证**。
+8. ⚠️ **公式渲染：未取得证据（2026-09-29）**。用临时探针（在「关于与帮助」页插一条含
+   `$$\int_0^1 x\,dx$$` 的正文）验过：注入确实发生（日志
+   `[richText] 正文含公式，注入 KaTeX 定界符=[$$ $]`、Web 文档里能看到 KaTeX 脚本），
+   **但**该 Web 的量得高度（70vp）与纯文本时一样，怀疑 KaTeX 没真正执行；
+   预期的 `正文渲染完成 … 公式数=N` 日志也没读到（原因未查明：可能是注入的 UMD 脚本未定义全局、
+   或 `querySelectorAll('math')` 为 0、或日志被 chromium 的刷屏顶掉）。
+   **下次调试建议**：把 `console.log` 放进注入脚本（Chromium 的 console 会进 hilog），
+   先确认 `typeof katex`/`typeof renderMathInElement` 是否可用，再查 CSP 是否拦了内联脚本。
 
 ## 6. 风险 / 待定
 

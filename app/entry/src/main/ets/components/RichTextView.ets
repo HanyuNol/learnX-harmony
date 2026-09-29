@@ -7,8 +7,14 @@
  *
  * 安全三层（`SECURITY.md` §3 要求不得整体信任服务端 HTML）：
  * 1. **清洗**：`common/sanitizeHtml` 白名单过滤（纯函数 + 穷举测试），脚本/事件属性/危险协议全丢；
- * 2. **CSP**：模板里写死 `script-src 'none'`，即便清洗漏了什么，文档内的脚本也执行不了；
+ * 2. **CSP**：模板默认写死**禁一切脚本**；**只有确知正文里有公式时**才放开成
+ *    `script-src 'unsafe-inline'`（用来跑本项目注入的 KaTeX）——见
+ *    `docs/adr/0012-katex-for-math-rendering.md` 的"按最小面开脚本"；
  * 3. **导航拦截**：正文里的链接**不在本 Web 里跳转**，交给系统浏览器打开（`native/linkAdapter`）。
+ *
+ * 公式（FR-22 的公式部分，ADR-0012）：正文含定界符时，把 KaTeX 与 auto-render **内联**注入
+ * （与上游 preval 内联同一思路），按 `output:'mathml'` 渲染——**不带 KaTeX 字体**（体积小一个数量级），
+ * 由 Chromium 自带的数学排版呈现。渲染失败退回源码（`throwOnError:false`），不留白屏。
  *
  * 自动高度：Web 组件本身不会"缩到内容那么高"，故在加载完成后用 `runJavaScript` 读
  * `document.body.scrollHeight` 再把组件高度设过去（应用侧注入，不受 CSP 的 `script-src` 限制）。
@@ -18,6 +24,8 @@ import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { sanitizeHtml } from '../common/sanitizeHtml';
+import { containsMath, delimitersPresent, normalizeMathText } from '../common/mathText';
+import { readRawFileText } from '../native/resourceAdapter';
 import { openExternalUrl } from '../native/linkAdapter';
 import { Logger } from '../common/logger';
 
@@ -40,6 +48,10 @@ export struct RichTextView {
 
   @State private bodyHeight: number = MIN_HEIGHT;
   private controller: webview.WebviewController = new webview.WebviewController();
+  /** 内联的 KaTeX 脚本（首次用到时读一次；空串＝资源不可用，公式退回源码） */
+  private katexCache: string = '';
+  /** 本次文档是否注入了公式脚本（日志用） */
+  private mathExpected: boolean = false;
 
   /** 清洗 + 套模板后的完整 HTML（只在 `aboutToAppear` 算一次，避免每次重绘都重算） */
   private document: string = '';
@@ -62,10 +74,39 @@ export struct RichTextView {
     }
   }
 
+  /**
+   * 读入内联的 KaTeX 脚本（只读一次并缓存）。
+   *
+   * 读不到（资源缺失/构建漏打包）**不抛**：公式退回源码显示，正文照常渲染——
+   * 一个可选增强不该让整页正文打不开。
+   */
+  private katexScript(): string {
+    if (this.katexCache.length > 0) {
+      return this.katexCache;
+    }
+    try {
+      const context: common.Context = this.getUIContext().getHostContext() as common.Context;
+      const core: string = readRawFileText(context, 'katex.min.js');
+      const autoRender: string = readRawFileText(context, 'auto-render.min.js');
+      this.katexCache = `${core}
+${autoRender}`;
+    } catch (err) {
+      Logger.warn(TAG, `KaTeX 资源读取失败，公式将按源码显示：${(err as Error).message}`);
+      this.katexCache = '';
+    }
+    return this.katexCache;
+  }
+
   private buildDocument(): string {
-    const body: string = sanitizeHtml(this.raw, this.baseUrl);
+    // **先清洗、后规整**：清洗保证安全，规整只动数学记号（`\mbox`→`	ext`）
+    const body: string = normalizeMathText(sanitizeHtml(this.raw, this.baseUrl));
     if (body.trim().length === 0) {
       return '';
+    }
+    const withMath: boolean = containsMath(body) && this.katexScript().length > 0;
+    this.mathExpected = withMath;
+    if (withMath) {
+      Logger.info(TAG, `正文含公式，注入 KaTeX 定界符=[${delimitersPresent(body)}]`);
     }
     const primary: string = this.colorOf('text_primary');
     const secondary: string = this.colorOf('text_secondary');
@@ -75,7 +116,9 @@ export struct RichTextView {
       // CSP：**禁掉一切脚本**（清洗已丢脚本标签，这是第二道防线）；图片允许 http(s) 与 data:，
       // 样式只允许本模板自己的（正文的内联 style 已被清洗丢掉）
       + `<meta http-equiv="Content-Security-Policy" `
-      + `content="default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'">`
+      // 有公式时才放开内联脚本（跑我们注入的 KaTeX）；否则维持"禁一切脚本"
+      + `content="default-src 'none'; img-src https: http: data:; style-src 'unsafe-inline'; `
+      + (withMath ? `script-src 'unsafe-inline'` : `script-src 'none'`) + `">`
       + `<style>`
       + `html,body{margin:0;padding:0;background:transparent;}`
       + `body{font-size:16px;line-height:1.6;color:${primary};`
@@ -91,18 +134,40 @@ export struct RichTextView {
       + `a{color:${accent};text-decoration:none;}`
       + `table{border-collapse:collapse;max-width:100%;}`
       + `td,th{border:1px solid rgba(127,127,127,0.35);padding:4px 8px;}`
-      + `</style></head><body>${body}</body></html>`;
+      + `</style></head><body>${body}</body>`
+      + (withMath ? this.katexTag() : '')
+      + `</html>`;
+  }
+
+  /**
+   * 内联注入 KaTeX 与 auto-render，并渲染公式。
+   *
+   * 定界符用 KaTeX auto-render 的**默认集**（`$$`、`\(`、`\[`，**不含单 `$`**），与上游一致；
+   * `throwOnError:false` 让不支持的宏退回源码而不是报错。
+   */
+  private katexTag(): string {
+    return `<script>${this.katexScript()}</script>`
+      + `<script>try{renderMathInElement(document.body,{throwOnError:false,output:'mathml'})}`
+      + `catch(e){}</script>`;
   }
 
   /** 量出正文真实高度并套到组件上（量不到就保持默认高度，由 Web 内部滚动兜底） */
   private measure(): void {
-    this.controller.runJavaScript('document.body.scrollHeight').then((value: string) => {
-      const measured: number = Number(value);
-      if (!Number.isFinite(measured) || measured <= 0) {
-        return;
-      }
-      this.bodyHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, measured + 4));
-    }).catch((err: Error) => {
+    // 一起把"渲染出几个公式"读回来：这是公式功能在**设备上唯一的客观证据**
+    // （Web 内部 DOM 不进 UI 节点树，截图也不便判读）
+    this.controller.runJavaScript(
+      `document.body.scrollHeight + '|' + document.querySelectorAll('math').length`)
+      .then((value: string) => {
+        const parts: string[] = value.split('|');
+        const measured: number = Number(parts[0]);
+        const mathCount: number = parts.length > 1 ? Number(parts[1]) : 0;
+        Logger.info(TAG, `正文渲染完成 高度=${parts[0]} 公式数=${mathCount}`
+          + ` 期望含公式=${this.mathExpected}`);
+        if (!Number.isFinite(measured) || measured <= 0) {
+          return;
+        }
+        this.bodyHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, measured + 4));
+      }).catch((err: Error) => {
       Logger.warn(TAG, `量正文高度失败，用默认高度：${err.message}`);
     });
   }
