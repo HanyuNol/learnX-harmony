@@ -669,6 +669,14 @@
       "value": "保存失败，请重试"
     },
     {
+      "name": "file_share",
+      "value": "分享"
+    },
+    {
+      "name": "file_share_failed",
+      "value": "分享失败，请重试"
+    },
+    {
       "name": "file_category_none",
       "value": "未分类"
     },

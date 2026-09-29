@@ -258,6 +258,25 @@ export class FileStore {
     return FileRepository.saveAsTo(file, context);
   }
 
+  /**
+   * 分享：**先确保落盘**（复用下载状态机，用户看得到"下载中…"），再把沙箱里那份交给
+   * 系统分享面板。
+   *
+   * 两段的失败语义分开：`download` 自己记下载状态；分享面板起不来**不动下载状态**——
+   * 文件明明好好地躺在沙箱里，把它标成"下载失败"是错的。
+   */
+  async share(file: LearnFile, context: common.UIAbilityContext): Promise<void> {
+    await this.download(file, context, false);
+    await FileRepository.share(file, context);
+  }
+
+  /** 分享作业附件（同上：先确保落盘，再分享） */
+  async shareAttachment(file: LearnFile, homeworkId: string,
+                        context: common.UIAbilityContext): Promise<void> {
+    await this.downloadAttachment(file, homeworkId, context, false);
+    await FileRepository.shareAttachment(file, homeworkId, context);
+  }
+
   /** 应用内预览用的 `file://` URI；未下载时为空串 */
   previewUriOf(file: LearnFile, context: common.Context): string {
     return FileRepository.previewUriOf(file, context);

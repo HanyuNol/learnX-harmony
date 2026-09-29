@@ -10,7 +10,9 @@
  */
 
 import { Course } from '../model/course';
-import { LearnFile, canReuseExisting, downloadFileName, sanitizePathSegment, sortFiles } from '../model/file';
+import {
+  LearnFile, basenameOf, canReuseExisting, downloadFileName, sanitizePathSegment, sortFiles
+} from '../model/file';
 import { mimeOfExtension } from '../common/mime';
 import { LearnClient } from '../network/learnClient';
 import {
@@ -19,6 +21,7 @@ import {
 } from '../native/fileAdapter';
 import { existsAt, removeAtUri, saveAs, sizeAtUri, writeIntoFolder } from '../native/filePickerAdapter';
 import { readCustomDownloadDir, readOmitCourseName, readUseDocumentDir } from '../storage/preferenceStore';
+import { shareFile } from '../native/shareAdapter';
 import { previewUrlOf } from '../native/fileAdapter';
 import { Logger } from '../common/logger';
 import { apiChanged, authFailed, firstFailure, normalize } from '../common/errors';
@@ -386,6 +389,47 @@ export class FileRepository {
       Logger.warn(TAG, `打开文件失败 id=${file.id} ${describeError(err)}`);
       // ArkTS 不允许 throw 任意类型；交给既有归类（NFR-NET 的四分类），把技术细节留在日志里
       throw normalize(err, '打开文件');
+    }
+  }
+
+  /**
+   * "分享"：把**已在沙箱**的那一份交给系统分享面板。
+   *
+   * 只接受沙箱内文件：自定义下载目录里那份拿到的是**文档 URI**（`file://docs/…`），
+   * 分享面板读不到它的字节。调用方负责先确保落盘（`fileStore.share` 复用下载状态机）。
+   */
+  static async share(file: LearnFile, context: common.UIAbilityContext): Promise<void> {
+    const path: string = FileRepository.downloadedPathOf(file, context);
+    if (path.length === 0) {
+      throw normalize(new Error('文件不在沙箱'), '分享文件');
+    }
+    await FileRepository.presentShare(path, file.fileType, context);
+  }
+
+  /** 作业附件的"分享"（同一套，只是路径来自附件目录） */
+  static async shareAttachment(file: LearnFile, homeworkId: string,
+                               context: common.UIAbilityContext): Promise<void> {
+    const path: string = FileRepository.downloadedAttachmentPathOf(file, homeworkId, context);
+    if (path.length === 0) {
+      throw normalize(new Error('附件不在沙箱'), '分享附件');
+    }
+    await FileRepository.presentShare(path, file.fileType, context);
+  }
+
+  /**
+   * 调系统分享面板。标题取**磁盘上那个文件名**（用户看到的、对方收到的就是这个），
+   * 不从 `title` 拼——`findExisting` 可能命中"当时没省略课程名前缀"的那一份，
+   * 现拼会与真实文件名不符。
+   */
+  private static async presentShare(path: string, extension: string,
+                                    context: common.UIAbilityContext): Promise<void> {
+    try {
+      await shareFile(context, path, basenameOf(path), extension);
+    } catch (err) {
+      // 记下系统错误码：`1003702001 记录类型不支持` 是"我们给的类型它不认"，
+      // 与"设备上根本没有分享面板"要能分开（见 share spec §6）
+      Logger.warn(TAG, `分享失败 ${describeError(err)}`);
+      throw normalize(err, '分享文件');
     }
   }
 

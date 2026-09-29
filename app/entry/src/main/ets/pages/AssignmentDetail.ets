@@ -300,11 +300,40 @@ export struct AssignmentDetailView {
           .onClick(() => {
             this.downloadAttachment(attachment, assignment);
           })
+        // 分享：与文件详情页同一个出口（先确保落盘，再交给系统分享面板）
+        Button($r('app.string.' + TextKeys.FILE_SHARE))
+          .fontSize(14)
+          .enabled(this.busyAttachment.length === 0)
+          .onClick(() => {
+            this.shareAttachment(attachment, assignment);
+          })
       }
       .width('100%')
     }
     .width('100%')
     .padding({ top: 4, bottom: 4 })
+  }
+
+  /** 分享附件：先确保落盘（已下过则复用），再交给系统分享面板；取消不算失败 */
+  private shareAttachment(attachment: Attachment, assignment: Assignment): void {
+    if (this.busyAttachment.length > 0) {
+      return;
+    }
+    const store: FileStore = FileStore.getInstance();
+    const context: common.UIAbilityContext = this.getUIContext().getHostContext() as common.UIAbilityContext;
+    const file: LearnFile = attachmentFileOf(attachment, assignment.courseId,
+      assignment.courseName, assignment.courseTeacherName);
+
+    this.busyAttachment = attachment.fileId;
+    store.shareAttachment(file, assignment.id, context).then(() => {
+      this.busyAttachment = '';
+      if (!this.downloadedIds.includes(attachment.fileId)) {
+        this.downloadedIds = this.downloadedIds.concat([attachment.fileId]);
+      }
+    }).catch(() => {
+      this.busyAttachment = '';
+      showToast($r('app.string.' + TextKeys.FILE_SHARE_FAILED));
+    });
   }
 
   /** 只下载附件（不打开）：落盘后行内显示"已下载" */

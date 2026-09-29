@@ -311,6 +311,10 @@ export class TextKeys {
   static readonly FILE_SAVE_AS_SUCCEEDED: string = 'file_save_as_succeeded';
   /** 另存为失败 */
   static readonly FILE_SAVE_AS_FAILED: string = 'file_save_as_failed';
+  /** 详情/附件行：分享（交给系统分享面板） */
+  static readonly FILE_SHARE: string = 'file_share';
+  /** 分享失败（系统分享面板起不来一类；取消不提示） */
+  static readonly FILE_SHARE_FAILED: string = 'file_share_failed';
 
   /** 通用筛选：全部（FR-12 的通用筛选条，各维度共用） */
   static readonly FILTER_ALL: string = 'filter_all';

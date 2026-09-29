@@ -222,8 +222,8 @@
 
 | 能力 | 契约 | 约束 |
 |---|---|---|
-| 分享导出 | 分享 Kit：以 URI + MIME 类型发起系统分享 | 仅分享用户主动选择的文件/文本 |
-| 接收分享 | 声明接收的 MIME 类型，由系统拉起并传入 URI | 仅处理白名单类型，未知类型忽略 |
+| 分享导出 | 分享 Kit（`@kit.ShareKit` 的 `systemShare`）：`new SharedData(SharedRecord)` → `new ShareController(data).show(context, { selectionMode: SINGLE })`。`SharedRecord` **必填字段只有 `utd`**；文件用 `uri`（**应用沙箱文件 URI**，`fileUri.getUriFromPath`——系统据此给目标应用临时读授权），文本用 `content`，另有 `title`/`description`/`thumbnail`。`utd` 由 `common/fileUtd` 按扩展名查表（认不出退让 `general.file`） | 只分享用户主动选择的**已下载文件**；必须传 `UIAbilityContext`；**不需新增权限**；不订阅 `shareCompleted`（分享到哪儿是用户与系统之间的事）。**取消不算失败**——`show` 只在系统侧出错时 reject |
+| 接收分享 | **不做**（理由见 `docs/specs/share.md` §2）：本项目没有"从外部导入"的落地动作；上游接这套是为"作业附件候选"，要做应单独立项 | 未实现；若要实现，需声明技能并新增落地页 |
 | 系统日历 | 日历 Kit：在**系统默认日历账户**下创建/更新/删除日程，用日程的 `identifier` 认领本应用的日程（`learnx:` 作业 / `learnx-course:` 课程两族）以支持增量同步 | 需用户授权（`READ_CALENDAR`/`WRITE_CALENDAR`）；拒绝授权不影响主流程；**只动带本应用前缀的日程** |
 | 截止/上课提醒 | **不直接使用通知 Kit**：把截止时间与课表写进系统日历并设置 `reminderTime`，由**系统日历**在到点时刻弹提醒（应用不常驻后台，自建定时器在进程被杀后不会响） | 一条日程只对应一条提醒；同一条目不得重复写入 |
 | PDF 查看 | PDF Kit：以本地文件路径打开 | 仅打开已下载的本地文件 |

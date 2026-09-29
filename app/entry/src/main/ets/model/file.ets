@@ -237,6 +237,18 @@ export function titleOfFileName(name: string): string {
 }
 
 /**
+ * 取路径里最后一段的文件名（沙箱路径是 `/` 分隔）。
+ *
+ * 用途：分享时给系统面板的标题——要的是**磁盘上那个真实文件名**（用户看到的、对方收到的
+ * 就是它），而不是用当前的命名偏好现拼一个（`findExisting` 可能命中按另一种偏好写下的那一份）。
+ * 不含 `/` 时原样返回。
+ */
+export function basenameOf(path: string): string {
+  const slash: number = path.lastIndexOf('/');
+  return slash >= 0 ? path.substring(slash + 1) : path;
+}
+
+/**
  * 把**作业附件**包装成一个 `LearnFile`，以便复用"文件"那一整套能力
  * （落盘目录与命名、已下载判定、应用内预览、交给系统应用打开）。
  *

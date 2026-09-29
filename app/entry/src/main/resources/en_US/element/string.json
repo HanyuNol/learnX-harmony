@@ -669,6 +669,14 @@
       "value": "Could not save. Please try again."
     },
     {
+      "name": "file_share",
+      "value": "Share"
+    },
+    {
+      "name": "file_share_failed",
+      "value": "Could not share. Please try again."
+    },
+    {
       "name": "file_category_none",
       "value": "Uncategorized"
     },

@@ -249,12 +249,24 @@ export struct FileDetailView {
             .onClick(() => {
               this.openExternal(file);
             })
+        }
+        .width('100%')
+        .padding({ top: 12 })
+
+        Row({ space: 12 }) {
           // **另存为**：手机上唯一能"自己挑保存位置"的方式（手机不支持选文件夹）
           Button($r('app.string.' + TextKeys.FILE_SAVE_AS))
             .fontSize(16)
             .enabled(this.downloadState !== DownloadState.DOWNLOADING)
             .onClick(() => {
               this.saveAsFile(file);
+            })
+          // **分享**：交给系统分享面板（发给别人/存到网盘）——另存为出不了这台设备
+          Button($r('app.string.' + TextKeys.FILE_SHARE))
+            .fontSize(16)
+            .enabled(this.downloadState !== DownloadState.DOWNLOADING)
+            .onClick(() => {
+              this.shareFile(file);
             })
         }
         .width('100%')
@@ -317,6 +329,18 @@ export struct FileDetailView {
       // 用户取消选择不是失败，不提示
     }).catch(() => {
       showToast($r('app.string.' + TextKeys.FILE_SAVE_AS_FAILED));
+    });
+  }
+
+  /**
+   * 分享：先确保文件在沙箱（已下过则复用），再交给系统分享面板。
+   *
+   * 用户取消分享**不算失败**，故只在系统侧真的起不来/出错时提示（`show` 的 promise 只在
+   * 这些情况才 reject，取消走的是面板自己的 `dismiss` 回调，见 share spec §2）。
+   */
+  private shareFile(file: LearnFile): void {
+    this.store.share(file, this.context()).catch(() => {
+      showToast($r('app.string.' + TextKeys.FILE_SHARE_FAILED));
     });
   }
 
