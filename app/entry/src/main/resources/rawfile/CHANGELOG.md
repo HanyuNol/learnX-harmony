@@ -18,6 +18,14 @@
 
 ### 修复
 
+- **提交页把附件名渲染成 `[object Object]…`（审查 R-03）**：`pages/AssignmentSubmit` 里
+  `Text($r('app.string.' + …) + (…as Attachment).name)` 把 **`Resource` 与字符串相加**，
+  `Resource` 被字符串化。**设备实测（模拟器，真实账号）**：走「作业 → 已完成 → 某作业 → 修改提交」，
+  节点树那行文字为 `[object Object]概统 朱贺 第一次作业.pdf`。
+  - **修法**：拆成两个 `Text` 放在一行里（与 `pages/Search.sectionTitle` 同一处置）。
+  - **复验**：同一路径再走一遍，节点树变成 `已上传：` + `概统 朱贺 第一次作业.pdf` 两段，
+    全页**不再含** `[object Object]`；另全仓 grep 确认已无 `$r(...) + 字符串` 的写法。
+
 - **"另存为"会写出全零文件、作业附件会上传全零字节（审查 R-01）**：`native/fileAdapter.readAllBytes`
   与 `native/filePickerAdapter.readAll` 的"循环读满"写成
   `const chunk = buffer.slice(offset); fs.readSync(fd, chunk)` —— `ArrayBuffer.slice` 是**拷贝**

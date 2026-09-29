@@ -130,11 +130,19 @@ export struct AssignmentSubmitView {
           }
           .width('100%')
         } else if (assignment.attachments.submitted !== null && !this.removeAttachment) {
-          Text($r('app.string.' + TextKeys.ASSIGNMENT_ALREADY_UPLOADED)
-            + (assignment.attachments.submitted as Attachment).name)
-            .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-            .width('100%')
+          // **资源不能与字符串相加**（`$r(...) + '…'`）——2026-09-30 实测：这一行在设备上渲染成
+          // `[object Object]<附件名>`（`Resource` 被字符串化）。故拆成两个 `Text` 放在一行里
+          // （与 `pages/Search.sectionTitle` 同一处置）。
+          Row({ space: 8 }) {
+            Text($r('app.string.' + TextKeys.ASSIGNMENT_ALREADY_UPLOADED))
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+            Text((assignment.attachments.submitted as Attachment).name)
+              .fontSize(14)
+              .fontColor($r('app.color.text_secondary'))
+              .layoutWeight(1)
+          }
+          .width('100%')
         } else {
           Text($r('app.string.' + TextKeys.ASSIGNMENT_NO_ATTACHMENT))
             .fontSize(14)
