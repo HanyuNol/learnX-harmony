@@ -228,7 +228,7 @@
 | 截止/上课提醒 | **不直接使用通知 Kit**：把截止时间与课表写进系统日历并设置 `reminderTime`，由**系统日历**在到点时刻弹提醒（应用不常驻后台，自建定时器在进程被杀后不会响） | 一条日程只对应一条提醒；同一条目不得重复写入 |
 | PDF 查看 | PDF Kit：以本地文件路径打开 | 仅打开已下载的本地文件 |
 | 文件选择 | 文件选择器：由系统 UI 返回 URI | 仅请求所需类型 |
-| 生物识别 | 用户认证 Kit：发起认证并接收结果 | 不得作为凭据的替代存储；认证失败回退到密码 |
+| 生物识别 | 用户认证 Kit（`@kit.UserAuthenticationKit` 的 `userAuth`）：`getAvailableStatus(FINGERPRINT/FACE, ATL2)` 查可用性、`getUserAuthInstance({challenge: 空, authType: [指纹, 人脸], authTrustLevel: ATL2}, {title})` → `on('result', IAuthCallback)` → `start()`。用作**自动登录前的闸门**（FR-24） | **必须申明 `ohos.permission.ACCESS_BIOMETRIC`**（`system_grant` + `normal`，申明即生效；不申明会拿 `201`，闸门静默失效）。设备不可用时**照旧静默恢复**（不得挡人）；验证未通过**回退密码登录**；`challenge` 传空、不产出任何凭据材料 |
 
 ## 4. 内部模块边界契约
 

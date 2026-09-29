@@ -36,6 +36,14 @@
           ],
           "when": "inuse"
         }
+      },
+      {
+        // 用已保存凭据自动登录前的生物识别闸门（FR-24）。`userAuth.getAvailableStatus` /
+        // `getUserAuthInstance` 都标注需要它，**不申明就会拿 201（权限拒绝）**——
+        // 那样每个设备看起来都"不支持生物识别"，闸门永远不触发，功能静默失效。
+        // 该权限是 system_grant + normal 级别（见 SDK 的 PermissionDefinitions.json），
+        // **申明即生效、不弹授权框**，故不需要 reason/usedScene
+        "name": "ohos.permission.ACCESS_BIOMETRIC"
       }
     ],
     "abilities": [

@@ -31,6 +31,7 @@ import scriptResultTest from './scriptResult.test';
 import fileUtdTest from './fileUtd.test';
 import prefetchTest from './prefetch.test';
 import markdownTest from './markdown.test';
+import biometricGateTest from './biometricGate.test';
 
 export default function testsuite() {
   sm2FormatTest();
@@ -59,4 +60,5 @@ export default function testsuite() {
   fileUtdTest();
   prefetchTest();
   markdownTest();
+  biometricGateTest();
 }

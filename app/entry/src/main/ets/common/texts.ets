@@ -393,6 +393,8 @@ export class TextKeys {
   static readonly CHANGELOG_EMPTY: string = 'changelog_empty';
   /** 检查更新：打不开浏览器时的提示（含手动访问的指引） */
   static readonly UPDATE_CHECK_FAILED: string = 'update_check_failed';
+  /** 生物识别（FR-24）：系统验证弹窗的标题 */
+  static readonly BIOMETRIC_PROMPT: string = 'biometric_prompt';
   /** 个人信息页：姓名与院系的标题 */
   static readonly PROFILE_ACCOUNT_TITLE: string = 'profile_account_title';
   /** 个人信息页：下载位置小节标题 */

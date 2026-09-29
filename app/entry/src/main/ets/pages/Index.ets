@@ -20,6 +20,8 @@
  * 返回键的"空栈行为"也在这一层处理（页面级 `onBackPress`，见下方说明）。
  */
 
+import { common } from '@kit.AbilityKit';
+import { TextKeys } from '../common/texts';
 import { AuthState, AuthStateListener, AuthStore } from '../viewmodel/authStore';
 import { LoginStatus } from '../model/auth';
 import { LoginView } from './Login';
@@ -56,10 +58,24 @@ struct Index {
     return false;
   }
 
+  /**
+   * 系统验证弹窗（FR-24）的标题。**页面负责取文案**：`$r` 与资源管理器是 UI 侧的东西，
+   * 不该沿着 store → repository 一路穿下去，故在这里解析成字符串再传。
+   */
+  private biometricTitle(): string {
+    try {
+      const context: common.Context = this.getUIContext().getHostContext() as common.Context;
+      return context.resourceManager.getStringSync($r('app.string.' + TextKeys.BIOMETRIC_PROMPT).id);
+    } catch (err) {
+      // 取不到文案不该影响启动：给一个中性兜底（专有名词，无需翻译）
+      return 'LearnX';
+    }
+  }
+
   aboutToAppear(): void {
     this.store.subscribe(this.listener);
-    // 启动时尝试用已保存的凭据静默恢复登录态
-    this.store.restoreSession();
+    // 启动时尝试用已保存的凭据恢复登录态（有凭据时会先要一次生物识别，见 FR-24）
+    this.store.restoreSession(this.biometricTitle());
   }
 
   aboutToDisappear(): void {

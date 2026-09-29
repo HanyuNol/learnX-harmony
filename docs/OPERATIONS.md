@@ -256,6 +256,18 @@ node scripts/sync-changelog.mjs
 **漏跑不报错，只表现为"日志里少了刚发的这一段"**（很难注意到），故与 `sync-version.mjs`
 同列。脚本会把换行统一成 LF（`\r` 会让 Markdown 的标题/围栏判定多出尾字符）。
 
+### 7.4c `devecocli run` 末尾的 `Smoke` 判定**不可靠**（2026-09-29 实测两次误报）
+
+`Smoke: PASS` 可以当"装上了、起来了"的信号，但 `FAIL_*` **不等于应用坏了**，别据此回滚代码：
+
+- `FAIL_BLANK`：有一次是因为该次启动要走"会话过期 → 用保存的凭据重新登录"，
+  首屏多花约 2 秒，抽样时页面还在过渡中；
+- `FAIL_CRASH`：有一次它读到的是**六天前**的一条 `appfreeze-…-<日期>` 记录
+  （`hidumper -p Faultlogger` 会列出历史故障），应用本身根本没崩。
+
+**判定基准始终是 hilog（`A00a11/learnX` 的业务日志）+ `ui layout` 的节点树**，
+两者都正常就是正常（两次误报的那两轮，节点树里主界面与列表数据都是齐的）。
+
 ### 7.5 验收时的三个"看不见"陷阱
 
 - **Toast 不在应用窗口的 UI 节点树里**：它由 ArkUI 挂在 overlay 根节点上，`devecocli ui layout`

@@ -10,6 +10,8 @@ import { LearnClient } from '../network/learnClient';
 import { SsoFormBody, classifySsoProblem, fingerPrintsOf } from '../network/ssoForm';
 import { CredentialStore } from '../storage/credentialStore';
 import { deviceLabel } from '../native/deviceAdapter';
+import { authenticateBiometric, biometricUsable } from '../native/biometricAdapter';
+import { RESTORE_NONE, RESTORE_SILENT, decideRestore } from '../common/biometricGate';
 import { Logger } from '../common/logger';
 import { normalize } from '../common/errors';
 
@@ -127,16 +129,33 @@ export class AuthRepository {
   }
 
   /**
-   * 尝试用已保存的凭据静默恢复登录态。
+   * 尝试用已保存的凭据恢复登录态——**先用生物识别验一次**（FR-24）。
    *
-   * 返回 null 表示没有可用凭据（首次运行、或用户未选记住密码），
-   * 这是正常状态而非错误，调用方应引导用户输入。
+   * 返回 null 表示"这次没有自动恢复"（首次运行 / 未选记住密码 / **验证未通过**），
+   * 都不是错误：调用方引导用户输入即可。
+   *
+   * `biometricTitle` 是系统验证弹窗的标题，由调用方（页面）给本地化文案。
    */
-  static async tryRestoreSession(): Promise<UserInfo | null> {
+  static async tryRestoreSession(biometricTitle: string): Promise<UserInfo | null> {
     const credentials: Credentials | null = await CredentialStore.load();
     if (credentials === null) {
       return null;
     }
+
+    // 闸门：处置由纯函数给出（那张"登不进去"的表钉在 common/biometricGate 的用例里）
+    const usable: boolean = biometricUsable();
+    let passed: boolean = false;
+    if (usable) {
+      passed = await authenticateBiometric(biometricTitle);
+    }
+    const plan: string = decideRestore(true, usable, passed);
+    if (plan === RESTORE_NONE) {
+      Logger.info(TAG, '生物识别未通过，本次不自动恢复（请用密码登录）');
+      return null;
+    }
+    Logger.info(TAG, plan === RESTORE_SILENT
+      ? '设备不可生物识别，按原行为静默恢复'
+      : '生物识别通过，恢复登录态');
 
     const client: LearnClient = LearnClient.getInstance();
     await client.restoreSession(credentials);

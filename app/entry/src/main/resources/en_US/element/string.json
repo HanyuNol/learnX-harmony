@@ -481,6 +481,10 @@
       "value": "Could not open a browser. Please visit the releases page manually."
     },
     {
+      "name": "biometric_prompt",
+      "value": "Verify your identity to continue"
+    },
+    {
       "name": "settings_about",
       "value": "About & help"
     },

@@ -481,6 +481,10 @@
       "value": "打不开浏览器，请手动访问项目发布页"
     },
     {
+      "name": "biometric_prompt",
+      "value": "请验证身份以继续"
+    },
+    {
       "name": "settings_about",
       "value": "关于与帮助"
     },

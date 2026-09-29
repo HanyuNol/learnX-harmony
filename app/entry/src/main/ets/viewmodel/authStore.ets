@@ -222,13 +222,14 @@ export class AuthStore {
   }
 
   /**
-   * 启动时尝试恢复登录态。
+   * 启动时尝试恢复登录态。**有凭据时会先要一次生物识别**（FR-24）。
    *
-   * 失败不视为用户可见错误：无凭据是正常状态，静默进入未登录即可。
+   * 失败不视为用户可见错误：无凭据、或验证被取消，都是正常状态——静默进入未登录即可。
+   * `biometricTitle` 是系统验证弹窗的标题，由页面给本地化文案（见 `pages/Index`）。
    */
-  async restoreSession(): Promise<void> {
+  async restoreSession(biometricTitle: string): Promise<void> {
     try {
-      const userInfo: UserInfo | null = await AuthRepository.tryRestoreSession();
+      const userInfo: UserInfo | null = await AuthRepository.tryRestoreSession(biometricTitle);
       if (userInfo !== null) {
         // 恢复过程要发网络请求；这期间用户可能已自行发起登录（状态已离开 LOGGED_OUT）。
         // 此时旧结果不得覆盖进行中的流程——否则正在输验证码的网页会被顶掉，
