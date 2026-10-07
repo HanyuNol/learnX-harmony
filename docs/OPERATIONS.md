@@ -491,6 +491,13 @@ DevEco Studio **自身**的数据目录在 `C:/Users/<用户>/AppData/Local/Huaw
 >    `signature generate` → 重新 build → 把新的签名 HAP 发出去**。
 > 5. **Profile 有效期实测 365 天**（不是早先写的"约 90 天"；从生成的 Profile 里读出的
 >    `not-before`/`not-after` 相差整 365 天）。
+> 7. **登录态会过期，且 `auth login` 是交互式的**：本次实测——凌晨登录成功，几小时后再跑
+>    `signature generate` 就报 `Failed to automatically generate signatures. Run devecocli auth login to sign in.`
+>    （`auth status` → `Not logged in`）；而 `devecocli auth login` **要先按一次回车才打开浏览器**
+>    （提示语 `Press Enter to open browser for login...`），在非交互环境里可以直接喂一个回车过去：
+>    `printf '
+' | devecocli auth login`（随后浏览器里完成授权即可）。**本机已生成的签名材料
+>    （`~/.ohos/config/*.p12|.cer|.p7b`）不会因登录过期而失效**，重新登录后 `signature generate` 会复用它们。
 > 6. **"包真的签上了"有客观判据**：用 SDK 自带的验签工具
 >    `java -jar <SDK>/default/openharmony/toolchains/lib/hap-sign-tool.jar verify-app -inFile <hap> -outCertChain <cer> -outProfile <p7b>`
 >    ——签名包报 `Digest verify result: true, DigestAlgorithm: SHA-256` + `verify-app success`；
