@@ -2,13 +2,18 @@
 
 > 清华大学网络学堂的 HarmonyOS NEXT 原生客户端。由开源 React Native 应用 [learnX](https://github.com/robertying/learnX) 重建而来。
 
-## 当前阶段
+## 当前状态
 
-**脚手架就绪，尚未开始业务实现**——SDD 治理与规格（PRD / ARCHITECTURE / ADR）已就位；HarmonyOS 工程已创建于 `app/`（API 24），并已实测通过无设备构建闭环（`check arkts` 零错误、`build` 成功）。当前**无已交付功能**（PRD §4 全部 FR 均为"计划"）。
+功能已完整可用，版本 `0.7.0`（见 `VERSION`）。已实现的包括：
 
-未做签名配置，因此构建产物为未签名 HAP，还不能安装到设备；签名与模拟器需要华为开发者账号（见 `docs/OPERATIONS.md` §1）。
+- 登录：统一身份认证（WebView 主路径，验证码由用户输入）、凭据加密存储、记住密码、生物识别快速登录；
+- 内容：通知（富文本 + 数学公式）、作业（含提交）、课件文件（下载管理、应用内预览）、课程与课表；
+- 增强：全局搜索、筛选排序、作业截止提醒与课程表写入系统日历、启动后台预载、分享导出、更新日志；
+- 体验：主题与多语言、骨架屏与过渡动效、无障碍（可读名称、触摸目标、大字号）。
 
-版本：`0.7.0`（见 `VERSION`）。
+仓库同时包含完整的 SDD 治理文档（PRD / 架构 / ADR / 功能规格），源码在 `app/`（ArkTS / ArkUI，API 24）。
+
+**安装**：仓库不提供签名后的安装包。自行构建需 DevEco Studio 与华为开发者账号（调试签名会自动登记本机设备），步骤见 [docs/OPERATIONS.md](docs/OPERATIONS.md) §1 与 §9。
 
 ## 这是什么
 
@@ -19,13 +24,12 @@
 ## 系统由哪些部分组成
 
 ```
-D:/Documents/LearnX-Harmony/   仓库根：SDD 治理 + 文档
+仓库根：SDD 治理 + 文档
 ├── docs/                      PRD（要什么）/ ARCHITECTURE（怎么建）/ API / ADR（为什么这么定）/ specs
 ├── .claude/rules/             防漂移规则（迭代时强制遵守）
 ├── app/                       HarmonyOS 工程（ArkTS / ArkUI，包名 io.github.hanyunol.learnx）
-│   └── entry/src/main/ets/     entryability · entrybackupability · pages
-│                               （待按 ARCHITECTURE §2 补：components · viewmodel · repository
-│                                 · network · storage · native · model · i18n · common）
+│   └── entry/src/main/ets/     pages · components · viewmodel · repository · network
+│                               · storage · native · model · i18n · common
 └── VERSION / CHANGELOG.md / SECURITY.md / LICENSE
 ```
 
@@ -71,5 +75,9 @@ D:/Documents/LearnX-Harmony/   仓库根：SDD 治理 + 文档
 
 - [robertying/learnX](https://github.com/robertying/learnX)（MIT，© Rui Ying）——功能参照源
 - [Harry-Chen/thu-learn-lib](https://github.com/Harry-Chen/thu-learn-lib)——网络学堂接口语义参照
+
+随包分发的第三方组件：
+
+- [KaTeX](https://katex.org/)（MIT，© Khan Academy 及贡献者）——通知与文件描述中的数学公式渲染
 
 本项目**不复制上游代码**，为独立实现。**非清华大学官方应用**，与校方无隶属关系。
